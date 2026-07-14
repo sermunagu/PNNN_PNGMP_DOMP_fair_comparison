@@ -1,0 +1,25 @@
+# MATLAB and generated training state
+*.asv
+*.m~
+*.autosave
+slprj/
+codegen/
+
+# LaTeX intermediates
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local Codex handoff/staging
+.codex_handoff/
+.codex/

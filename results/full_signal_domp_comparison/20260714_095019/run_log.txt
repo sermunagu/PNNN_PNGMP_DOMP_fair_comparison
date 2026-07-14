@@ -1,0 +1,54 @@
+
+=== Full-signal PNNN versus PN-GMP DOMP comparison ===
+Result directory: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\full_signal_domp_comparison\20260714_095019
+Mapping: xy_forward (local modeled-block X/Y convention)
+Internal train=16711 | internal validation=2950 | identification=19661 | full signal=491520
+Identification is contained in full signal: YES
+
+Fitting six linear DOMP models under the corrected protocol...
+Pruning scope : global
+Pruning target mode: activeTrainableParams
+Target active trainable params: 358
+Pruning target: 66.67 % effective prunable sparsity
+Pruning actual: 66.67 % (688/1032 prunable parameters)
+Active trainable params: 358/1046 (weights=344, biases=14, protected=14)
+PNNN hyperparameter selection reused: FALSE
+Selected epochs H4/N12/fine-tune: 3083 / 3150 / 392
+
+Final H4 refit on all 19661 identification rows...
+Final N12 dense refit on all identification rows...
+Final N12 pruning and fixed-epoch identification fine-tuning...
+Pruning scope : global
+Pruning target mode: activeTrainableParams
+Target active trainable params: 358
+Pruning target: 66.67 % effective prunable sparsity
+Pruning actual: 66.67 % (688/1032 prunable parameters)
+Active trainable params: 358/1046 (weights=344, biases=14, protected=14)
+ 
+=== Corrected full-signal main comparison ===
+                   Model                    NumRealParameters    IdentificationNMSEdB    FullSignalNMSEdB    FLOPsPerSample                                            AdditionalOperationsPerSample                                         
+    ____________________________________    _________________    ____________________    ________________    ______________    ______________________________________________________________________________________________________________
+
+    "Independent PN-IQ full"                       358                 -39.724               -38.534              1062         "12 magnitude, 12 sqrt, 2 division, phase normalization/restoration arithmetic in FLOPs"                      
+    "Complex GMP DOMP parameter-matched"           366                  -39.39               -38.176              1944         "15 magnitude, 15 sqrt"                                                                                       
+    "PNNN N12 sparse"                              358                 -36.574                 -35.9               876         "14 magnitude, 14 sqrt, 2 division, 12 ELU, up to 12 exp, phase normalization/restoration arithmetic in FLOPs"
+
+ 
+=== All corrected-protocol models ===
+                   Model                    NumRealParameters    IdentificationNMSEdB    FullSignalNMSEdB    FLOPsPerSample
+    ____________________________________    _________________    ____________________    ________________    ______________
+
+    "Complex GMP DOMP-100"                         200                  -39.04               -37.978              1098     
+    "Coupled PN-IQ (shared DOMP-100)"              200                  -39.04               -37.978              1062     
+    "Independent PN-IQ full"                       358                 -39.724               -38.534              1062     
+    "Complex GMP DOMP parameter-matched"           366                  -39.39               -38.176              1944     
+    "Independent I/Q without PN"                   394                 -39.258                -37.81              1086     
+    "Independent PN-IQ reduced DOMP"               200                 -39.025               -38.058               746     
+    "PNNN H4 dense"                                350                 -34.281               -33.633               876     
+    "PNNN N12 dense"                              1046                 -37.485               -36.631              2252     
+    "PNNN N12 sparse"                              358                 -36.574                 -35.9               876     
+
+Complex/coupled full-signal relative error: 1.320624e-11
+All final model fits used 19661 identification rows.
+Full-signal evaluation used 491520 rows and includes the identification rows.
+Results: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\full_signal_domp_comparison\20260714_095019

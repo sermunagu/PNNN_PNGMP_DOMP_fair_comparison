@@ -1,0 +1,51 @@
+
+=== Fair PNNN versus frozen PN-GMP/DOMP comparison ===
+Validated linear source: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\fair_domp_comparison\20260714_000828
+Result directory: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\fair_domp_comparison\20260714_013938
+Linear models recomputed: NO
+Mapping: xy_forward (local modeled-block X/Y convention)
+TRAIN=16711 | VAL=2950 | FIT_POOL=19661 | TEST=471859
+FIT_POOL/TEST intersection: 0
+Dynamic target from Independent PN-IQ: 358 active real parameters
+PNNN H4: 4*(84+3)+2 = 350 parameters
+PNNN N12: 12*(84+3)+2 = 1046 parameters
+Update-scaled dense training: 16 iterations/epoch, 3150 epochs, <=50400 updates
+Update-scaled fine-tuning: 17 iterations/epoch, 396 epochs, 6732 updates
+
+Training PNNN H4 dense from scratch...
+Training PNNN N12 dense from scratch...
+Pruning and fine-tuning PNNN N12 to 358 active parameters...
+Pruning scope : global
+Pruning target mode: activeTrainableParams
+Target active trainable params: 358
+Pruning target: 66.67 % effective prunable sparsity
+Pruning actual: 66.67 % (688/1032 prunable parameters)
+Active trainable params: 358/1046 (weights=344, biases=14, protected=14)
+ 
+=== Main parameter-matched comparison ===
+                   Model                    TargetActiveParams    ActualActiveParams    ActiveWeights    ActiveBiases    ParameterDifference    WeightSparsityPercent    TestNMSEdB    DenseExecutionCoreFLOPsPerSample    IdealSparseCoreFLOPsPerSample
+    ____________________________________    __________________    __________________    _____________    ____________    ___________________    _____________________    __________    ________________________________    _____________________________
+
+    "Independent PN-IQ full"                       358                   358                 358               0                  0                       NaN             -38.492                    1062                              1062             
+    "Complex GMP DOMP parameter-matched"           358                   352                 352               0                 -6                       NaN             -38.126                    1868                              1868             
+    "PNNN N12 sparse"                              358                   358                 344              14                  0                    66.667             -35.457                    2252                               876             
+
+ 
+=== All models ===
+                   Model                    NumRealParameters    TrainNMSEdB    ValidationNMSEdB    TestNMSEdB    DenseExecutionCoreFLOPsPerSample    IdealSparseCoreFLOPsPerSample    NumSpecialOpsPerSample
+    ____________________________________    _________________    ___________    ________________    __________    ________________________________    _____________________________    ______________________
+
+    "Complex GMP DOMP-100"                         200             -39.124          -38.247           -37.94                    1098                              1098                           24          
+    "Coupled PN-IQ (shared DOMP-100)"              200             -39.124          -38.247           -37.94                    1062                              1062                           26          
+    "Independent PN-IQ full"                       358             -39.746          -38.663          -38.492                    1062                              1062                           26          
+    "Complex GMP DOMP parameter-matched"           352             -39.411          -38.513          -38.126                    1868                              1868                           28          
+    "Independent I/Q without PN"                   394             -39.383          -37.919          -37.761                    1086                              1086                           24          
+    "Independent PN-IQ reduced DOMP"               200             -39.027          -38.043          -38.023                     746                               746                           26          
+    "PNNN H4 dense"                                350             -34.251          -33.691          -33.459                     876                               876                           38          
+    "PNNN N12 dense"                              1046             -37.524          -36.622           -36.47                    2252                              2252                           54          
+    "PNNN N12 sparse"                              358             -36.293          -35.634          -35.457                    2252                               876                           54          
+
+Complex/coupled TEST relative error (frozen): 1.320170e-11
+PNNN N12 sparse active parameters: 358 target / 358 actual (weights=344, biases=14)
+Dense updates H4/N12: 50400 / 50400 | sparse fine-tune updates: 6732
+Results: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\fair_domp_comparison\20260714_013938

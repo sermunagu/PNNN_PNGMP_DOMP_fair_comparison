@@ -1,0 +1,10 @@
+Model,NumRealParameters,ParameterMatchedTarget,ParameterDifference,ActualActiveParams,ActiveWeights,ActiveBiases,WeightSparsityPercent,FinalFitSamples
+Complex GMP DOMP-100,200,NaN,NaN,200,200,0,0,19661
+Coupled PN-IQ (shared DOMP-100),200,NaN,NaN,200,200,0,0,19661
+Independent PN-IQ full,358,358,0,358,358,0,0,19661
+Complex GMP DOMP parameter-matched,366,358,8,366,366,0,0,19661
+Independent I/Q without PN,394,NaN,NaN,394,394,0,0,19661
+Independent PN-IQ reduced DOMP,200,200,0,200,200,0,0,19661
+PNNN H4 dense,350,358,-8,350,344,6,0,19661
+PNNN N12 dense,1046,358,688,1046,1032,14,0,19661
+PNNN N12 sparse,358,358,0,358,344,14,66.6666666666667,19661

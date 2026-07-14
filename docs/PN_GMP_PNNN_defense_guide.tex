@@ -1,0 +1,1027 @@
+\documentclass[10pt,a4paper]{article}
+
+% Defense-oriented technical guide for the validated PN-GMP/PNNN comparison.
+% Numerical tables and plots are read directly from the frozen result CSV files.
+% This document does not execute identification, training, pruning, or inference.
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-noquoting]{babel}
+\usepackage[a4paper,margin=1.65cm,headheight=14pt]{geometry}
+\usepackage[protrusion=true,expansion=false]{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,tabularx,longtable,array,multirow,makecell}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,shapes.geometric}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+
+\definecolor{navy}{HTML}{264653}
+\definecolor{teal}{HTML}{2A9D8F}
+\definecolor{gold}{HTML}{E9C46A}
+\definecolor{orange}{HTML}{F4A261}
+\definecolor{redsoft}{HTML}{E76F51}
+\definecolor{graybox}{HTML}{F1F3F5}
+\definecolor{bluebox}{HTML}{EAF4F4}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=navy,
+  urlcolor=teal,
+  citecolor=navy,
+  pdftitle={Guía de defensa: PN-GMP, DOMP y comparación justa con PNNN},
+  pdfauthor={Proyecto PNNN}
+}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{PN-GMP y PNNN: guía de defensa}
+\rhead{Resultados validados 20260714\_102201}
+\cfoot{\thepage}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3.5pt}
+\setlist{nosep,leftmargin=1.4em}
+\setlength{\emergencystretch}{2em}
+\raggedbottom
+
+\newcommand{\RunDir}{../results/full_signal_domp_comparison/20260714_102201}
+\pgfplotstableread[col sep=comma]{\RunDir/complexity_flops.csv}\ComplexityTable
+
+% Verified numerical projection of comparison_results.csv.  The source CSV is
+% RFC-quoted because one text column contains commas; pgfplotstable does not
+% parse those quoted commas reliably, so only the used numeric fields are kept
+% here.  The scientific result file remains unchanged.
+\newcommand{\Rdef}[3]{\expandafter\def\csname R@#1@#2\endcsname{#3}}
+\newcommand{\Rval}[3]{%
+  \edef\ResultValue{\csname R@#1@#2\endcsname}%
+  \pgfmathprintnumber[fixed,precision=#3]{\ResultValue}}
+\Rdef{0}{NumRealParameters}{200}
+\Rdef{0}{InternalTrainNMSEdB}{-39.0822317101167}
+\Rdef{0}{InternalValidationNMSEdB}{-38.3905172043167}
+\Rdef{0}{IdentificationNMSEdB}{-39.0398273701677}
+\Rdef{0}{FullSignalNMSEdB}{-37.9778360655445}
+\Rdef{1}{NumRealParameters}{200}
+\Rdef{1}{InternalTrainNMSEdB}{-39.0822317101175}
+\Rdef{1}{InternalValidationNMSEdB}{-38.3905172046381}
+\Rdef{1}{IdentificationNMSEdB}{-39.0398273701892}
+\Rdef{1}{FullSignalNMSEdB}{-37.9778360655442}
+\Rdef{1}{RelativePredictionErrorToComplex}{1.32062424670276e-11}
+\Rdef{2}{NumRealParameters}{358}
+\Rdef{2}{EffectiveFeatureCount}{179}
+\Rdef{2}{InternalTrainNMSEdB}{-39.7334782614176}
+\Rdef{2}{InternalValidationNMSEdB}{-38.9055344784472}
+\Rdef{2}{IdentificationNMSEdB}{-39.7239821395781}
+\Rdef{2}{FullSignalNMSEdB}{-38.5336473098535}
+\Rdef{3}{NumRealParameters}{358}
+\Rdef{3}{EffectiveFeatureCount}{179}
+\Rdef{3}{InternalTrainNMSEdB}{-39.4283004030278}
+\Rdef{3}{InternalValidationNMSEdB}{-38.5727743709773}
+\Rdef{3}{IdentificationNMSEdB}{-39.384614952974}
+\Rdef{3}{FullSignalNMSEdB}{-38.1702651011503}
+\Rdef{4}{NumRealParameters}{394}
+\Rdef{4}{EffectiveFeatureCount}{197}
+\Rdef{4}{InternalTrainNMSEdB}{-39.3621947321484}
+\Rdef{4}{InternalValidationNMSEdB}{-38.00618750765}
+\Rdef{4}{IdentificationNMSEdB}{-39.2580287899067}
+\Rdef{4}{FullSignalNMSEdB}{-37.8104589405615}
+\Rdef{5}{NumRealParameters}{200}
+\Rdef{5}{EffectiveFeatureCount}{100}
+\Rdef{5}{InternalTrainNMSEdB}{-39.0864733714523}
+\Rdef{5}{InternalValidationNMSEdB}{-38.2995281181917}
+\Rdef{5}{IdentificationNMSEdB}{-39.0251889044127}
+\Rdef{5}{FullSignalNMSEdB}{-38.0578594656762}
+\Rdef{6}{NumRealParameters}{350}
+\Rdef{6}{InternalTrainNMSEdB}{-34.2382052677646}
+\Rdef{6}{InternalValidationNMSEdB}{-33.5119879920964}
+\Rdef{6}{IdentificationNMSEdB}{-34.281119051028}
+\Rdef{6}{FullSignalNMSEdB}{-33.6332342790055}
+\Rdef{7}{NumRealParameters}{1046}
+\Rdef{7}{InternalTrainNMSEdB}{-37.5542109467709}
+\Rdef{7}{InternalValidationNMSEdB}{-36.6302846274961}
+\Rdef{7}{IdentificationNMSEdB}{-37.4845848646783}
+\Rdef{7}{FullSignalNMSEdB}{-36.6310229561146}
+\Rdef{8}{NumRealParameters}{358}
+\Rdef{8}{InternalTrainNMSEdB}{-36.2817322310163}
+\Rdef{8}{InternalValidationNMSEdB}{-35.5243894899996}
+\Rdef{8}{IdentificationNMSEdB}{-36.5743240001578}
+\Rdef{8}{FullSignalNMSEdB}{-35.8997812260251}
+\newcommand{\Cval}[3]{%
+  \pgfplotstablegetelem{#1}{#2}\of{\ComplexityTable}%
+  \pgfmathprintnumber[fixed,precision=#3]{\pgfplotsretval}}
+
+% Coordinates used in plots are extracted from the validated CSV at compile time.
+\xdef\PNParams{358}
+\xdef\PNFull{-38.5336473098535}
+\xdef\GMPMParams{358}
+\xdef\GMPMFull{-38.1702651011503}
+\xdef\SparseParams{358}
+\xdef\SparseFull{-35.8997812260251}
+\pgfplotstablegetelem{2}{FLOPsPerSample}\of{\ComplexityTable}\xdef\PNFlops{\pgfplotsretval}
+\pgfplotstablegetelem{3}{FLOPsPerSample}\of{\ComplexityTable}\xdef\GMPMFlops{\pgfplotsretval}
+\pgfplotstablegetelem{8}{FLOPsPerSample}\of{\ComplexityTable}\xdef\SparseFlops{\pgfplotsretval}
+\pgfplotstablegetelem{8}{DenseMatrixFLOPsPerSample}\of{\ComplexityTable}\xdef\SparseDenseMatrixFlops{\pgfplotsretval}
+
+\newenvironment{keybox}{%
+  \begin{center}\begin{minipage}{0.94\linewidth}\color{navy}%
+  \hrule\vspace{5pt}\color{black}}{%
+  \vspace{5pt}\color{navy}\hrule\color{black}\end{minipage}\end{center}}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  backgroundcolor=\color{graybox},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+
+\title{\textbf{PN-GMP, DOMP y comparación justa con PNNN}\\
+\large Manual técnico y guía para la defensa oral}
+\author{Proyecto PNNN}
+\date{Ejecución validada: \texttt{20260714\_102201}\\14 de julio de 2026}
+
+\begin{document}
+\maketitle
+\begin{center}
+\begin{minipage}{0.86\linewidth}
+Este documento explica el estudio final sin regenerar resultados. Las cifras se
+leen directamente de los CSV congelados de la ejecución indicada. La convención
+local se conserva: $X$ es la entrada y $Y$ la salida del bloque modelado;
+\texttt{xy\_forward} no se interpreta por sí solo como PA-forward.
+\end{minipage}
+\end{center}
+\vfill
+\begin{keybox}
+\textbf{Mensaje central.} La formulación PN-IQ acoplada es una representación
+real exactamente equivalente al GMP complejo. La mejora de NMSE aparece al
+relajar el acoplamiento I/Q en coordenadas normalizadas en fase. En esta captura,
+Independent PN-IQ alcanza el menor NMSE sobre la señal completa; una PNNN N12
+podada iguala exactamente sus 358 parámetros activos y necesita menos FLOPs si
+la implementación omite los pesos nulos. No existe un ganador universal sin
+fijar plataforma y criterio.
+\end{keybox}
+\vfill
+\tableofcontents
+\clearpage
+
+\section{Resumen ejecutivo}
+
+El objetivo experimental es comparar modelos de señal compleja con memoria en
+un protocolo común y con presupuestos de parámetros explícitos. El punto de
+partida es un Generalized Memory Polynomial (GMP): una población de regresores
+complejos combina muestras actuales y retardadas con términos de envolvente.
+DOMP selecciona un soporte disperso durante la identificación. Después, el
+modelo inferido solo evalúa las columnas seleccionadas y sus coeficientes; DOMP
+no forma parte de la inferencia.
+
+La normalización de fase usa
+\begin{equation}
+ r(n)=\frac{x^*(n)}{|x(n)|},\qquad r(n)=1\ \text{si}\ x(n)=0,
+ \label{eq:rotation}
+\end{equation}
+y rota con el mismo $r(n)$ toda la fila del GMP y el objetivo. La formulación
+\emph{coupled PN-IQ} transforma el sistema complejo en una matriz real por
+bloques, conservando exactamente dos parámetros reales por coeficiente complejo.
+El error relativo de predicción frente al GMP es
+$\Rval{1}{RelativePredictionErrorToComplex}{12}$: equivalencia numérica.
+
+La variante \emph{independent PN-IQ} conserva las features reales normalizadas,
+pero ajusta I y Q con coeficientes independientes. Ya no impone la estructura de
+una multiplicación compleja y, por tanto, es una clase más general. Los controles
+sin PN, con GMP parameter-matched y con PN-IQ reducido separan el efecto de las
+coordenadas, el acoplamiento y el número de parámetros.
+
+La captura tiene 491,520 muestras. La identificación contiene 19,661
+(aproximadamente 4\%) y está incluida en la evaluación sobre la señal completa.
+Dentro de identificación, 16,711 muestras de entrenamiento interno y 2,950 de
+validación interna sirven exclusivamente para seleccionar $\lambda$, épocas y
+duración del fine-tuning. Después, todos los soportes, coeficientes y redes
+finales se reajustan desde cero usando las 19,661 muestras. La señal completa no
+interviene en selección.
+
+Independent PN-IQ obtiene \Rval{2}{FullSignalNMSEdB}{3} dB con 358 parámetros;
+el GMP parameter-matched, \Rval{3}{FullSignalNMSEdB}{3} dB con 358; y PNNN N12
+sparse, \Rval{8}{FullSignalNMSEdB}{3} dB con 358. La primera mejora al GMP matched
+en 0.363 dB y a la PNNN sparse en 2.634 dB. La red sparse, a su vez, mejora
+2.267 dB a H4 dense, pero empeora 0.731 dB respecto a N12 dense. PN-IQ usa
+\Cval{2}{FLOPsPerSample}{0} FLOPs/muestra; N12 sparse usa
+\Cval{8}{FLOPsPerSample}{0} cuando se omiten pesos cero, o
+\Cval{8}{DenseMatrixFLOPsPerSample}{0} si se ejecutan las matrices completas,
+además de 12 ELU y otras operaciones adicionales. La evaluación completa
+incluye las muestras de identificación y no es un test independiente de
+generalización.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[node distance=7mm and 8mm,>=Latex,
+ box/.style={draw=navy,rounded corners,fill=bluebox,align=center,minimum height=8mm,minimum width=25mm,font=\small},
+ data/.style={draw=teal,rounded corners,fill=teal!10,align=center,minimum height=8mm,font=\small}]
+\node[data] (cap) {Captura $X/Y$\\DC eliminado};
+\node[box,right=of cap] (split) {Identificación 4\%\\selección interna};
+\node[box,right=of split] (features) {Features\\GMP y PN-IQ};
+\node[box,above right=5mm and 9mm of features] (linear) {DOMP + $\lambda$\\modelos lineales};
+\node[box,below right=5mm and 9mm of features] (nn) {PNNN dense\\y pruning N12};
+\node[box,right=32mm of features] (eval) {Señal completa\\NMSE, parámetros, FLOPs};
+\draw[->,thick] (cap)--(split);
+\draw[->,thick] (split)--(features);
+\draw[->,thick] (features)--(linear);
+\draw[->,thick] (features)--(nn);
+\draw[->,thick] (linear)--(eval);
+\draw[->,thick] (nn)--(eval);
+\end{tikzpicture}
+\caption{Flujo validado. La señal completa contiene la identificación y no selecciona hiperparámetros.}
+\label{fig:flow}
+\end{figure}
+
+\section{Contexto de DPD y GMP}
+
+La predistorsión digital busca compensar no linealidad y memoria antes de la
+cadena física, pero este repositorio formula cada identificación con la
+convención local entrada $X$/salida $Y$ del bloque concreto. Un PA con memoria no
+depende solo de $x(n)$: depende también de retardos y envolventes recientes. Un
+GMP representa esa dependencia mediante ramas alineadas y cruzadas. En forma
+matricial,
+\begin{equation}
+ \mathbf y=\mathbf U\mathbf h+\mathbf e,
+\end{equation}
+donde cada columna de $\mathbf U$ es un regresor complejo y cada elemento de
+$\mathbf h$ es su coeficiente complejo. Las ramas A/B/C combinan un carrier
+retardado con una potencia de envolvente actual, adelantada o retardada; los
+builders del proyecto conservan además los auxiliares definidos por la población.
+
+Seleccionar 100 regresores complejos significa mantener 100 columnas complejas,
+no 100 escalares reales. Si $h_j=\alpha_j+j\beta_j$, cada coeficiente aporta dos
+componentes reales. Por ello,
+\begin{equation}
+ 100\ \text{coeficientes complejos}=200\ \text{parámetros reales}.
+\end{equation}
+Esta contabilidad es la que hace posible una comparación parameter-matched con
+modelos reales y redes.
+
+\section{Phase normalization}
+
+Para cada fila evaluada se calcula \eqref{eq:rotation} y se aplica
+\begin{equation}
+ \mathbf U_{\mathrm{PN}}(n,:)=r(n)\mathbf U(n,:),\qquad
+ y_{\mathrm{PN}}(n)=r(n)y(n).
+ \label{eq:pnrow}
+\end{equation}
+El caso $x(n)=0$ usa $r(n)=1$ y evita división por cero. La implementación valida
+índices y finitud y devuelve una rotación columna.
+
+La misma rotación debe multiplicar \emph{toda la fila}. No se construye primero
+$z(k)=r(k)x(k)$ para introducirlo en un GMP convencional: un tap $x(n-m)$ quedaría
+rotado con $r(n-m)$, cuando el marco deseado es el de la muestra actual $r(n)$.
+Para un regresor
+\begin{equation}
+ u(n)=x(n-m)E(n),\qquad x(k)=|x(k)|e^{j\phi(k)},
+\end{equation}
+con $E(n)$ real, se obtiene
+\begin{equation}
+ r(n)u(n)=|x(n-m)|E(n)e^{j[\phi(n-m)-\phi(n)]}.
+ \label{eq:relativephase}
+\end{equation}
+Se elimina la fase absoluta del carrier de referencia, pero se conserva amplitud,
+memoria y fase relativa. Si $m=0$, la diferencia de fase es cero y la componente
+Q de esa feature es exactamente nula. Solo esas columnas Q estructuralmente
+nulas se eliminan en las variantes independientes; ello no convierte el
+coeficiente del GMP acoplado en real.
+
+La extensión temporal del constructor compartido usa índices periódicos para
+que todas las variantes observen el mismo dominio. Tras predecir en el marco PN,
+la salida principal se restaura como
+\begin{equation}
+ \widehat y(n)=r^*(n)\widehat y_{\mathrm{PN}}(n).
+\end{equation}
+PN no es necesario para escribir una matriz compleja en forma real. Su papel es
+elegir coordenadas relativas a la fase actual antes de relajar el modelo I/Q.
+
+\section{Formulación PN-IQ acoplada}
+
+Sea $u=u_I+ju_Q$ y $h=\alpha+j\beta$. Entonces
+\begin{equation}
+ uh=(u_I\alpha-u_Q\beta)+j(u_I\beta+u_Q\alpha).
+\end{equation}
+Las dos vistas equivalentes son
+\begin{equation}
+ \begin{bmatrix}y_I\\y_Q\end{bmatrix}
+ =\begin{bmatrix}u_I&-u_Q\\u_Q&u_I\end{bmatrix}
+ \begin{bmatrix}\alpha\\\beta\end{bmatrix},\qquad
+ \begin{bmatrix}y_I\\y_Q\end{bmatrix}
+ =\begin{bmatrix}\alpha&-\beta\\\beta&\alpha\end{bmatrix}
+ \begin{bmatrix}u_I\\u_Q\end{bmatrix}.
+ \label{eq:coupled1}
+\end{equation}
+Para múltiples regresores, con $\mathbf U_{\mathrm{PN}}=\mathbf U_I+j\mathbf U_Q$,
+\begin{equation}
+ \begin{bmatrix}\mathbf y_I\\\mathbf y_Q\end{bmatrix}
+ =\underbrace{\begin{bmatrix}\mathbf U_I&-\mathbf U_Q\\
+                 \mathbf U_Q& \mathbf U_I\end{bmatrix}}_{\mathbf U_R}
+  \begin{bmatrix}\boldsymbol\alpha\\\boldsymbol\beta\end{bmatrix}.
+ \label{eq:coupledmulti}
+\end{equation}
+Se llama \emph{acoplada} porque los cuatro bloques no son independientes: la
+misma $\alpha_j$ y $\beta_j$ gobiernan simultáneamente ambas salidas y aparecen
+con signos fijados. Hay dos grados de libertad por regresor, exactamente los de
+$h_j$. La rotación de fila es unitaria, de modo que el ajuste y la restauración
+producen el mismo GMP salvo redondeo. El resultado validado es
+$\Rval{1}{RelativePredictionErrorToComplex}{12}$ de error relativo sobre la
+señal completa y el NMSE coincide a la precisión mostrada.
+
+Una implementación \emph{structure-aware} puede evitar operar con las Q
+exactamente nulas y compartir envolventes y potencias. Es un ahorro de
+operaciones, no una licencia para eliminar $\beta_j$: una feature real aún admite
+coeficiente complejo y conserva dos parámetros. El valor de la formulación
+acoplada es servir como puente algebraico, prueba de equivalencia y base común
+para estudiar restricciones más flexibles.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Latex,font=\small,
+ block/.style={draw,rounded corners,minimum width=46mm,minimum height=20mm,align=center},
+ note/.style={align=center,text width=43mm}]
+\node[block,fill=bluebox] (c) {\textbf{Coupled PN-IQ}\\
+$\left[\begin{smallmatrix}U_I&-U_Q\\U_Q&U_I\end{smallmatrix}\right]$
+$\left[\begin{smallmatrix}\alpha\\\beta\end{smallmatrix}\right]$};
+\node[block,fill=gold!22,right=18mm of c] (i) {\textbf{Independent PN-IQ}\\
+$y_I=F a$\\$y_Q=F b$};
+\node[note,below=4mm of c] {2 grados/regresor\\equivalente al GMP};
+\node[note,below=4mm of i] {coeficientes de salida libres\\clase más general};
+\draw[->,thick] ($(c.east)+(0,3mm)$)--node[above]{relajar acoplamiento}($(i.west)+(0,3mm)$);
+\draw[->,thick] ($(i.west)+(0,-5mm)$)--node[below]{imponer estructura}($(c.east)+(0,-5mm)$);
+\end{tikzpicture}
+\caption{La diferencia esencial no es ``complejo frente a real'', sino la estructura impuesta entre I y Q.}
+\label{fig:coupled-independent}
+\end{figure}
+
+\section{Formulación PN-IQ independiente}
+
+Una transformación real general de una feature I/Q es
+\begin{equation}
+ \begin{bmatrix}y_I\\y_Q\end{bmatrix}
+ =\begin{bmatrix}a&b\\c&d\end{bmatrix}
+ \begin{bmatrix}u_I\\u_Q\end{bmatrix}.
+ \label{eq:independent2x2}
+\end{equation}
+Ya no se exige $d=a$ ni $c=-b$ (según convención de signos). En el caso
+multifeature se forma una matriz real $\mathbf F$ con las componentes I/Q
+retenidas y se ajustan dos salidas:
+\begin{equation}
+ \mathbf y_I=\mathbf F\mathbf a,\qquad
+ \mathbf y_Q=\mathbf F\mathbf b.
+\end{equation}
+Una feature genérica puede contribuir con cuatro grados de libertad a la pareja
+de salidas, frente a dos en una multiplicación compleja. Por eso el modelo puede
+reducir NMSE, pero también sobreparametrizar y dejar de ser un GMP equivalente.
+
+\begin{table}[ht]
+\centering\small
+\caption{Controles que separan coordenadas, acoplamiento y presupuesto.}
+\begin{tabularx}{\linewidth}{@{}lXcccc@{}}
+\toprule
+Modelo & Entrada y salida & PN & Acoplamiento & Parámetros & Interpretación\\
+\midrule
+Coupled PN-IQ & $U_{\rm PN}\to(y_I,y_Q)$ & sí & complejo & 200 & GMP exacto\\
+Independent PN-IQ full & $F_{\rm PN}\to y_I,y_Q$ & sí & libre & 358 & extensión principal\\
+Independent I/Q no PN & $[\Re U,\Im U]\to y_I,y_Q$ & no & libre & 394 & control de coordenadas\\
+Reduced independent PN-IQ & 100 features compartidas & sí & libre & 200 & control de presupuesto\\
+Complex GMP matched & columnas GMP complejas & no & complejo & 358 & control parameter-matched\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+En el soporte DOMP-100, las 200 columnas I/Q brutas pierden 21 columnas Q
+exactamente nulas; quedan 179 features y dos coeficientes de salida por feature:
+358 parámetros. El control sin PN conserva 197 features, es decir, 394
+parámetros. La versión reducida selecciona con DOMP 100 features reales
+compartidas y les asigna dos salidas: 200 parámetros. El GMP matched usa 179
+regresores complejos, 358 parámetros: coincide exactamente con el objetivo
+congelado del proceso de selección.
+
+\section{Por qué PN importa en el modelo independiente}
+
+Una multiplicación compleja es equivariante a rotaciones. En el acoplado,
+\begin{center}
+rotación $\rightarrow$ multiplicación compleja $\rightarrow$ rotación inversa
+$=$ mismo GMP.
+\end{center}
+Por eso PN no cambia su clase ni su NMSE. Una matriz real general como
+\eqref{eq:independent2x2} no conmuta necesariamente con todas las rotaciones. Al
+romper el acoplamiento,
+\begin{center}
+rotación $\rightarrow$ transformación I/Q general $\rightarrow$ rotación inversa
+$=$ modelo dependiente del marco PN.
+\end{center}
+El control Independent I/Q without PN tiene la misma libertad conceptual sin
+elegir ese marco. Su full-signal NMSE es \Rval{4}{FullSignalNMSEdB}{3} dB,
+frente a \Rval{2}{FullSignalNMSEdB}{3} dB con PN: en esta captura, PN aporta
+0.723 dB dentro de la familia independiente. Esto aísla un efecto de coordenadas, no prueba una
+ventaja universal.
+
+\section{DOMP}
+
+La población GMP es mayor que el soporte inferido. La selección dispersa busca
+columnas informativas sin evaluar todas en el modelo final. OMP selecciona por
+correlación y actualiza el residuo; DOMP añade una ortogonalización explícita de
+los candidatos respecto al subespacio ya elegido, reduciendo selecciones
+redundantes en diccionarios correlacionados. La versión final usa solo DOMP; OMP
+se excluyó para mantener una única regla validada y comparable.
+
+\begin{lstlisting}[caption={Pseudocódigo resumido de DOMP.}]
+Z <- normalize_columns(X); residual <- y; support <- []
+repeat until maxSupport or stopping criterion:
+    score <- FrobeniusNorm(Z' * residual, over outputs)
+    j <- largest eligible score
+    support <- support union {j}
+    q <- normalized orthogonal candidate Z(:,j)
+    Z <- Z - q * (q' * Z)              % candidate re-orthogonalization
+    coefficients <- min_norm_LS(X(:,support), y)
+    residual <- y - X(:,support) * coefficients
+end
+\end{lstlisting}
+
+\texttt{selectDOMPSupport.m} normaliza columnas, excluye normas por debajo de
+tolerancia, impide índices repetidos, acepta matrices y targets complejos o
+multisalida, puntúa con norma de Frobenius, y ajusta sobre las columnas
+\emph{originales}. Usa QR si hay rango completo y \texttt{lsqminnorm} en caso
+contrario. Guarda en \texttt{history} índice, correlación, norma del residuo,
+condición, tiempo y ortogonalidad. Las tolerancias de columna, correlación y
+residuo, junto con el máximo de soporte, definen la parada. Dada la misma matriz,
+target y configuración, el proceso es determinista.
+
+DOMP actúa solo dentro de identificación para elegir soporte (y en el flujo
+parameter-matched o reducido correspondiente). Tras la selección interna, el
+soporte final se regenera con las 19,661 muestras de identificación. El soporte
+DOMP-100 congelado se reutiliza en el coupled. No se suma su coste a
+FLOPs/muestra de inferencia. El algoritmo no se presenta como
+aportación propia; la referencia de proyecto es Becerra et al., ``A Doubly
+Orthogonal Matching Pursuit Algorithm for Sparse Predistortion of Power
+Amplifiers'' \cite{becerra_domp}. Los artefactos disponibles no fijan más datos
+bibliográficos, por lo que no se inventan año ni revista.
+
+\section{Diseño de la comparación justa}
+
+La medida configurada es \texttt{experiment20260429T134032\_xy}, con 491,520
+muestras y eliminación de DC. El mapping guardado es \texttt{xy\_forward}, que
+solo identifica la convención local $X/Y$. El constructor aplica la misma
+extensión temporal periódica a los modelos con memoria.
+
+Con semilla 1004, el selector original elige aproximadamente el 4\% para
+identificación. Con semilla 42, un split estratificado por amplitud de $|Y|$
+(10 bins) divide ese dominio en entrenamiento y validación internos:
+\begin{equation*}
+|\mathcal I_{\rm train}|=16,711,\quad |\mathcal I_{\rm val}|=2,950,\quad
+|\mathcal I|=19,661,\quad |\mathcal F|=491,520.
+\end{equation*}
+Los dos subconjuntos internos no se intersectan y su unión es identificación.
+El dominio completo $\mathcal F$ contiene todos los índices de identificación.
+Por tanto, la evaluación sobre la señal completa no es un hold-out disjunto.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[font=\small]
+\def\W{13.5}
+\fill[navy!28] (0,0) rectangle (\W,0.65);
+\fill[teal!65] (0,0) rectangle (0.54,0.65);
+\draw (0,0) rectangle (\W,0.65);
+\node at (7.0,0.325) {Señal completa: 491,520 (incluye identificación)};
+\node[align=center] (poollabel) at (1.75,1.15) {Identificación: 19,661\\(4.00004\%)};
+\draw[->] (poollabel.south west)--(0.27,0.67);
+\node[anchor=east] at (0,-0.9) {Selección interna:};
+\fill[teal!55] (0.35,-1.25) rectangle (5.45,-0.65);
+\fill[gold!75] (5.45,-1.25) rectangle (6.35,-0.65);
+\draw (0.35,-1.25) rectangle (6.35,-0.65);
+\node[align=center] at (2.90,-0.95) {Entrenamiento: 16,711};
+\node[align=center,font=\scriptsize] at (5.90,-0.95) {Validación\\2,950};
+\end{tikzpicture}
+\caption{Identificación incluida en la señal completa. La barra inferior amplía su división interna de selección.}
+\label{fig:split}
+\end{figure}
+
+Para modelos lineales, el subconjunto interno de entrenamiento selecciona
+soporte y se compara en validación interna la rejilla
+\[
+\lambda\in\{0,10^{-6},10^{-5},10^{-4},10^{-3},10^{-2}\}.
+\]
+La ejecución validada elige $\lambda=0$ en todas las variantes. Congeladas las
+decisiones, DOMP vuelve a generar cada soporte final y los coeficientes se
+ajustan con identificación completa.
+
+Para PNNN, el split interno selecciona 3,083 épocas para H4, 3,150 para N12 y
+392 épocas de fine-tuning. Cada red final se reinicia con la misma semilla,
+calcula su normalización sobre identificación completa y ejecuta exactamente el
+número de épocas seleccionado sin early stopping. N12 sparse se poda y se
+afina también sobre identificación completa. La señal completa solo se predice
+cuando los modelos están congelados.
+
+La comparación anterior no era justa si mezclaba identificación al 4\%, split
+histórico 70/15/15, una red de unos 1200 parámetros y conjuntos de evaluación
+distintos. El protocolo actual comparte identificación, evaluación completa,
+función NMSE y cuenta parámetros reales activos. El objetivo sparse se calcula
+dinámicamente para igualar los 358 parámetros de Independent PN-IQ. Aun así,
+persisten diferencias de optimización: los modelos lineales resuelven ajustes
+convexos y la red sparse parte de una arquitectura densa sobredimensionada.
+
+El experimento disjunto anterior se conserva en
+\path{results/fair_domp_comparison/20260714_013938} como control exploratorio
+histórico, pero no es el resultado principal.
+
+\section{PNNN dense y sparse}
+
+La PNNN recibe $D=84$ features phase-normalized y produce dos salidas reales que
+se recombinan y se restauran a la fase original. Tiene una capa oculta ELU y una
+salida lineal de dos componentes. Para $H$ neuronas,
+\begin{equation}
+ P(H)=DH+H+2H+2=H(D+3)+2.
+\end{equation}
+Así, H4 contiene 350 parámetros y H12, 1046. Ambas usan seed 42. H4 dense sirve
+como control denso cercano a 358 parámetros; N12 dense mide la capacidad de la
+arquitectura ancha; N12 sparse empieza con esa capacidad y se poda hasta 358
+parámetros activos.
+
+La selección interna fija 3,083 épocas para H4 y 3,150 para N12. El ajuste final
+parte de cero y usa las 19,661 muestras en cada una de esas épocas. En N12
+sparse, el pruning global por magnitud elimina 688 de 1032 pesos (66.667\%),
+protege los 14 biases, conserva 344 pesos y totaliza 358 parámetros. Los pesos
+podados quedan congelados y el modelo se afina durante 392 épocas fijas usando
+identificación completa. Proteger biases evita que el presupuesto desactive
+offsets accidentalmente; podarlos tendría otra semántica y contabilidad.
+
+Una red ancha sparse puede conservar rutas útiles distribuidas que una red H4 no
+puede representar, aunque no hay garantía: depende de inicialización,
+optimización y patrón. N12 sparse logra \Rval{8}{FullSignalNMSEdB}{3} dB, mejora H4 en
+2.267 dB, pero N12 dense alcanza \Rval{7}{FullSignalNMSEdB}{3} dB y es 0.731 dB mejor
+que la podada.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Latex,node distance=12mm,font=\small,
+ box/.style={draw=navy,rounded corners,fill=bluebox,minimum width=35mm,minimum height=14mm,align=center}]
+\node[box] (dense) {N12 dense\\1046 parámetros\\señal completa \Rval{7}{FullSignalNMSEdB}{3} dB};
+\node[box,right=of dense] (prune) {pruning global\\$-688$ pesos\\biases protegidos};
+\node[box,right=of prune] (sparse) {N12 sparse\\358 activos\\señal completa \Rval{8}{FullSignalNMSEdB}{3} dB};
+\draw[->,thick] (dense)--node[above]{magnitud}(prune);
+\draw[->,thick] (prune)--node[above]{freeze + fine-tune}(sparse);
+\end{tikzpicture}
+\caption{La red sparse conserva la arquitectura H12, no se sustituye por una red estrecha.}
+\label{fig:pruning}
+\end{figure}
+
+\section{Métrica NMSE}
+
+Todos los modelos usan la misma definición temporal compleja:
+\begin{equation}
+ \mathrm{NMSE}_{\mathrm{dB}}=10\log_{10}
+ \frac{\sum_n|y(n)-\widehat y(n)|^2}{\sum_n|y(n)|^2}.
+ \label{eq:nmse}
+\end{equation}
+Más negativo significa menor energía de error relativa. Una ventaja de 0.3 dB
+es pequeña pero medible sobre el mismo dominio; 1 dB es más clara; 3 dB equivale a
+aproximadamente dividir por dos la potencia de error. Estas interpretaciones no
+sustituyen repetición estadística. No se mezclan NMSE temporal y frecuencial ni
+dominios distintos. Full-signal NMSE incluye identificación y no cuantifica por
+sí solo generalización independiente.
+
+\section{Parámetros y comparación parameter-matched}
+
+\begin{table}[ht]
+\centering\small
+\caption{Presupuesto real y soporte de la ejecución validada.}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Modelo & Coef. complejos & Features efectivas & Parámetros reales & Dif. objetivo\\
+\midrule
+Complex GMP DOMP-100 & 100 & 100 & \Rval{0}{NumRealParameters}{0} & --\\
+Coupled PN-IQ & 100 & 200 bloques I/Q & \Rval{1}{NumRealParameters}{0} & --\\
+Independent PN-IQ full & -- & \Rval{2}{EffectiveFeatureCount}{0} & \Rval{2}{NumRealParameters}{0} & 0\\
+Complex GMP matched & 179 & \Rval{3}{EffectiveFeatureCount}{0} & \Rval{3}{NumRealParameters}{0} & 0\\
+Independent I/Q no PN & -- & \Rval{4}{EffectiveFeatureCount}{0} & \Rval{4}{NumRealParameters}{0} & $+36$\\
+Reduced independent PN-IQ & -- & \Rval{5}{EffectiveFeatureCount}{0} & \Rval{5}{NumRealParameters}{0} & $-158$\\
+PNNN H4 dense & -- & -- & \Rval{6}{NumRealParameters}{0} & $-8$\\
+PNNN N12 dense & -- & -- & \Rval{7}{NumRealParameters}{0} & $+688$\\
+PNNN N12 sparse & -- & -- & \Rval{8}{NumRealParameters}{0} & 0\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El objetivo de 358 proviene de las 179 features PN efectivas por dos salidas. El
+GMP parameter-matched selecciona exactamente 179 coeficientes complejos, es
+decir, 358 parámetros reales. En redes se cuentan pesos y biases activos; N12
+sparse tiene 344+14=358. Los tres modelos principales quedan, por tanto,
+exactamente igualados en este presupuesto.
+
+\section{FLOPs y complejidad}
+
+Se usa una única cifra principal: \textbf{FLOPs/muestra}, definida como el número
+de sumas y multiplicaciones requerido para producir una muestra compleja de
+salida a partir de sus muestras de entrada. El alcance es el mismo para todos los
+modelos: generación de las features utilizadas, productos por coeficientes o
+pesos, acumulaciones, biases, normalización de fase y restauración cuando
+corresponden.
+
+La convención asigna 1 FLOP a una suma/resta o multiplicación real, 2 a una suma
+compleja y 6 a una multiplicación compleja. Para
+\begin{equation*}
+(a+jb)(c+jd)=(ac-bd)+j(ad+bc)
+\end{equation*}
+hay cuatro multiplicaciones y dos sumas reales: 6 FLOPs. Se informan por separado
+módulos, raíces, divisiones, ELU y exponenciales porque no se ha acordado una
+conversión homogénea a FLOPs.
+
+\begin{table}[ht]
+\centering\small
+\caption{Comparación principal: mismo presupuesto de 358 parámetros reales.}
+\begin{tabularx}{\linewidth}{@{}XrrrX@{}}
+\toprule
+Modelo & Parámetros & Full-signal NMSE & FLOPs/muestra & Operaciones adicionales/muestra\\
+\midrule
+Independent PN-IQ & \Rval{2}{NumRealParameters}{0} & \Rval{2}{FullSignalNMSEdB}{3} dB & \Cval{2}{FLOPsPerSample}{0} & 12 módulos/raíces, 2 divisiones\\
+Complex GMP matched & \Rval{3}{NumRealParameters}{0} & \Rval{3}{FullSignalNMSEdB}{3} dB & \Cval{3}{FLOPsPerSample}{0} & 14 módulos/raíces\\
+PNNN N12 sparse & \Rval{8}{NumRealParameters}{0} & \Rval{8}{FullSignalNMSEdB}{3} dB & \Cval{8}{FLOPsPerSample}{0} & 14 módulos/raíces, 2 divisiones, 12 ELU (hasta 12 exp)\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El GMP usa operaciones complejas y envolventes compartibles. PN-IQ cuenta la
+generación de features, productos por coeficiente, acumulaciones, normalización
+y restauración. Coupled e independent full coinciden en 1062 FLOPs aunque tengan
+200 y 358 parámetros: el acoplado necesita la aritmética cruzada equivalente a
+productos complejos, mientras el independiente explota componentes Q nulas y
+ajusta dos salidas. Parámetros y operaciones no son la misma magnitud.
+
+La cifra principal de N12 sparse, 876 FLOPs/muestra, supone que la implementación
+omite multiplicaciones por sus pesos exactamente nulos. Ejecutar las matrices
+originales completas requiere 2252 FLOPs/muestra. Las redes añaden ELU: H4 tiene
+4 y N12, 12 por muestra. Ninguna de estas cifras demuestra automáticamente
+tiempo MATLAB, coste FPGA, latencia o energía.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+ width=.78\linewidth,height=5.1cm,
+ xlabel={FLOPs/muestra},ylabel={Full-signal NMSE (dB)},
+ grid=both,
+ tick label style={font=\small},label style={font=\small},
+ xmin=750,xmax=2050,ymin=-39,ymax=-35.3]
+\addplot[only marks,mark=star,mark size=4pt,color=teal]
+ coordinates {(\PNFlops,\PNFull)};
+\addplot[only marks,mark=square*,mark size=3pt,color=orange]
+ coordinates {(\GMPMFlops,\GMPMFull)};
+\addplot[only marks,mark=diamond*,mark size=3pt,color=redsoft]
+ coordinates {(\SparseFlops,\SparseFull)};
+\node[anchor=south west,font=\scriptsize] at (axis cs:\PNFlops,\PNFull) {PN-IQ (358)};
+\node[anchor=north east,font=\scriptsize] at (axis cs:\GMPMFlops,\GMPMFull) {GMP matched (358)};
+\node[anchor=south west,font=\scriptsize] at (axis cs:\SparseFlops,\SparseFull) {N12 sparse (358)};
+\end{axis}
+\end{tikzpicture}
+\caption{Comparación principal. El conteo sparse supone que se omiten pesos nulos; las etiquetas indican parámetros reales.}
+\label{fig:nmse-flops}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+ ybar stacked,bar width=17pt,width=.72\linewidth,height=5cm,
+ symbolic x coords={Omite ceros,Matrices completas},xtick=data,
+ ylabel={FLOPs/muestra},ymajorgrids=true,
+ tick label style={font=\small},label style={font=\small}]
+\addplot[fill=teal!70] coordinates {(Omite ceros,876) (Matrices completas,2252)};
+\end{axis}
+\end{tikzpicture}
+\caption{N12 sparse: 876 FLOPs/muestra omitiendo pesos nulos frente a 2252 si se ejecutan las matrices completas. Las operaciones adicionales se informan aparte.}
+\label{fig:sparse-breakdown}
+\end{figure}
+
+\section{Resultados finales}
+
+\begin{table}[ht]
+\centering\scriptsize
+\caption{Resultados numéricos de \texttt{comparison\_results.csv}.}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Modelo & Entr. int. & Val. int. & Identificación & Señal completa & $\lambda$ & Soporte\\
+\midrule
+Complex GMP DOMP-100 & \Rval{0}{InternalTrainNMSEdB}{6} & \Rval{0}{InternalValidationNMSEdB}{6} & \Rval{0}{IdentificationNMSEdB}{6} & \Rval{0}{FullSignalNMSEdB}{6} & 0 & 100\\
+Coupled PN-IQ & \Rval{1}{InternalTrainNMSEdB}{6} & \Rval{1}{InternalValidationNMSEdB}{6} & \Rval{1}{IdentificationNMSEdB}{6} & \Rval{1}{FullSignalNMSEdB}{6} & 0 & 100\\
+Independent PN-IQ full & \Rval{2}{InternalTrainNMSEdB}{6} & \Rval{2}{InternalValidationNMSEdB}{6} & \Rval{2}{IdentificationNMSEdB}{6} & \Rval{2}{FullSignalNMSEdB}{6} & 0 & 100\\
+Complex GMP matched & \Rval{3}{InternalTrainNMSEdB}{6} & \Rval{3}{InternalValidationNMSEdB}{6} & \Rval{3}{IdentificationNMSEdB}{6} & \Rval{3}{FullSignalNMSEdB}{6} & 0 & 179\\
+Independent I/Q no PN & \Rval{4}{InternalTrainNMSEdB}{6} & \Rval{4}{InternalValidationNMSEdB}{6} & \Rval{4}{IdentificationNMSEdB}{6} & \Rval{4}{FullSignalNMSEdB}{6} & 0 & 100\\
+Reduced independent PN-IQ & \Rval{5}{InternalTrainNMSEdB}{6} & \Rval{5}{InternalValidationNMSEdB}{6} & \Rval{5}{IdentificationNMSEdB}{6} & \Rval{5}{FullSignalNMSEdB}{6} & 0 & 100\\
+PNNN H4 dense & \Rval{6}{InternalTrainNMSEdB}{6} & \Rval{6}{InternalValidationNMSEdB}{6} & \Rval{6}{IdentificationNMSEdB}{6} & \Rval{6}{FullSignalNMSEdB}{6} & -- & --\\
+PNNN N12 dense & \Rval{7}{InternalTrainNMSEdB}{6} & \Rval{7}{InternalValidationNMSEdB}{6} & \Rval{7}{IdentificationNMSEdB}{6} & \Rval{7}{FullSignalNMSEdB}{6} & -- & --\\
+PNNN N12 sparse & \Rval{8}{InternalTrainNMSEdB}{6} & \Rval{8}{InternalValidationNMSEdB}{6} & \Rval{8}{IdentificationNMSEdB}{6} & \Rval{8}{FullSignalNMSEdB}{6} & -- & --\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las diferencias sobre la señal completa, redondeadas a tres decimales, son:
+\begin{itemize}
+\item Independent PN-IQ mejora 0.363 dB al GMP parameter-matched.
+\item Independent PN-IQ mejora 2.634 dB a PNNN N12 sparse.
+\item PNNN N12 sparse mejora 2.267 dB a H4 dense.
+\item PNNN N12 dense mejora 0.731 dB a N12 sparse.
+\item Reduced PN-IQ (200 parámetros) mejora 0.080 dB al GMP DOMP-100.
+\end{itemize}
+En coste, N12 sparse requiere 876 FLOPs/muestra si se omiten pesos nulos y 2252
+si se ejecutan las matrices completas, mientras PN-IQ full usa 1062. La red
+sparse ahorra 186 FLOPs bajo la primera implementación, pero requiere 1190 más
+bajo la segunda y mantiene 12 ELU adicionales.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+ width=.78\linewidth,height=5.2cm,
+ xlabel={Parámetros reales activos},ylabel={Full-signal NMSE (dB)},
+ grid=both,xmin=150,xmax=1100,ymin=-39,ymax=-33,
+ tick label style={font=\small},label style={font=\small}]
+\addplot[only marks,mark=*,mark size=2pt,color=navy]
+ coordinates {(200,-37.9778360655445) (200,-37.9778360655442)
+ (358,-38.5336473098535) (358,-38.1702651011503)
+ (394,-37.8104589405615) (200,-38.0578594656762)
+ (350,-33.6332342790055) (1046,-36.6310229561146)
+ (358,-35.8997812260251)};
+\addplot[only marks,mark=star,mark size=4pt,color=teal] coordinates {(\PNParams,\PNFull)};
+\addplot[only marks,mark=square*,mark size=3pt,color=orange] coordinates {(\GMPMParams,\GMPMFull)};
+\addplot[only marks,mark=diamond*,mark size=3pt,color=redsoft] coordinates {(\SparseParams,\SparseFull)};
+\node[anchor=south west,font=\scriptsize] at (axis cs:\PNParams,\PNFull) {Independent PN-IQ};
+\node[anchor=north east,font=\scriptsize] at (axis cs:\GMPMParams,\GMPMFull) {GMP matched};
+\node[anchor=south west,font=\scriptsize] at (axis cs:\SparseParams,\SparseFull) {N12 sparse};
+\end{axis}
+\end{tikzpicture}
+\caption{NMSE sobre la señal completa frente a parámetros activos. Los puntos proceden del CSV congelado.}
+\label{fig:nmse-params}
+\end{figure}
+
+\section{Interpretación científica}
+
+\subsection*{Lo demostrado en esta ejecución}
+\begin{itemize}
+\item La representación coupled PN-IQ reproduce el GMP complejo con error relativo
+$\Rval{1}{RelativePredictionErrorToComplex}{12}$.
+\item Relajar el acoplamiento mejora el full-signal NMSE del coupled de
+\Rval{1}{FullSignalNMSEdB}{3} a \Rval{2}{FullSignalNMSEdB}{3} dB.
+\item Con 358 parámetros en ambos modelos, Independent PN-IQ supera 0.363 dB al GMP matched.
+\item El control sin PN queda 0.723 dB por detrás de Independent PN-IQ.
+\item N12 sparse supera a H4 dense con presupuesto parecido, y los FLOPs se han
+contado bajo una convención explícita.
+\end{itemize}
+
+\subsection*{Lo que sugieren, sin probar universalidad}
+Las coordenadas PN parecen útiles cuando se libera la transformación I/Q. El
+modelo lineal independiente puede aprovechar bien el régimen de pocos datos. La
+red ancha y podada puede conservar conexiones que H4 no representa. Son hipótesis
+consistentes con esta captura, no leyes generales.
+
+\subsection*{Lo que no se ha demostrado}
+No se demuestra superioridad universal, hardware, consumo, latencia, novedad
+absoluta, ni generalización a otros PAs, señales o capturas. Tampoco se ha hecho
+una campaña amplia de seeds neuronales. Los FLOPs son analíticos y no equivalen
+a tiempo. Como la señal completa contiene identificación, tampoco constituye un
+test independiente de generalización. No se presentan ACPR ni EVM demodulada
+porque no hay una evaluación validada dentro de este resultado.
+
+\section{Novedad y relación con trabajos previos}
+
+Phase normalization, separación I/Q, representación real de productos
+complejos, DOMP y redes phase-normalized no son ideas nuevas por separado. Hasta
+donde se ha podido comprobar, la aportación potencialmente novedosa es la
+combinación concreta: PN aplicado explícitamente a filas de una base GMP,
+derivación coupled exactamente equivalente, extensión independent, controles de
+coordenadas y presupuesto, comparación con una PNNN parameter-matched y análisis
+de FLOPs. En una publicación conviene usar ``aportación potencialmente novedosa''
+o \emph{to the best of our knowledge}, nunca ``first ever'' sin una revisión
+bibliográfica sistemática.
+
+\subsection{Decisiones de implementación y trazabilidad}
+
+\begin{longtable}{@{}p{.19\linewidth}p{.21\linewidth}p{.25\linewidth}p{.27\linewidth}@{}}
+\caption{Qué se hizo, motivo, alternativa y limitación.}\label{tab:decisions}\\
+\toprule
+Decisión & Implementación & Motivo/problema evitado & Alternativa y limitación\\
+\midrule
+\endfirsthead
+\toprule Decisión & Implementación & Motivo/problema evitado & Alternativa y limitación\\\midrule
+\endhead
+Rotación por fila & \makecell[l]{\texttt{computePhaseNorm}\\\texttt{GMPRotation}} & Un marco común $\phi(n)$ para todos los taps & Rotar cada tap cambia el modelo; PN conserva dependencia del marco\\
+$x(n)=0$ & $r=1$ & Evita división por cero & Otro valor unitario sería posible; convención fija\\
+Extensión temporal & Índices periódicos compartidos & Igual dominio para todos & Recorte perdería bordes y cambiaría muestras\\
+DC & Eliminación activada & Protocolo guardado común & Mantener DC sería otro experimento\\
+Features PN & \makecell[l]{\texttt{buildPhaseNormalized}\\\texttt{IQRegressors}} & Reutiliza población y misma rotación & Generar señal global rotada usaría fases erróneas\\
+Q nulas & \makecell[l]{\texttt{removeStructurally}\\\texttt{ZeroQFeatures}} & Elimina solo ceros exactos & Umbral aproximado introduciría reducción no controlada\\
+Soporte coupled & DOMP-100 complejo compartido & Prueba equivalencia en mismo soporte & Reseleccionar podría confundir soporte y formulación\\
+Parameter matched & DOMP complejo con 179 coeficientes & Iguala exactamente 358 parámetros reales & Igualar regresores ignoraría 2 parámetros/coeficiente\\
+$\lambda$ & Split interno, rejilla congelada & Señal completa no selecciona & CV más amplia cuesta identificación; aquí gana 0\\
+Escalado & Normas de columnas repetidas por pareja & Ridge equivalente y condición controlada & Escalas I/Q independientes rompen equivalencia\\
+Restauración & $\widehat y=r^*\widehat y_{PN}$ & Devuelve el marco original & Omitirla evaluaría otra señal\\
+PN reducido & \makecell[l]{\texttt{selectShared}\\\texttt{IQFeatures}} & 100 features comunes a dos salidas & Selección separada cambia presupuesto y soporte\\
+Refit PNNN & Reinicio y épocas fijas con identificación completa & Todos los modelos ajustan las mismas 19,661 muestras & Usar solo entrenamiento interno dejaría menos datos para la red\\
+Objetivo PNNN & 358 parámetros dinámicos & Igual a PN-IQ full & Un objetivo fijo puede quedar desparejado\\
+Pruning & Global, no estructurado, por magnitud & Preserva conexiones más útiles globalmente & Structured sparsity facilitaría hardware, no se ensayó\\
+Biases & Protegidos & Mantiene offsets y cuenta 14 & Podarlos cambia arquitectura efectiva\\
+Freeze + fine-tune & Máscara fija & Evita que reaparezcan pesos & Regrowth sería otro algoritmo\\
+FLOPs & Una cifra común y operaciones adicionales separadas & Mismo alcance de inferencia para todos & Medición temporal depende de plataforma\\
+Predicciones & Señal completa en artefacto final & Mismo dominio para todos los modelos & Contiene identificación; no sustituye hold-out ni multi-captura\\
+Asserts/tests & Invariantes de split, soporte y dimensiones & Detecta fugas y desajustes & No reemplaza verificación experimental externa\\
+\bottomrule
+\end{longtable}
+
+\begin{table}[H]
+\centering\small
+\caption{Trazabilidad científica.}
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+Concepto & Función/script principal & Resultado generado\\
+\midrule
+Phase normalization & \texttt{computePhaseNormGMPRotation.m}, \texttt{buildPhaseNormalizedIQRegressors.m} & Regresores PN y predicción restaurada\\
+DOMP & \texttt{selectDOMPSupport.m}, \texttt{runPNGMPDOMPStudy.m} & \texttt{domp\_supports.mat}, history CSV\\
+Coupled real & \texttt{complexToCoupledReal.m}, \texttt{fitPhaseNormGMPReal.m} & GMP/PN-IQ equivalente\\
+Independent PN-IQ & \texttt{fitIndependentIQGMP.m}, \texttt{predictIndependentIQGMP.m} & PN-IQ full y reducido\\
+Parameter matching & \texttt{runPNGMPDOMPStudy.m} & GMP matched congelado\\
+Sparse PNNN & \texttt{refitFairPNNNDense.m}, \texttt{refitFairPNNNSparse.m} & modelos finales ajustados con identificación completa\\
+NMSE & \texttt{nmseComplexDb.m} & columnas NMSE CSV\\
+FLOPs & \texttt{countModelFLOPs.m}, \texttt{countPNNNFLOPs.m}, \texttt{countSparsePNNNFLOPs.m} & \texttt{complexity\_flops.csv}\\
+Reporte & \texttt{run\_fair\_PNNN\_vs\_PNGMP\_DOMP.m} & CSV, MAT, PNG, PDF y predicciones full-signal\\
+Tests & \texttt{run\_domp\_unit\_test.m}, \texttt{run\_fair\_comparison\_smoke\_test.m} & asserts PASS/FAIL\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Limitaciones y trabajo futuro}
+
+\textbf{Limitaciones:} una captura principal; un número limitado de seeds de
+PNNN; régimen fijo de identificación al 4\%; FLOPs analíticos; sin síntesis
+hardware ni cuantización; sin ACPR/EVM demodulada validada; coste de entrenamiento
+no igualado; dependencia de arquitectura, hiperparámetros y población GMP. La
+red sparse se entrena sobredimensionada, mientras los lineales resuelven problemas
+convexos; igualar parámetros activos no iguala proceso de optimización.
+
+\textbf{Trabajo futuro:} varias capturas, señales y PAs; múltiples seeds;
+barridos de datos; punto fijo; kernels DSP/FPGA; sparsity estructurada; latencia y
+energía medidas; ACPR/EVM válidos; selección conjunta de soporte y acoplamiento;
+y estudio de generalización fuera de distribución.
+
+\section{Preguntas previsibles de los tutores}
+
+\begin{enumerate}[leftmargin=*,label=\textbf{\arabic*.}]
+\item \textbf{¿El PN-IQ acoplado es un modelo nuevo?} No como clase funcional:
+es una representación real exactamente equivalente al GMP sobre el mismo soporte.
+\item \textbf{¿Por qué da el mismo NMSE?} La rotación es unitaria, la matriz por
+bloques representa el mismo producto complejo y la fase se restaura.
+\item \textbf{¿Qué significa que los parámetros sean reales?} Son $\alpha$ y
+$\beta$, componentes reales de coeficientes complejos; no implica coeficientes
+GMP restringidos al eje real.
+\item \textbf{¿Por qué el independiente tiene más libertad?} Sustituye la matriz
+rotacional de dos grados por una transformación I/Q general de cuatro grados.
+\item \textbf{¿Dónde entra exactamente PN?} En $r(n)$, aplicado a toda fila de
+$U$ y a $y$, antes del ajuste, y deshecho con $r^*(n)$ tras predecir.
+\item \textbf{¿Podría separarse I/Q sin PN?} Sí; por eso existe el control
+Independent I/Q without PN.
+\item \textbf{¿Qué demuestra ese control?} En esta captura, elegir coordenadas PN
+mejora 0.723 dB al modelo independiente sin PN; no demuestra universalidad.
+\item \textbf{¿Por qué DOMP?} Para reducir una población correlacionada mediante
+selección y doble ortogonalización reproducibles.
+\item \textbf{¿Por qué no OMP?} El estudio final congeló DOMP como único selector
+para evitar mezclar algoritmos y porque sus tests quedaron validados.
+\item \textbf{¿DOMP entra en FLOPs de inferencia?} No. Solo identifica soporte;
+inferencia usa las columnas seleccionadas.
+\item \textbf{¿Por qué 100 coeficientes GMP son 200 parámetros?} Cada complejo
+$h=\alpha+j\beta$ contiene dos escalares reales libres.
+\item \textbf{¿Por qué un GMP parameter-matched?} Para comprobar si la mejora se
+explica solo por más parámetros frente al baseline de 200.
+\item \textbf{¿Por qué la PNNN empieza con 1046 y acaba con 358?} N12 se entrena
+ancha y el pruning conserva 344 pesos más 14 biases.
+\item \textbf{¿Es completamente justa la comparación?} Es mucho más controlada
+en identificación, dominio evaluado, métrica y parámetros activos; aún difieren
+optimización y capacidad inicial. La evaluación completa contiene identificación
+y no es un hold-out.
+\item \textbf{¿Por qué N12 sparse mejora a H4 dense?} Puede conservar un patrón
+distribuido dentro de una arquitectura ancha; aquí mejora 2.267 dB, sin garantía.
+\item \textbf{¿Por qué no aparece la PNNN histórica de 1200 parámetros?} No cumple
+el mismo presupuesto ni el mismo split; serviría como referencia, no comparación
+principal.
+\item \textbf{¿Cómo se cuentan los FLOPs de la red sparse?} La cifra principal
+omite pesos exactamente nulos; ejecutar las matrices completas eleva el coste de
+876 a 2252 FLOPs/muestra.
+\item \textbf{¿La red sparse será realmente más rápida?} No necesariamente: hace
+falta kernel sparse, y latencia depende de hardware, memoria y ELU.
+\item \textbf{¿Contribución defendible?} La derivación PN-GMP coupled, su extensión
+independent con controles justos, y la comparación de parámetros/FLOPs.
+\item \textbf{¿Qué no debemos afirmar?} ``Primero'', superioridad universal o
+hardware, menor energía/latencia, o robustez multi-PA no medida.
+\end{enumerate}
+
+\section{Guion oral de cinco minutos}
+
+\textbf{Problema (40 s).} ``Queremos modelar una señal compleja con memoria bajo
+pocos datos de identificación y comparar GMP y PNNN sin mezclar splits ni
+presupuestos. Usamos el mismo 4\% para ajustar todos los modelos y evaluamos
+todos sobre la misma señal completa, que incluye ese 4\%.''
+
+\textbf{Idea (55 s).} ``Rotamos cada fila del GMP con la fase conjugada de la
+muestra actual. La forma coupled convierte el producto complejo en una matriz
+real I/Q con dos parámetros por coeficiente y es exactamente equivalente. Después
+liberamos el acoplamiento: I y Q tienen coeficientes independientes en ese marco.''
+
+\textbf{Controles (50 s).} ``DOMP selecciona soporte solo en identificación. El
+GMP matched controla el número de parámetros; I/Q sin PN controla las coordenadas;
+PN-IQ reducido controla el presupuesto de 200. Coupled reutiliza exactamente el
+soporte GMP.''
+
+\textbf{PNNN (45 s).} ``Comparamos H4 dense, N12 dense y N12 sparse. La sparse
+parte de 1046 parámetros y, con pruning global, biases protegidos y fine-tuning,
+termina con 358 activos, igual que PN-IQ.''
+
+\textbf{Resultados (55 s).} ``Sobre la señal completa, Independent PN-IQ alcanza
+-38.534 dB; GMP matched, -38.170; N12 sparse, -35.900. PN aporta 0.723 dB frente
+al control sin PN. N12 sparse mejora 2.267 dB a H4, pero pierde 0.731 frente a
+N12 dense. Los tres modelos principales tienen 358 parámetros.''
+
+\textbf{Coste y cierre (55 s).} ``PN-IQ usa 1062 FLOPs/muestra. N12 sparse usa
+876 si se omiten pesos cero o 2252 si se ejecutan matrices completas, más 12
+ELU. Por tanto, PN-IQ gana NMSE en esta captura y la red gana el conteo
+aritmético bajo ejecución sparse. La evaluación completa incluye identificación;
+faltan hold-out multi-captura, múltiples seeds y validación hardware.''
+
+\textbf{Versión de 30 segundos.} ``Reformulamos un GMP en coordenadas
+phase-normalized. La variante coupled es algebraicamente el mismo GMP; al liberar
+I/Q obtenemos una clase más flexible. Con 358 parámetros, Independent PN-IQ logra
+-38.534 dB y PNNN N12 sparse -35.900 dB sobre la señal completa. PN-IQ cuesta
+1062 FLOPs; la red sparse, 876 si se omiten ceros y 2252 con matrices completas,
+más 12 ELU. Es un resultado de una captura cuya evaluación incluye
+identificación, no una victoria universal.''
+
+\section{Resumen de una página para estudiar}
+
+\begin{keybox}
+\textbf{Fórmulas.}
+$r=x^*/|x|$ ($r=1$ si $x=0$);
+$U_{PN}=rU$; $y_{PN}=ry$; $\widehat y=r^*\widehat y_{PN}$.
+$U_R=[U_I,-U_Q;U_Q,U_I]$.
+$\mathrm{NMSE}_{dB}=10\log_{10}(\|y-\widehat y\|^2/\|y\|^2)$.
+$P(H)=H(D+3)+2$, con $D=84$.
+\end{keybox}
+
+\begin{tabularx}{\linewidth}{@{}p{.22\linewidth}X@{}}
+\toprule
+Concepto & Mensaje memorizable\\
+\midrule
+Coupled & Dos parámetros por regresor; estructura rotacional; GMP exacto; error relativo $1.320\times10^{-11}$.\\
+Independent & Coeficientes I/Q libres; más general, no equivalente; puede mejorar y sobreajustar.\\
+Papel de PN & Marco de fase de la muestra actual; importa al romper acoplamiento; no rotar cada tap con su fase.\\
+DOMP & Selección en identificación, doble ortogonalización, no entra en inferencia.\\
+Protocolo & Identificación 19,661 (4.00004\%); selección interna 16,711/2,950; señal completa 491,520 e incluye identificación.\\
+Parámetros & GMP-100=200; PN-IQ=358; GMP matched=358; H4=350; N12 sparse=358 activos.\\
+Full-signal NMSE & PN-IQ $-38.534$; GMP matched $-38.170$; N12 sparse $-35.900$; H4 $-33.633$ dB.\\
+FLOPs/muestra & PN-IQ 1062; GMP matched 1899; H4 876; N12 sparse 876 omitiendo ceros/2252 con matrices completas.\\
+Special ops & PN-IQ 26; N12 sparse 54, incluidas 12 ELU/exp de peor caso.\\
+Sí puedo decir & Equivalencia coupled; mejora observada al liberar I/Q; controles parameter-matched y sin PN; coste analítico explícito.\\
+No debo decir & Primero absoluto; mejor hardware; menor energía/latencia; generaliza a cualquier PA; sparse ideal garantizado.\\
+\bottomrule
+\end{tabularx}
+
+\vspace{5mm}
+\textbf{Tres diferencias clave:}
+Independent PN-IQ supera 0.363 dB al GMP matched y 2.634 dB a N12 sparse;
+N12 sparse supera 2.267 dB a H4. Omitiendo pesos nulos, N12 requiere 186 FLOPs
+menos que PN-IQ, pero con matrices completas requiere 1190 más.
+
+\textbf{Respuesta final si preguntan ``¿quién gana?''}
+``En NMSE de esta captura gana Independent PN-IQ. En FLOPs/muestra gana la PNNN
+sparse si la implementación omite ceros; si ejecuta matrices completas, su coste
+sube a 2252. Sin plataforma ni métrica prioritaria no hay ganador absoluto.''
+
+{\small\raggedright
+\subsection*{Fuentes congeladas}
+Las tablas proceden de \path{comparison_results.csv},
+\path{parameter_summary.csv}, \path{complexity_flops.csv} y
+\path{selected_hyperparameters.csv}. La partición y configuración se verifican
+en \path{split_indices.mat} y \path{comparison_config.mat}; soportes en
+\path{domp_supports.mat}; predicciones finales en
+\path{full_signal_predictions.mat}. Todos pertenecen a
+\path{results/full_signal_domp_comparison/20260714_102201}.
+
+\medskip
+\textbf{Referencia DOMP.}
+\begingroup
+\renewcommand{\section}[2]{}
+\begin{thebibliography}{1}
+\bibitem{becerra_domp}
+J. A. Becerra et al.,
+\newblock ``A Doubly Orthogonal Matching Pursuit Algorithm for Sparse
+Predistortion of Power Amplifiers.''
+\newblock Referencia DOMP indicada en el proyecto; los artefactos locales no
+incluyen metadatos bibliográficos completos.
+\end{thebibliography}
+\endgroup
+}
+
+\end{document}

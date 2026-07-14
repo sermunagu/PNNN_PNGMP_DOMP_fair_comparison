@@ -1,0 +1,10 @@
+Model,SelectedLambda,DOMPSupportSize,ValidationNMSEdB,BestEpoch,IterationsPerEpoch,DenseTrainingUpdates,FineTuneUpdates,BestDenseEpoch,BestFineTuneEpoch
+Complex GMP DOMP-100,0,100,-38.247238068824,NaN,NaN,NaN,NaN,NaN,NaN
+Coupled PN-IQ (shared DOMP-100),0,100,-38.2472380686909,NaN,NaN,NaN,NaN,NaN,NaN
+Independent PN-IQ full,0,100,-38.6625718954834,NaN,NaN,NaN,NaN,NaN,NaN
+Complex GMP DOMP parameter-matched,0,176,-38.5127124482098,NaN,NaN,NaN,NaN,NaN,NaN
+Independent I/Q without PN,0,100,-37.9191653023589,NaN,NaN,NaN,NaN,NaN,NaN
+Independent PN-IQ reduced DOMP,0,100,-38.0430384394447,NaN,NaN,NaN,NaN,NaN,NaN
+PNNN H4 dense,NaN,NaN,-33.6905894933026,3085,16,50400,0,3085,NaN
+PNNN N12 dense,NaN,NaN,-36.6220548851864,3098,16,50400,0,3098,NaN
+PNNN N12 sparse,NaN,NaN,-35.6343761501498,387,16,50400,6732,3098,387

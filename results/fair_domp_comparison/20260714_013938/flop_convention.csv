@@ -1,0 +1,8 @@
+Operation,FLOPs,Definition,IncludedInCoreFLOPs
+real addition or subtraction,1,one real arithmetic addition,1
+real multiplication,1,one real arithmetic multiplication,1
+real MAC,2,one real multiplication plus one accumulation,1
+complex addition or subtraction,2,two real additions,1
+complex multiplication,6,four real multiplications plus two real additions,1
+complex MAC,8,one complex multiplication plus one complex addition,1
+real bias addition,1,one real addition,1
