@@ -46,7 +46,8 @@ baselineResults = readtable(fullfile(baselineDirectory, ...
     'comparison_results.csv'), 'TextType', 'string');
 candidateResults = readtable(fullfile(candidateDirectory, ...
     'comparison_results.csv'), 'TextType', 'string');
-compareTables(baselineResults, candidateResults, ...
+candidateHistoricalResults = historicalRows(candidateResults);
+compareTables(baselineResults, candidateHistoricalResults, ...
     ["TrainingTimeSeconds", "AdditionalOperationsPerSample"], ...
     numericTolerance);
 
@@ -57,6 +58,9 @@ for filename = exactTables
         'TextType', 'string');
     candidateTable = readtable(fullfile(candidateDirectory, filename), ...
         'TextType', 'string');
+    if ismember('RegularizationMode', candidateTable.Properties.VariableNames)
+        candidateTable = historicalRows(candidateTable);
+    end
     compareTables(baselineTable, candidateTable, ...
         strings(0, 1), numericTolerance);
 end
@@ -99,12 +103,19 @@ summary = table('Size', [numel(modelFields), 5], ...
 
 for modelIndex = 1:numel(modelFields)
     fieldName = modelFields(modelIndex);
+    candidateIdentification = ...
+        candidatePredictions.identification_predictions.(fieldName);
+    candidateFull = candidatePredictions.full_signal_predictions.(fieldName);
+    if isstruct(candidateIdentification)
+        candidateIdentification = candidateIdentification.selectedRidge;
+        candidateFull = candidateFull.selectedRidge;
+    end
     [identificationRelative, identificationMaximum] = predictionError( ...
         baselinePredictions.identification_predictions.(fieldName), ...
-        candidatePredictions.identification_predictions.(fieldName));
+        candidateIdentification);
     [fullRelative, fullMaximum] = predictionError( ...
         baselinePredictions.full_signal_predictions.(fieldName), ...
-        candidatePredictions.full_signal_predictions.(fieldName));
+        candidateFull);
 
     summary(modelIndex, :) = {fieldName, identificationRelative, fullRelative, ...
         identificationMaximum, fullMaximum};
@@ -119,6 +130,13 @@ fprintf('\nRefactor-to-baseline comparison: PASS\n');
 fprintf('Baseline:  %s\n', baselineDirectory);
 fprintf('Candidate: %s\n\n', candidateDirectory);
 disp(summary);
+
+function historical = historicalRows(results)
+linearRow = results.RegularizationMode == "Validation-selected Ridge";
+pnnnRow = results.RegularizationMode == "Not applicable";
+historical = removevars(results(linearRow | pnnnRow, :), ...
+    'RegularizationMode');
+end
 
 function compareTables(baseline, candidate, ignoredVariables, tolerance)
 assert(isequal(baseline.Properties.VariableNames, ...

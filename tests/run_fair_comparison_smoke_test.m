@@ -371,21 +371,71 @@ study_cfg.gmp = smoke_cfg;
 study_cfg.gmp.maxPopulation = 6;
 study_cfg.gmp.dompOptions.residualTolerance = 0;
 study_cfg.gmp.dompOptions.correlationTolerance = 0;
-study_cfg.lambdaGrid = [0, 1e-4];
+study_cfg.lambdaGrid = [0, 1e-5, 1e-4];
 study_cfg.reducedRealParameterTarget = 10;
 y_study = y + 1e-3*(randn(n_samples, 1) + 1j*randn(n_samples, 1));
 linear_study = runPNGMPDOMPStudy(x, y_study, split, study_cfg);
-assert(height(linear_study.comparisonResults) == 6);
+assert(height(linear_study.comparisonResults) == 18);
 assert(all(isfinite(linear_study.comparisonResults.IdentificationNMSEdB)));
 assert(all(isfinite(linear_study.comparisonResults.FullSignalNMSEdB)));
 assert(all(linear_study.comparisonResults.FLOPsPerSample > 0));
 assert(numel(linear_study.supports.supportDOMP) == 6);
-assert(numel(linear_study.fullSignalPredictions.complexGMP) == n_samples);
+regularization_modes = ["LS"; "Fixed Ridge"; ...
+    "Validation-selected Ridge"];
+assert(isequal(unique(linear_study.comparisonResults.RegularizationMode, ...
+    'stable'), regularization_modes));
+assert(all(linear_study.comparisonResults.SelectedLambda( ...
+    linear_study.comparisonResults.RegularizationMode == "LS") == 0));
+assert(all(linear_study.comparisonResults.SelectedLambda( ...
+    linear_study.comparisonResults.RegularizationMode == ...
+    "Fixed Ridge") == 1e-5));
+selected_rows = linear_study.comparisonResults.RegularizationMode == ...
+    "Validation-selected Ridge";
+assert(all(ismember(linear_study.comparisonResults.SelectedLambda( ...
+    selected_rows), study_cfg.lambdaGrid)));
+
+linear_models = unique(linear_study.comparisonResults.Model, 'stable');
+for model_index = 1:numel(linear_models)
+    model_rows = linear_study.comparisonResults.Model == ...
+        linear_models(model_index);
+    assert(nnz(model_rows) == 3);
+    assert(isscalar(unique(linear_study.comparisonResults. ...
+        DOMPSupportSize(model_rows))));
+    assert(isscalar(unique(linear_study.comparisonResults. ...
+        NumRealParameters(model_rows))));
+    assert(isscalar(unique(linear_study.comparisonResults. ...
+        FLOPsPerSample(model_rows))));
+end
+
+prediction_models = {'complexGMP','coupledPNIQ','independentPNIQ', ...
+    'complexParameterMatched','independentNoPN', ...
+    'independentPNIQReduced'};
+prediction_variants = {'ls','fixedRidge','selectedRidge'};
+for model_index = 1:numel(prediction_models)
+    for variant_index = 1:numel(prediction_variants)
+        identification_prediction = linear_study.identificationPredictions. ...
+            (prediction_models{model_index}). ...
+            (prediction_variants{variant_index});
+        full_prediction = linear_study.fullSignalPredictions. ...
+            (prediction_models{model_index}). ...
+            (prediction_variants{variant_index});
+        assert(all(isfinite(identification_prediction)));
+        assert(all(isfinite(full_prediction)));
+        assert(numel(full_prediction) == n_samples);
+    end
+end
+assert(isequal(linear_study.equivalenceByRegularization. ...
+    RegularizationMode, regularization_modes));
+assert(all(linear_study.equivalenceByRegularization. ...
+    IdentificationRelativeError < 1e-9));
+assert(all(linear_study.equivalenceByRegularization. ...
+    FullSignalRelativeError < 1e-9));
 assert(linear_study.equivalenceRelativeError < 1e-9);
 independent_row = linear_study.comparisonResults.Model == ...
-    "Independent PN-IQ full";
+    "Independent PN-IQ full" & selected_rows;
 matched_row = linear_study.comparisonResults.Model == ...
-    "Complex GMP DOMP parameter-matched";
+    "Complex GMP DOMP parameter-matched" & selected_rows;
+assert(nnz(independent_row) == 1 && nnz(matched_row) == 1);
 assert(linear_study.comparisonResults.NumRealParameters(matched_row) == ...
     linear_study.comparisonResults.NumRealParameters(independent_row));
 
