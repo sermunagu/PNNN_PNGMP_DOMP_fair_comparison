@@ -1,6 +1,11 @@
 function study = runPNNNComparisonStudy(x, y, split, cfg, targetActiveParams)
 % runPNNNComparisonStudy - Select, refit and evaluate the three PNNN models.
 
+if ~isfield(cfg, 'experimentSignature')
+    error('runPNNNComparisonStudy:MissingExperimentSignature', ...
+        'A measurement/configuration signature is required for safe reuse.');
+end
+
 %% Build phase-normalized neural features
 % Construct one shared feature matrix for selection, refit and evaluation.
 [features, targets, rotation] = buildPhaseNormDataset( ...
@@ -92,12 +97,15 @@ for source = reusableSources(cfg).'
     hyperFile = fullfile(source, 'selected_hyperparameters.csv');
     resultFile = fullfile(source, 'comparison_results.csv');
     splitFile = fullfile(source, 'split_indices.mat');
-    if ~(isfile(hyperFile) && isfile(resultFile) && isfile(splitFile))
+    configFile = fullfile(source, 'comparison_config.mat');
+    if ~(isfile(hyperFile) && isfile(resultFile) && isfile(splitFile) && ...
+            isfile(configFile))
         continue;
     end
     saved = load(splitFile);
-    % TODO: Also match measurement identity/configuration before new captures.
-    if sameSelectionRows(saved, split)
+    savedConfig = load(configFile, 'experiment_signature');
+    if isReusablePNNNSelection( ...
+            saved, savedConfig, split, cfg.experimentSignature)
         hyper = readtable(hyperFile, TextType='string');
         previous = readtable(resultFile, TextType='string');
         selection = struct('reused', true, 'source', string(source));
@@ -139,18 +147,6 @@ if isfolder(cfg.resultsRoot)
 end
 sources(end+1, 1) = string(cfg.historicalDisjointResultDirectory);
 sources = unique(sources, 'stable');
-end
-
-function matches = sameSelectionRows(saved, split)
-required = {'internal_train_indices','internal_validation_indices', ...
-    'identification_indices'};
-matches = all(isfield(saved, required)) && ...
-    isequal(saved.internal_train_indices(:), ...
-    split.internalTrainIndices(:)) && ...
-    isequal(saved.internal_validation_indices(:), ...
-    split.internalValidationIndices(:)) && ...
-    isequal(saved.identification_indices(:), ...
-    split.identificationIndices(:));
 end
 
 function summary = savedSelection(hyper, previous, model)
