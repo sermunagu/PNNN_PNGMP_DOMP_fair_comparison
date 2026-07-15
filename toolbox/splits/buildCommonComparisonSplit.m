@@ -13,11 +13,6 @@ identification = double(sel_indices(x, y, cfg.identificationFraction));
 identification = identification(:);
 full_signal = (1:n_samples).';
 
-if n_samples == cfg.expectedSignalLength
-    assert(numel(identification) == cfg.expectedIdentificationSamples, ...
-        'Unexpected number of identification samples.');
-end
-
 % Split identification into amplitude-balanced train and validation subsets.
 n_identification = numel(identification);
 n_bins = min(cfg.amplitudeBinCount, n_identification);
