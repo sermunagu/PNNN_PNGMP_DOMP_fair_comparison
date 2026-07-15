@@ -38,6 +38,7 @@ cfg.gmp.dompOptions = struct( ...
     'residualTolerance', 1e-12, ...
     'lsTolerance', []);
 cfg.lambdaGrid = [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2];
+cfg.fixedRidgeLambda = 1e-5;
 cfg.reducedRealParameterTarget = 200;
 
 cfg.pnnn = struct();
