@@ -14,6 +14,7 @@ y = complex(randn(128, 1), randn(128, 1));
 signature = buildExperimentSignature(x, y, cfg);
 signature_repeat = buildExperimentSignature(x, y, cfg);
 assert(signature.digest == signature_repeat.digest);
+assert(signature.schemaVersion == 2);
 
 x_modified = x;
 x_modified(37) = x_modified(37) + eps(x_modified(37));
@@ -33,6 +34,19 @@ cfg_changed = cfg;
 cfg_changed.pnnn.orders = [1 3 5];
 assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
     signature.digest);
+cfg_changed = cfg;
+cfg_changed.pnnn.nnSeeds = cfg.pnnn.nnSeeds + 1;
+assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
+    signature.digest);
+cfg_changed = cfg;
+cfg_changed.training.learnRateDropFactor = 0.9;
+assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
+    signature.digest);
+cfg_changed = cfg;
+cfg_changed.pruning.fineTuneSeedOffset = ...
+    cfg.pruning.fineTuneSeedOffset + 1;
+assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
+    signature.digest);
 
 split.internalTrainIndices = (1:70).';
 split.internalValidationIndices = (71:90).';
@@ -42,18 +56,22 @@ savedSplit.internal_validation_indices = split.internalValidationIndices;
 savedSplit.identification_indices = split.identificationIndices;
 savedConfig.experiment_signature = signature;
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature);
+    savedSplit, savedConfig, split, signature, 344, 344);
 assert(matches && reason == "compatible");
+
+[matches, reason] = isReusablePNNNSelection( ...
+    savedSplit, savedConfig, split, signature, 344, 350);
+assert(~matches && reason == "sparse target mismatch");
 
 savedConfig.experiment_signature = ...
     buildExperimentSignature(x_modified, y, cfg);
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature);
+    savedSplit, savedConfig, split, signature, 344, 344);
 assert(~matches && reason == "experiment signature mismatch");
 
 savedConfig = struct();
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature);
+    savedSplit, savedConfig, split, signature, 344, 344);
 assert(~matches && reason == "missing experiment signature");
 
 fprintf('EXPERIMENT SIGNATURE TEST: PASS\n');

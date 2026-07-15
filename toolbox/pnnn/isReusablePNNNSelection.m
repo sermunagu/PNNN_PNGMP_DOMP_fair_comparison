@@ -1,10 +1,15 @@
 function [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, currentSplit, currentSignature)
+    savedSplit, savedConfig, currentSplit, currentSignature, ...
+    savedTargetActiveParams, currentTargetActiveParams)
 % isReusablePNNNSelection - Validate saved PNNN selection artifacts.
 % Reuse requires identical experiment signatures and identical internal
 % train, internal validation, and identification row indices.
 
 matches = false;
+if nargin < 6
+    savedTargetActiveParams = [];
+    currentTargetActiveParams = [];
+end
 reason = "missing required split indices";
 savedNames = {'internal_train_indices','internal_validation_indices', ...
     'identification_indices'};
@@ -38,6 +43,18 @@ reason = "split index mismatch";
 for index = 1:numel(savedNames)
     if ~isequal(savedSplit.(savedNames{index})(:), ...
             currentSplit.(currentNames{index})(:))
+        return;
+    end
+end
+
+reason = "sparse target mismatch";
+if ~isempty(savedTargetActiveParams) || ~isempty(currentTargetActiveParams)
+    if ~isscalar(savedTargetActiveParams) || ...
+            ~isscalar(currentTargetActiveParams) || ...
+            ~isfinite(savedTargetActiveParams) || ...
+            ~isfinite(currentTargetActiveParams) || ...
+            double(savedTargetActiveParams) ~= ...
+            double(currentTargetActiveParams)
         return;
     end
 end

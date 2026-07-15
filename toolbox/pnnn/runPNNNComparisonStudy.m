@@ -104,10 +104,18 @@ for source = reusableSources(cfg).'
     end
     saved = load(splitFile);
     savedConfig = load(configFile, 'experiment_signature');
+    previous = readtable(resultFile, TextType='string');
+    sparseRow = previous.Model == "PNNN N12 sparse";
+    if nnz(sparseRow) ~= 1
+        error('runPNNNComparisonStudy:MissingSelectionRow', ...
+            ['The reusable artifacts must contain exactly one row for ' ...
+             'PNNN N12 sparse.']);
+    end
+    savedTarget = double(previous.NumRealParameters(sparseRow));
     if isReusablePNNNSelection( ...
-            saved, savedConfig, split, cfg.experimentSignature)
+            saved, savedConfig, split, cfg.experimentSignature, ...
+            savedTarget, target)
         hyper = readtable(hyperFile, TextType='string');
-        previous = readtable(resultFile, TextType='string');
         selection = struct('reused', true, 'source', string(source));
         selection.h4 = savedSelection(hyper, previous, "PNNN H4 dense");
         selection.n12Dense = savedSelection( ...
