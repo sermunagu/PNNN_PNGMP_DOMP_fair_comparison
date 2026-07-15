@@ -1,7 +1,6 @@
 function cfg = getFairDOMPComparisonConfig(projectRoot)
-% getFairDOMPComparisonConfig - Configure the full-signal DOMP comparison.
-% All models use one deterministic 4% identification domain and evaluate
-% the final fitted model on the complete signal using the same NMSE metric.
+% getFairDOMPComparisonConfig - Configure the full-signal comparison.
+% GMP and PNNN share one deterministic 10% identification domain.
 
 if nargin < 1 || isempty(projectRoot)
     projectRoot = fileparts(fileparts(mfilename('fullpath')));
@@ -19,13 +18,13 @@ cfg.resultsRoot = fullfile(projectRoot, 'results', ...
 cfg.historicalDisjointResultDirectory = fullfile(projectRoot, 'results', ...
     'fair_domp_comparison', '20260714_013938');
 
-cfg.identificationFraction = 0.04;
+cfg.identificationFraction = 0.10;
 cfg.identificationSeed = 1004;
 cfg.internalTrainFraction = 0.85;
 cfg.internalSplitSeed = 42;
 cfg.amplitudeBinCount = 10;
 cfg.expectedSignalLength = 491520;
-cfg.expectedIdentificationSamples = 19661;
+cfg.expectedIdentificationSamples = 49152;
 
 cfg.gmp = struct();
 cfg.gmp.Qpmax = 50;
@@ -47,7 +46,7 @@ cfg.pnnn = struct();
 cfg.pnnn.M = 13;
 cfg.pnnn.orders = [1 3 5 7];
 cfg.pnnn.featMode = 'full';
-cfg.pnnn.actType = 'elu';
+cfg.pnnn.actType = 'sigmoid';
 cfg.pnnn.removeDC = true;
 cfg.pnnn.parameterMatchedTargetModel = ...
     'Independent PN-IQ full';
