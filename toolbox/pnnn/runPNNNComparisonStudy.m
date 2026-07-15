@@ -173,6 +173,7 @@ end
 function row = resultRow(modelName, fit, selection, target, flops, activation)
 Model = string(modelName);
 SelectionMethod = "internal validation; fixed identification refit";
+RegularizationMode = "Not applicable";
 NumRealParameters = fit.actualActiveParams;
 ParameterMatchedTarget = double(target);
 ParameterDifference = NumRealParameters - ParameterMatchedTarget;
@@ -201,7 +202,7 @@ WeightSparsityPercent = fit.weightSparsityPercent;
 FinalFitSamples = fit.finalFitSamples;
 FullSignalSamples = fit.fullSignalSamples;
 NormalizationSamples = fit.normalizationSamples;
-row = table(Model, SelectionMethod, NumRealParameters, ...
+row = table(Model, SelectionMethod, RegularizationMode, NumRealParameters, ...
     ParameterMatchedTarget, ParameterDifference, InternalTrainNMSEdB, ...
     InternalValidationNMSEdB, IdentificationNMSEdB, ...
     FullSignalNMSEdB, SelectedLambda, DOMPSupportSize, ...
