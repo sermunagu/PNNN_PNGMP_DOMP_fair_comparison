@@ -23,8 +23,6 @@ cfg.identificationSeed = 1004;
 cfg.internalTrainFraction = 0.85;
 cfg.internalSplitSeed = 42;
 cfg.amplitudeBinCount = 10;
-cfg.expectedSignalLength = 491520;
-cfg.expectedIdentificationSamples = 49152;
 
 cfg.gmp = struct();
 cfg.gmp.Qpmax = 50;
@@ -101,5 +99,5 @@ cfg.warmStart.useLatestDeploy = false;
 
 cfg.equivalence.relativePredictionTolerance = 1e-10;
 cfg.equivalence.nmseDifferenceToleranceDb = 1e-9;
-cfg.report.compilePDF = true;
+cfg.report.compilePDF = false;
 end
