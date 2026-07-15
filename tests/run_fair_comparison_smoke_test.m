@@ -1,5 +1,5 @@
 % Script: run_fair_comparison_smoke_test
-% Verify the 4% identification/full-signal contract, DOMP-only paths,
+% Verify the 10% identification/full-signal contract, DOMP-only paths,
 % fixed final PNNN refits, phase restoration, and shared FLOP scope.
 
 clearvars;

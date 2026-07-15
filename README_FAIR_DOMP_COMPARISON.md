@@ -5,7 +5,7 @@ under the identification protocol used by the original GMP work. The validated
 main run is:
 
 ```text
-results/full_signal_domp_comparison/20260714_102201/
+results/full_signal_domp_comparison/20260715_142905/
 ```
 
 The earlier disjoint-test experiment remains unchanged under
@@ -14,15 +14,15 @@ control; it is not the main result.
 
 ## Protocol
 
-- `identificationIndices`: the deterministic original 4% selector, seed 1004,
-  19,661 samples;
+- `identificationIndices`: the deterministic original 10% selector, seed 1004,
+  49,151 samples;
 - `fullSignalIndices`: all 491,520 samples, including every identification
   sample;
 - `internalTrainIndices` and `internalValidationIndices`: an internal split of
   identification used only to select lambda, epochs, and fine-tuning duration.
 
 After hyperparameter selection, every final linear model regenerates its DOMP
-support and fits its coefficients on all 19,661 identification samples. Every
+support and fits its coefficients on all 49,151 identification samples. Every
 final PNNN is restarted from the same seed, computes normalization statistics on
 all identification samples, and is trained for the fixed selected epoch count on
 those same samples. The complete signal is used only for final evaluation.
@@ -41,18 +41,18 @@ All models use the same complex temporal NMSE:
 DOMP is the only support selector. It runs during identification and is not part
 of inference. The coupled PN-IQ formulation reuses the complex GMP DOMP-100
 support and is numerically equivalent to it; the measured relative prediction
-error is `1.320624e-11`.
+error is `1.325559e-11`.
 
-The principal comparison fixes exactly 358 active real parameters:
+The principal comparison fixes exactly 344 active real parameters:
 
 | Model | Real parameters | Identification NMSE (dB) | Full-signal NMSE (dB) | FLOPs/sample |
 |---|---:|---:|---:|---:|
-| Independent PN-IQ | 358 | -39.723982 | -38.533647 | 1062 |
-| Complex GMP parameter-matched | 358 | -39.384615 | -38.170265 | 1899 |
-| PNNN N12 sparse | 358 | -36.574324 | -35.899781 | 876 |
+| Independent PN-IQ | 344 | -39.004685 | -38.838825 | 1026 |
+| Complex GMP parameter-matched | 344 | -38.672161 | -38.458395 | 1837 |
+| PNNN N12 sparse | 344 | -35.696928 | -35.659914 | 848 |
 
 Independent PN-IQ has the lowest NMSE in this capture. It improves the
-parameter-matched GMP by 0.363 dB and the sparse PNNN by 2.634 dB on the full
+parameter-matched GMP by 0.380 dB and the sparse PNNN by 3.179 dB on the full
 signal. The sparse PNNN has the lowest arithmetic count, provided an
 implementation actually skips its exactly zero weights. This is a trade-off,
 not a claim of universal or hardware superiority.
@@ -63,18 +63,18 @@ PN-IQ, PNNN H4 dense, and PNNN N12 dense.
 
 ## Final PNNN refit
 
-The PNNN input has `D=84` phase-normalized features, one ELU hidden layer, and
+The PNNN input has `D=84` phase-normalized features, one sigmoid hidden layer, and
 two real outputs. A width-`H` network contains
 
 ```text
 H*(D + 3) + 2
 ```
 
-real scalars, including weights and biases. Internal selection chose epoch 3083
-for H4 and epoch 3150 for N12. The final N12 sparse model starts from the final
-identification-trained N12, protects all 14 biases, retains 344 weights, freezes
-the zero mask, and fine-tunes for 392 fixed epochs on all identification
-samples. It therefore has 358 active parameters and 66.6667% weight sparsity.
+real scalars, including weights and biases. Internal selection chose epoch 1259
+for H4 and epoch 1258 for N12. The final N12 sparse model starts from the final
+identification-trained N12, protects all 14 biases, retains 330 weights, freezes
+the zero mask, and fine-tunes for 163 fixed epochs on all identification
+samples. It therefore has 344 active parameters and 68.0233% weight sparsity.
 
 ## FLOPs/sample
 
@@ -86,7 +86,7 @@ addition, and six per complex multiplication.
 
 Operations without an agreed conversion are reported separately. For example,
 Independent PN-IQ also requires 12 magnitudes (including 12 square roots) and 2
-divisions; N12 sparse requires 14 magnitudes, 2 divisions, and 12 ELU
+divisions; N12 sparse requires 14 magnitudes, 2 divisions, and 12 sigmoid
 activations (up to 12 exponentials), in addition to phase normalization and
 restoration arithmetic already included in its FLOP count.
 

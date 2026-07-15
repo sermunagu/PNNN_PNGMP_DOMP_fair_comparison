@@ -71,7 +71,7 @@ details.specialOperationsWeighted = false;
 details.estimatedTotalAvailable = false;
 details.explanation = ...
     "EstimatedTotalFLOPsPerSample is NaN because no agreed weights " + ...
-    "exist for ELU, exp, sqrt, division, or abs.";
+    "exist for activation, exp, sqrt, division, or abs.";
 end
 
 function specifications = fromAnalyticalOperationTable(counts)

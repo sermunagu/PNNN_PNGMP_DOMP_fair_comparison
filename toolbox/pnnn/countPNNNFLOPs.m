@@ -2,7 +2,7 @@ function flops = countPNNNFLOPs(modelName, inputDimension, ...
     hiddenNeurons, memoryDepth, orders)
 % countPNNNFLOPs - Count PNNN inference arithmetic under one explicit schedule.
 % Phase rotation, reusable tap magnitudes, requested power chains, dense layers,
-% biases, ELU calls, and final phase restoration are included per output row.
+% biases, hidden activations, and final phase restoration are included per row.
 
 parameter_count = countPNNNParameters(inputDimension, hiddenNeurons);
 orders = double(orders(:).');
