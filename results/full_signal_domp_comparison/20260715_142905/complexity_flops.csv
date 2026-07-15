@@ -1,0 +1,10 @@
+Model,NumRealParameters,RealMultiplicationsPerSample,RealAdditionsPerSample,ComplexMultiplicationsPerSample,ComplexAdditionsPerSample,FLOPsPerSample,CoreFLOPsPerSample,TotalCoreFLOPsPerSample,EstimatedTotalFLOPsPerSample,NumSpecialOpsPerSample,NumELUPerSample,NumExpWorstCasePerSample,NumSqrtPerSample,NumRealDivisionsPerSample,NumAbsPerSample,PhaseNormalizationIncluded,PhaseRestorationIncluded,ComplexityScope,NumRealWeights,NumRealBiases,DenseLayerCoreFLOPs,OutputLayerCoreFLOPs,DenseExecutionCoreFLOPsPerSample,IdealSparseCoreFLOPsPerSample,DenseMatrixFLOPsPerSample,SparseZeroWeightsSkipped,IdealSparseRealMultiplicationsPerSample,IdealSparseRealAdditionsPerSample,IdealSparseCostRequiresSparseKernel
+Complex GMP DOMP-100,200,289,13,100,99,1100,1100,1100,NaN,26,0,0,13,0,13,0,0,inference per output sample,200,0,0,0,1100,1100,1100,0,289,13,0
+Coupled PN-IQ (shared DOMP-100),200,647,379,0,0,1026,1026,1026,NaN,28,0,0,13,2,13,1,1,inference per output sample,200,0,0,0,1026,1026,1026,0,647,379,0
+Independent PN-IQ full,344,647,379,0,0,1026,1026,1026,NaN,28,0,0,13,2,13,1,1,inference per output sample,344,0,0,0,1026,1026,1026,0,647,379,0
+Complex GMP DOMP parameter-matched,344,449,14,172,171,1837,1837,1837,NaN,28,0,0,14,0,14,0,0,inference per output sample,344,0,0,0,1837,1837,1837,0,449,14,0
+Independent I/Q without PN,396,685,407,0,0,1092,1092,1092,NaN,26,0,0,13,0,13,0,0,inference per output sample,396,0,0,0,1092,1092,1092,0,685,407,0
+Independent PN-IQ reduced DOMP,200,503,235,0,0,738,738,738,NaN,28,0,0,13,2,13,1,1,inference per output sample,200,0,0,0,738,738,738,0,503,235,0
+PNNN H4 dense,350,488,388,0,0,876,876,876,NaN,38,4,4,14,2,14,1,1,inference per output sample,344,6,672,16,876,876,876,0,488,388,0
+PNNN N12 dense,1046,1176,1076,0,0,2252,2252,2252,NaN,54,12,12,14,2,14,1,1,inference per output sample,1032,14,2016,48,2252,2252,2252,0,1176,1076,0
+PNNN N12 sparse,344,1176,1076,0,0,848,2252,2252,NaN,54,12,12,14,2,14,1,1,inference per output sample,330,14,2016,48,2252,848,2252,1,474,374,1
