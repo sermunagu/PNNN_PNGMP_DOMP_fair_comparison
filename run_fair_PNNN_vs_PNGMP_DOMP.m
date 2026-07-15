@@ -2,6 +2,8 @@
 % Run the shared 10% identification/full-signal comparison from end to end.
 % Linear models run first; PNNN reuses their active-parameter target.
 
+%% Configure the shared comparison
+% Resolve project paths and enforce the fair-comparison constraints.
 clearvars;
 clc;
 
@@ -24,6 +26,8 @@ if cfg.warmStart.enabled || cfg.warmStart.useLatestDeploy
         'The fair comparison must initialize final networks from scratch.');
 end
 
+%% Prepare data and common split
+% Load the measurement and build the shared identification split.
 [data, split, result_directory] = prepareComparison(cfg);
 diary(fullfile(result_directory, 'run_log.txt'));
 diary_cleanup = onCleanup(@() diary('off'));
@@ -38,6 +42,8 @@ fprintf(['Internal train=%d | internal validation=%d | ' ...
     numel(split.identificationIndices), numel(split.fullSignalIndices));
 fprintf('Identification is contained in full signal: YES\n');
 
+%% Fit linear DOMP models
+% Select supports and regularization using internal validation only.
 fprintf('\nFitting six linear DOMP models under the corrected protocol...\n');
 linear_study = runPNGMPDOMPStudy(data.x, data.y, split, cfg);
 independent_row = linear_study.comparisonResults.Model == ...
@@ -60,8 +66,13 @@ if linear_study.comparisonResults.NumRealParameters(matched_row) ~= ...
         'Independent PN-IQ and parameter-matched GMP must have equal size.');
 end
 
+%% Fit parameter-matched PNNN models
+% Reuse the selected linear parameter budget for the neural comparison.
 pnnn_study = runPNNNComparisonStudy( ...
     data.x, data.y, split, cfg, target_active_params);
+
+%% Package and report results
+% Package linear and neural outputs in one result directory.
 study = combineStudies(linear_study, pnnn_study, split, ...
     target_active_params);
 saveStudy(data, split, study, cfg, result_directory);

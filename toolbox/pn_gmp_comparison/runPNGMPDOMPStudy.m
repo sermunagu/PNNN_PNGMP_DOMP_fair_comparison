@@ -3,6 +3,8 @@ function study = runPNGMPDOMPStudy(x, y, split, cfg)
 % Lambda selection uses the internal split; supports and coefficients are
 % then regenerated on all identification rows before full-signal evaluation.
 
+%% Validate inputs and regularization modes
+% Align the signals and define the three coefficient-estimation variants.
 studyTimer = tic;
 x = x(:);
 y = y(:);
@@ -27,6 +29,8 @@ regularizationModes = ["LS"; "Fixed Ridge"; ...
 variantFields = {'ls','fixedRidge','selectedRidge'};
 nVariants = numel(regularizationModes);
 
+%% Build candidate feature populations
+% Create one shared GMP population and the four evaluation row domains.
 rows.train = split.internalTrainIndices;
 rows.validation = split.internalValidationIndices;
 rows.identification = split.identificationIndices;
@@ -37,7 +41,8 @@ population = (1:populationSize).';
 baseSupportSize = cfg.gmp.maxPopulation;
 maximumPathSize = min(2*baseSupportSize, populationSize);
 
-%% Internal selection domain
+%% Internal DOMP and lambda selection
+% Select supports and regularization without using full-signal results.
 train.U = buildGMPRegressorRows(x, rows.train, manager, population);
 train.y = y(rows.train);
 validation.U = buildGMPRegressorRows( ...
@@ -137,7 +142,8 @@ for variant = 1:nVariants
         nmseComplexDb(validation.y, validationCoupledPrediction);
 end
 
-%% Final support and coefficient estimation on all identification rows
+%% Final fits on the identification set
+% Rebuild supports and fit all regularization modes on identification.
 identification.U = buildGMPRegressorRows( ...
     x, rows.identification, manager, population);
 identification.y = y(rows.identification);
@@ -225,7 +231,8 @@ if any([coupled.nActiveReal] ~= 2*numel(supportBase)) || ...
         'Regularization variants must share their model parameter count.');
 end
 
-%% Identification and full-signal predictions
+%% Build final predictions
+% Predict identification and full-signal rows for every model variant.
 yFull = y(rows.fullSignal);
 equivalenceIdentification = zeros(nVariants, 1);
 equivalenceFull = zeros(nVariants, 1);
@@ -280,6 +287,9 @@ for variant = 1:nVariants
         fullPredictions.coupledPNIQ.(field), yFull, ...
         "full signal " + regularizationModes(variant), cfg.equivalence);
 end
+
+%% Complex GMP / coupled PN-IQ equivalence
+% Summarize the numerical mapping error for all regularization modes.
 equivalenceError = equivalenceFull(3);
 equivalenceByRegularization = table(regularizationModes, ...
     variantLambdas.complexBase(:), equivalenceTrain, ...
@@ -288,7 +298,8 @@ equivalenceByRegularization = table(regularizationModes, ...
     'InternalTrainRelativeError','InternalValidationRelativeError', ...
     'IdentificationRelativeError','FullSignalRelativeError'});
 
-%% Result and operation tables
+%% Predictions and NMSE
+% Compute NMSE and create one explicit row per model and fit mode.
 modelNames = ["Complex GMP DOMP-100"; ...
     "Coupled PN-IQ (shared DOMP-100)"; "Independent PN-IQ full"; ...
     "Complex GMP DOMP parameter-matched"; ...
@@ -397,6 +408,8 @@ relativeErrorByModel = [zeros(1, nVariants); equivalenceFull.'; ...
 RelativePredictionErrorToComplex = ...
     reshape(relativeErrorByModel.', [], 1);
 
+%% Parameter counts and FLOPs
+% Reuse each model's inference cost across its regularization variants.
 [complexityFLOPs, flopConvention] = buildLinearFLOPs( ...
     manager.regPopulation, supportBase, supportMatched, ...
     identification.pnReduction, noPN(1), pnReduced(1));
@@ -430,6 +443,8 @@ historyTables = {summarizeDOMPHistory(trainPathHistory); ...
 dompHistorySummary = addvars(vertcat(historyTables{:}), historyLabels, ...
     'Before', 1, 'NewVariableNames', 'Stage');
 
+%% Package study results
+% Return tables, supports, predictions and equivalence checks together.
 study = struct( ...
     'comparisonResults', comparisonResults, ...
     'complexityFLOPs', complexityFLOPs, ...
