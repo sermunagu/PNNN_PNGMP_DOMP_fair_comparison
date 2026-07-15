@@ -1,5 +1,5 @@
 % Script: run_fair_PNNN_vs_PNGMP_DOMP
-% Run the corrected 4% identification/full-signal DOMP comparison.
+% Run the corrected 10% identification/full-signal DOMP comparison.
 % Hyperparameters remain internal to identification; every final fit uses it.
 
 clearvars;
@@ -86,77 +86,23 @@ if nnz(target_row) ~= 1
 end
 target_active_params = linear_results.NumRealParameters(target_row);
 
-[pnnn_features, pnnn_targets, phase_rotation] = ...
-    buildPhaseNormDataset(x, y, cfg.pnnn.M, cfg.pnnn.orders, ...
-    cfg.pnnn.featMode);
-pnnn_features = pnnn_features.';
-pnnn_targets = pnnn_targets.';
-phase_rotation = phase_rotation(:);
-input_dimension = size(pnnn_features, 2);
-h4 = cfg.pnnn.denseControlHiddenNeurons;
-n12 = cfg.pnnn.sparseBaseHiddenNeurons;
-h4_parameter_count = countPNNNParameters(input_dimension, h4);
-n12_parameter_count = countPNNNParameters(input_dimension, n12);
-assert(h4_parameter_count.realParameters == h4*(input_dimension+3)+2);
-assert(n12_parameter_count.realParameters == n12*(input_dimension+3)+2);
-
-budget = scalePNNNTrainingBudget(numel(x), ...
-    numel(internal_train_indices), cfg.training, cfg.pruning);
-runtime_cfg = cfg;
-runtime_cfg.training.maxEpochs = budget.denseMaxEpochs;
-runtime_cfg.training.learnRateDropPeriod = ...
-    budget.denseLearnRateDropPeriod;
-runtime_cfg.training.validationPatience = ...
-    budget.denseValidationPatience;
-runtime_cfg.pruning.targetActiveTrainableParams = target_active_params;
-runtime_cfg.pruning.fineTuneEpochs = budget.fineTuneEpochs;
-runtime_cfg.pruning.fineTuneLearnRateDropPeriod = ...
-    budget.fineTuneLearnRateDropPeriod;
-nn_seed = cfg.pnnn.nnSeeds(1);
-
-selection = loadOrSelectPNNNHyperparameters(cfg, split, ...
-    pnnn_features, pnnn_targets, phase_rotation, y, h4, n12, ...
-    target_active_params, nn_seed, runtime_cfg);
-fprintf('PNNN hyperparameter selection reused: %s\n', ...
-    upper(string(selection.reused)));
-fprintf('Selected epochs H4/N12/fine-tune: %d / %d / %d\n', ...
-    selection.h4.bestDenseEpoch, ...
-    selection.n12Dense.bestDenseEpoch, ...
-    selection.n12Sparse.bestFineTuneEpoch);
-
-fprintf('\nFinal H4 refit on all %d identification rows...\n', ...
-    numel(identification_indices));
-h4_fit = refitFairPNNNDense(pnnn_features, pnnn_targets, ...
-    phase_rotation, y, identification_indices, full_signal_indices, ...
-    h4, nn_seed, selection.h4.bestDenseEpoch, runtime_cfg.training);
-fprintf('Final N12 dense refit on all identification rows...\n');
-n12_dense_fit = refitFairPNNNDense(pnnn_features, pnnn_targets, ...
-    phase_rotation, y, identification_indices, full_signal_indices, ...
-    n12, nn_seed, selection.n12Dense.bestDenseEpoch, ...
-    runtime_cfg.training);
-fprintf('Final N12 pruning and fixed-epoch identification fine-tuning...\n');
-n12_sparse_fit = refitFairPNNNSparse(n12_dense_fit, pnnn_features, ...
-    pnnn_targets, phase_rotation, y, identification_indices, ...
-    full_signal_indices, target_active_params, nn_seed, ...
-    selection.n12Sparse.bestFineTuneEpoch, runtime_cfg);
-
-h4_flops = countPNNNFLOPs("PNNN H4 dense", input_dimension, h4, ...
-    cfg.pnnn.M, cfg.pnnn.orders);
-n12_dense_flops = countPNNNFLOPs("PNNN N12 dense", ...
-    input_dimension, n12, cfg.pnnn.M, cfg.pnnn.orders);
-n12_sparse_flops = countSparsePNNNFLOPs("PNNN N12 sparse", ...
-    input_dimension, n12, cfg.pnnn.M, cfg.pnnn.orders, ...
-    n12_sparse_fit.activeWeights, n12_sparse_fit.activeBiases);
-
-pnnn_results = [ ...
-    buildPNNNResultRow("PNNN H4 dense", h4_fit, selection.h4, ...
-        target_active_params, h4_flops); ...
-    buildPNNNResultRow("PNNN N12 dense", n12_dense_fit, ...
-        selection.n12Dense, target_active_params, n12_dense_flops); ...
-    buildPNNNResultRow("PNNN N12 sparse", n12_sparse_fit, ...
-        selection.n12Sparse, target_active_params, n12_sparse_flops)];
+pnnn_study = runPNNNComparisonStudy( ...
+    x, y, split, cfg, target_active_params);
+pnnn_results = pnnn_study.comparisonResults;
 pnnn_results = pnnn_results(:, linear_results.Properties.VariableNames);
 comparison_results = [linear_results; pnnn_results];
+
+selection = pnnn_study.selection;
+budget = pnnn_study.budget;
+runtime_cfg = pnnn_study.runtimeConfig;
+input_dimension = pnnn_study.inputDimension;
+h4_fit = pnnn_study.h4DenseFit;
+n12_dense_fit = pnnn_study.n12DenseFit;
+n12_sparse_fit = pnnn_study.n12SparseFit;
+pnnn_flops = pnnn_study.complexityFLOPs;
+h4_flops = pnnn_flops(pnnn_flops.Model == "PNNN H4 dense", :);
+n12_dense_flops = pnnn_flops(pnnn_flops.Model == "PNNN N12 dense", :);
+n12_sparse_flops = pnnn_flops(pnnn_flops.Model == "PNNN N12 sparse", :);
 
 linear_flops = addCommonFLOPColumns(linear_study.complexityFLOPs);
 h4_flops = addCommonFLOPColumns(h4_flops);
@@ -297,167 +243,6 @@ results.FullSignalSamples = repmat(nFull, n, 1);
 results.NormalizationSamples = NaN(n, 1);
 end
 
-function row = buildPNNNResultRow(modelName, fit, selection, target, flops)
-Model = string(modelName);
-SelectionMethod = "internal validation; fixed identification refit";
-NumRealParameters = fit.actualActiveParams;
-ParameterMatchedTarget = double(target);
-ParameterDifference = NumRealParameters - ParameterMatchedTarget;
-InternalTrainNMSEdB = selection.internalTrainNMSEdB;
-InternalValidationNMSEdB = selection.internalValidationNMSEdB;
-IdentificationNMSEdB = fit.identificationNMSEdB;
-FullSignalNMSEdB = fit.fullSignalNMSEdB;
-SelectedLambda = NaN;
-DOMPSupportSize = NaN;
-EffectiveFeatureCount = fit.parameterCount.inputDimension;
-PhaseNormalization = true;
-IQCoupling = "nonlinear two-output PNNN";
-RelativePredictionErrorToComplex = NaN;
-FLOPsPerSample = flops.FLOPsPerSample;
-AdditionalOperationsPerSample = describeAdditionalOperations(flops);
-NNSeed = fit.nnSeed;
-BestDenseEpoch = fit.bestDenseEpoch;
-BestFineTuneEpoch = fit.bestFineTuneEpoch;
-NNHiddenNeurons = fit.hiddenNeurons;
-TrainingTimeSeconds = fit.trainingTimeSeconds;
-TargetActiveParams = double(target);
-ActualActiveParams = fit.actualActiveParams;
-ActiveWeights = fit.activeWeights;
-ActiveBiases = fit.activeBiases;
-WeightSparsityPercent = fit.weightSparsityPercent;
-FinalFitSamples = fit.finalFitSamples;
-FullSignalSamples = fit.fullSignalSamples;
-NormalizationSamples = fit.normalizationSamples;
-row = table(Model, SelectionMethod, NumRealParameters, ...
-    ParameterMatchedTarget, ParameterDifference, InternalTrainNMSEdB, ...
-    InternalValidationNMSEdB, IdentificationNMSEdB, ...
-    FullSignalNMSEdB, SelectedLambda, DOMPSupportSize, ...
-    EffectiveFeatureCount, PhaseNormalization, IQCoupling, ...
-    RelativePredictionErrorToComplex, FLOPsPerSample, ...
-    AdditionalOperationsPerSample, NNSeed, BestDenseEpoch, ...
-    BestFineTuneEpoch, NNHiddenNeurons, TrainingTimeSeconds, ...
-    TargetActiveParams, ActualActiveParams, ActiveWeights, ...
-    ActiveBiases, WeightSparsityPercent, FinalFitSamples, ...
-    FullSignalSamples, NormalizationSamples);
-end
-
-function selection = loadOrSelectPNNNHyperparameters(cfg, split, ...
-    features, targets, rotation, y, h4, n12, target, seed, runtimeCfg)
-sources = reusableSelectionSources(cfg);
-for source_index = 1:numel(sources)
-    source = sources(source_index);
-    hyper_file = fullfile(source, 'selected_hyperparameters.csv');
-    result_file = fullfile(source, 'comparison_results.csv');
-    split_file = fullfile(source, 'split_indices.mat');
-    if isfile(hyper_file) && isfile(result_file) && isfile(split_file)
-        saved = load(split_file);
-    else
-        continue;
-    end
-    if matchesSelectionRows(saved, split)
-        hyper = readtable(hyper_file, TextType='string');
-        previous = readtable(result_file, TextType='string');
-        selection = struct('reused', true, 'source', string(source));
-        selection.h4 = selectionRow(hyper, previous, "PNNN H4 dense");
-        selection.n12Dense = selectionRow( ...
-            hyper, previous, "PNNN N12 dense");
-        selection.n12Sparse = selectionRow( ...
-            hyper, previous, "PNNN N12 sparse");
-        return;
-    end
-end
-
-selection = struct('reused', false, 'source', "new internal selection");
-h4_selected = fitFairPNNNDenseValidation(features, targets, rotation, y, ...
-    split.internalTrainIndices, split.internalValidationIndices, ...
-    split.identificationIndices, h4, seed, runtimeCfg.training);
-n12_selected = fitFairPNNNDenseValidation(features, targets, rotation, y, ...
-    split.internalTrainIndices, split.internalValidationIndices, ...
-    split.identificationIndices, n12, seed, runtimeCfg.training);
-n12_sparse_selected = pruneAndFineTuneFairPNNN(n12_selected, ...
-    features, targets, rotation, y, split.internalTrainIndices, ...
-    split.internalValidationIndices, split.identificationIndices, ...
-    target, seed, runtimeCfg);
-selection.h4 = selectedFitSummary(h4_selected);
-selection.n12Dense = selectedFitSummary(n12_selected);
-selection.n12Sparse = selectedFitSummary(n12_sparse_selected);
-end
-
-function sources = reusableSelectionSources(cfg)
-directory_sources = strings(0, 1);
-if isfolder(cfg.resultsRoot)
-    entries = dir(cfg.resultsRoot);
-    entries = entries([entries.isdir] & ...
-        ~ismember({entries.name}, {'.','..'}));
-    if ~isempty(entries)
-        [~, order] = sort([entries.datenum], 'descend');
-        entries = entries(order);
-        directory_sources = strings(numel(entries), 1);
-        for index = 1:numel(entries)
-            directory_sources(index) = string(fullfile( ...
-                entries(index).folder, entries(index).name));
-        end
-    end
-end
-sources = [directory_sources; ...
-    string(cfg.historicalDisjointResultDirectory)];
-sources = unique(sources, 'stable');
-end
-
-function matches = matchesSelectionRows(saved, split)
-if all(isfield(saved, {'internal_train_indices', ...
-        'internal_validation_indices','identification_indices'}))
-    matches = isequal(saved.internal_train_indices(:), ...
-        split.internalTrainIndices(:)) && ...
-        isequal(saved.internal_validation_indices(:), ...
-        split.internalValidationIndices(:)) && ...
-        isequal(saved.identification_indices(:), ...
-        split.identificationIndices(:));
-elseif all(isfield(saved, {'TRAIN','VAL','FIT_POOL'}))
-    matches = isequal(saved.TRAIN(:), split.internalTrainIndices(:)) && ...
-        isequal(saved.VAL(:), split.internalValidationIndices(:)) && ...
-        isequal(saved.FIT_POOL(:), split.identificationIndices(:));
-else
-    matches = false;
-end
-end
-
-function summary = selectionRow(hyper, previous, model)
-hyper_row = hyper.Model == model;
-previous_row = previous.Model == model;
-if nnz(hyper_row) ~= 1 || nnz(previous_row) ~= 1
-    error('run_fair_PNNN_vs_PNGMP_DOMP:MissingSelectionRow', ...
-        'The reusable selection artifact lacks %s.', model);
-end
-summary = struct();
-summary.bestDenseEpoch = double(hyper.BestDenseEpoch(hyper_row));
-summary.bestFineTuneEpoch = double(hyper.BestFineTuneEpoch(hyper_row));
-if isnan(summary.bestFineTuneEpoch)
-    summary.bestFineTuneEpoch = 0;
-end
-if ismember('InternalTrainNMSEdB', previous.Properties.VariableNames)
-    summary.internalTrainNMSEdB = ...
-        double(previous.InternalTrainNMSEdB(previous_row));
-    summary.internalValidationNMSEdB = ...
-        double(previous.InternalValidationNMSEdB(previous_row));
-else
-    summary.internalTrainNMSEdB = ...
-        double(previous.TrainNMSEdB(previous_row));
-    summary.internalValidationNMSEdB = ...
-        double(previous.ValidationNMSEdB(previous_row));
-end
-end
-
-function summary = selectedFitSummary(fit)
-summary = struct('bestDenseEpoch', fit.bestDenseEpoch, ...
-    'bestFineTuneEpoch', fit.bestFineTuneEpoch, ...
-    'internalTrainNMSEdB', fit.trainNMSEdB, ...
-    'internalValidationNMSEdB', fit.validationNMSEdB);
-if isnan(summary.bestFineTuneEpoch)
-    summary.bestFineTuneEpoch = 0;
-end
-end
-
 function flops = addCommonFLOPColumns(flops)
 if ~ismember('DenseExecutionCoreFLOPsPerSample', ...
         flops.Properties.VariableNames)
@@ -470,42 +255,6 @@ if ~ismember('DenseExecutionCoreFLOPsPerSample', ...
     flops.IdealSparseRealAdditionsPerSample = ...
         flops.RealAdditionsPerSample;
     flops.IdealSparseCostRequiresSparseKernel = false(height(flops), 1);
-end
-end
-
-function description = describeAdditionalOperations(row)
-parts = strings(0, 1);
-if row.NumAbsPerSample > 0
-    if row.NumSqrtPerSample == row.NumAbsPerSample
-        parts(end+1) = sprintf('%d magnitude (including %d sqrt)', ...
-            row.NumAbsPerSample, row.NumSqrtPerSample);
-    else
-        parts(end+1) = sprintf('%d magnitude', row.NumAbsPerSample);
-    end
-end
-if row.NumSqrtPerSample > 0 && ...
-        row.NumSqrtPerSample ~= row.NumAbsPerSample
-    parts(end+1) = sprintf('%d sqrt', row.NumSqrtPerSample);
-end
-if row.NumRealDivisionsPerSample > 0
-    parts(end+1) = sprintf('%d division', ...
-        row.NumRealDivisionsPerSample);
-end
-if row.NumELUPerSample > 0
-    parts(end+1) = sprintf('%d ELU', row.NumELUPerSample);
-end
-if row.NumExpWorstCasePerSample > 0
-    parts(end+1) = sprintf('up to %d exp', ...
-        row.NumExpWorstCasePerSample);
-end
-if row.PhaseNormalizationIncluded
-    parts(end+1) = ...
-        "phase normalization/restoration arithmetic in FLOPs";
-end
-if isempty(parts)
-    description = "none";
-else
-    description = strjoin(parts, ', ');
 end
 end
 

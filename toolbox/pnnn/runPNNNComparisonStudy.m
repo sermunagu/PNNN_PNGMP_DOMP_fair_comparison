@@ -118,9 +118,10 @@ if isfolder(cfg.resultsRoot)
     entries = dir(cfg.resultsRoot);
     entries = entries([entries.isdir] & ~ismember({entries.name}, {'.','..'}));
     [~, order] = sort([entries.datenum], 'descend');
-    for index = order
-        sources(end+1, 1) = string(fullfile( ...
-            entries(index).folder, entries(index).name));
+    if ~isempty(order)
+        entries = entries(order);
+        sources = string(fullfile( ...
+            {entries.folder}, {entries.name})).';
     end
 end
 sources(end+1, 1) = string(cfg.historicalDisjointResultDirectory);
