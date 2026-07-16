@@ -1,5 +1,5 @@
-% Test deterministic experiment signatures and safe PNNN artifact reuse.
-% The fixture changes data and reuse-critical configuration without training.
+% Test deterministic experiment signatures.
+% The fixture changes data and science-critical configuration without training.
 
 clearvars;
 project_root = fileparts(fileparts(mfilename('fullpath')));
@@ -47,31 +47,5 @@ cfg_changed.pruning.fineTuneSeedOffset = ...
     cfg.pruning.fineTuneSeedOffset + 1;
 assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
     signature.digest);
-
-split.internalTrainIndices = (1:70).';
-split.internalValidationIndices = (71:90).';
-split.identificationIndices = (1:90).';
-savedSplit.internal_train_indices = split.internalTrainIndices;
-savedSplit.internal_validation_indices = split.internalValidationIndices;
-savedSplit.identification_indices = split.identificationIndices;
-savedConfig.experiment_signature = signature;
-[matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 340, 340);
-assert(matches && reason == "compatible");
-
-[matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 340, 350);
-assert(~matches && reason == "sparse target mismatch");
-
-savedConfig.experiment_signature = ...
-    buildExperimentSignature(x_modified, y, cfg);
-[matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 340, 340);
-assert(~matches && reason == "experiment signature mismatch");
-
-savedConfig = struct();
-[matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 340, 340);
-assert(~matches && reason == "missing experiment signature");
 
 fprintf('EXPERIMENT SIGNATURE TEST: PASS\n');

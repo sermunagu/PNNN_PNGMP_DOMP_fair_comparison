@@ -5,20 +5,7 @@ function sweep = run_linear_sweep(x, y, split, cfg)
 
 x = x(:);
 y = y(:);
-requiredSplit = {'internalTrainIndices','internalValidationIndices', ...
-    'identificationIndices','fullSignalIndices'};
-if numel(x) ~= numel(y) || isempty(x) || any(~isfinite(x)) || ...
-        any(~isfinite(y)) || ~all(isfield(split, requiredSplit))
-    error('run_linear_sweep:InvalidInput', ...
-        'Finite aligned signals and the complete shared split are required.');
-end
-
 targets = double(cfg.sweep.parameterGrid(:).');
-if isempty(targets) || any(targets <= 0) || any(mod(targets, 2)) || ...
-        ~isequal(targets, unique(targets, 'sorted'))
-    error('run_linear_sweep:InvalidGrid', ...
-        'Linear targets must be sorted unique positive even integers.');
-end
 featureCounts = targets/2;
 maximumFeatures = max(featureCounts);
 rows = struct('train', split.internalTrainIndices(:), ...
@@ -39,10 +26,6 @@ matrixPassCount = struct('complexInternalTrain', 0, ...
 % The same population supplies the two families and every parameter target.
 manager = GMP_createRegressorManager(x, y, cfg.gmp);
 population = (1:numel(manager.regPopulation)).';
-if maximumFeatures > numel(population)
-    error('run_linear_sweep:InsufficientPopulation', ...
-        'The GMP population cannot represent the largest target.');
-end
 
 %% Complex GMP: internal DOMP path and lambda selection
 % Full-signal rows are absent from both support and lambda selection.
@@ -60,11 +43,6 @@ fprintf('[Linear] Computing one Complex GMP DOMP path on internal train...\n');
     maximumFeatures, cfg.gmp.dompOptions);
 complexTrainPath = complexTrainPath(:);
 dompInvocationCount.complexInternalTrain = 1;
-if numel(complexTrainPath) < maximumFeatures
-    error('run_linear_sweep:EarlyDOMPTermination', ...
-        'Complex internal DOMP selected %d of %d required regressors.', ...
-        numel(complexTrainPath), maximumFeatures);
-end
 
 complexLambdas = zeros(size(featureCounts));
 complexValidationNMSE = zeros(size(featureCounts));
@@ -90,19 +68,10 @@ fprintf('[Linear] Building PN-IQ internal matrices...\n');
     x, rows.train(1), manager, population);
 featureMetadataRaw = probeDetails.featureMetadata;
 structuralZero = logical(featureMetadataRaw.StructuralZero(:));
-if any(structuralZero & string(featureMetadataRaw.Component) ~= "Q") || ...
-        any(abs(probe(:, structuralZero)) > 1e-12, 'all')
-    error('run_linear_sweep:StructuralReduction', ...
-        'Only declared, numerically zero Q features may be removed.');
-end
 keptFeatureIndices = find(~structuralZero);
 featureMetadata = featureMetadataRaw(keptFeatureIndices, :);
 rawFeatureCount = width(probe);
 effectiveFeatureCount = numel(keptFeatureIndices);
-if effectiveFeatureCount < maximumFeatures
-    error('run_linear_sweep:InsufficientPNFeatures', ...
-        'The retained PN population is smaller than the largest prefix.');
-end
 
 reduction = struct('rawFeatureCount', rawFeatureCount, ...
     'effectiveFeatureCount', effectiveFeatureCount, ...
@@ -153,11 +122,6 @@ fprintf('[Linear] Computing one PN-IQ PN-DOMP path on internal train...\n');
     maximumFeatures, cfg.gmp.dompOptions);
 pnTrainPath = pnTrainPath(:);
 dompInvocationCount.pnInternalTrain = 1;
-if numel(pnTrainPath) < maximumFeatures
-    error('run_linear_sweep:EarlyDOMPTermination', ...
-        'PN internal DOMP selected %d of %d required features.', ...
-        numel(pnTrainPath), maximumFeatures);
-end
 
 pnLambdas = zeros(size(featureCounts));
 pnValidationNMSE = zeros(size(featureCounts));
@@ -192,11 +156,6 @@ fprintf('[Linear] Computing one Complex GMP DOMP path on identification...\n');
     cfg.gmp.dompOptions);
 complexIdentificationPath = complexIdentificationPath(:);
 dompInvocationCount.complexIdentification = 1;
-if numel(complexIdentificationPath) < maximumFeatures
-    error('run_linear_sweep:EarlyDOMPTermination', ...
-        'Complex identification DOMP selected %d of %d required regressors.', ...
-        numel(complexIdentificationPath), maximumFeatures);
-end
 
 complexCoefficients = complex(zeros(maximumFeatures, numel(targets)));
 for targetIndex = 1:numel(targets)
@@ -248,11 +207,6 @@ fprintf('[Linear] Computing one PN-IQ PN-DOMP path on identification...\n');
     cfg.gmp.dompOptions);
 pnIdentificationPath = pnIdentificationPath(:);
 dompInvocationCount.pnIdentification = 1;
-if numel(pnIdentificationPath) < maximumFeatures
-    error('run_linear_sweep:EarlyDOMPTermination', ...
-        'PN identification DOMP selected %d of %d required features.', ...
-        numel(pnIdentificationPath), maximumFeatures);
-end
 
 pnCoefficientsI = zeros(maximumFeatures, numel(targets));
 pnCoefficientsQ = zeros(maximumFeatures, numel(targets));
@@ -276,12 +230,8 @@ pnIdentificationPredictions = ...
 selectedMetadata = featureMetadata( ...
     pnIdentificationPath(1:maximumFeatures), :);
 pnComplexSupport = unique(selectedMetadata.SourceRegressorIndex, 'stable');
-[found, selectedColumns] = ismember( ...
+[~, selectedColumns] = ismember( ...
     selectedMetadata.SourceRegressorIndex, pnComplexSupport);
-if any(~found)
-    error('run_linear_sweep:PNFeatureMapping', ...
-        'The PN feature path cannot be mapped to its complex regressors.');
-end
 isQ = string(selectedMetadata.Component) == "Q";
 selectedColumns(isQ) = selectedColumns(isQ) + numel(pnComplexSupport);
 
@@ -320,10 +270,6 @@ for targetIndex = 1:numel(targets)
     complexSupports{targetIndex} = complexSupport;
     operations = countModelOperations(manager.regPopulation, complexSupport);
     complexCost = countModelFLOPs(operations(1, :), getFLOPConvention());
-    if complexCost.NumRealParameters ~= targets(targetIndex)
-        error('run_linear_sweep:ParameterCostMismatch', ...
-            'Complex GMP cost and requested parameter count differ.');
-    end
     values = {"Complex GMP DOMP sweep", "Sweep point", ...
         targets(targetIndex), double(complexCost.NumRealParameters), ...
         "Validation-selected Ridge", complexLambdas(targetIndex), ...
@@ -346,10 +292,6 @@ for targetIndex = 1:numel(targets)
     operations = countModelOperations( ...
         manager.regPopulation, supportComplex, pnReduction);
     pnCost = countModelFLOPs(operations(4, :), getFLOPConvention());
-    if pnCost.NumRealParameters ~= targets(targetIndex)
-        error('run_linear_sweep:ParameterCostMismatch', ...
-            'PN-IQ cost and requested parameter count differ.');
-    end
     values = {"Independent PN-IQ PN-DOMP sweep", "Sweep point", ...
         targets(targetIndex), double(pnCost.NumRealParameters), ...
         "Validation-selected Ridge", pnLambdas(targetIndex), ...

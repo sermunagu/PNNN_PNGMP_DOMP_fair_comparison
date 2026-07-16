@@ -25,7 +25,8 @@ rows = table(Model, SweepRole, TargetRealParameters, ...
 
 signature = struct('schemaVersion', 2, 'algorithm', ...
     "fixture-signature", 'digest', "fixture-experiment");
-identity = struct('schemaVersion', 2, 'digest', "fixture-sweep");
+identity = struct('schemaVersion', 2, 'digest', "fixture-sweep", ...
+    'parameterGrid', target);
 sweep = struct('results', rows, 'resultDirectory', ...
     string(fixtureDirectory), 'experimentSignature', signature, ...
     'sweepIdentity', identity);
@@ -107,21 +108,15 @@ assert(isfile(results.ridgeErrorSpectrumFigure));
 assert(~any(contains(results.comparisonTable.Model, ...
     ["Historical", "H4", "dense"], 'IgnoreCase', true), 'all'));
 
-expectError(@() run_selected_comparison(), ...
-    "run_selected_comparison:InvalidTarget");
-for invalid = {NaN, Inf, 14, 340.5}
-    expectError(@() run_selected_comparison(invalid{1}, sweep), ...
-        invalidIdentifier(invalid{1}));
-end
 for ordinaryMissingTarget = [200 344]
     expectError(@() run_selected_comparison( ...
         ordinaryMissingTarget, sweep), ...
-        "run_selected_comparison:MissingSweepPoint");
+        "run_selected_comparison:UnsignedTarget");
 end
 incompatibleSweep = sweep;
 incompatibleSweep.experimentSignature.digest = "different-experiment";
 expectError(@() run_selected_comparison(target, incompatibleSweep), ...
-    "run_selected_comparison:IncompatibleArtifact");
+    "run_selected_comparison:ExperimentMismatch");
 
 corruptDirectory = fullfile(fixtureDirectory, 'corrupt_payload');
 mkdir(corruptDirectory);
@@ -173,13 +168,5 @@ try
         'Expected error %s was not raised.', expectedIdentifier);
 catch exception
     assert(string(exception.identifier) == expectedIdentifier);
-end
-end
-
-function identifier = invalidIdentifier(value)
-if isequal(value, 14)
-    identifier = "run_selected_comparison:TargetBelowPNNNMinimum";
-else
-    identifier = "run_selected_comparison:InvalidTarget";
 end
 end

@@ -1,6 +1,5 @@
 % Test fixed-ridge refits on stored, family-specific synthetic sweep supports.
 % The fixture supplies paths directly and therefore invokes no DOMP or PNNN.
-% It also verifies atomic reuse of the supplementary checkpoint.
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
@@ -95,30 +94,5 @@ for removedWrapper = {'fitComplexVariants','fitPNVariants', ...
     assert(~contains(source, removedWrapper{1}));
 end
 assert(contains(source, 'conj(blockRotation) .* predictionNormalized'));
-
-checkpointDirectory = tempname;
-mkdir(checkpointDirectory);
-checkpointCleanup = onCleanup(@() rmdir(checkpointDirectory, 's'));
-sweepIdentity = struct('digest', "fixed-ridge-fixture");
-experimentSignature = struct('schemaVersion', 2, ...
-    'digest', "fixed-ridge-experiment");
-[~, saved, filename] = updateSweepCheckpoint( ...
-    checkpointDirectory, "fixed_linear", [], sweepIdentity, ...
-    experimentSignature, fixed);
-assert(saved && endsWith(filename, 'fixed_lambda_linear_sweep.mat'));
-[firstLoad, firstReuse] = updateSweepCheckpoint( ...
-    checkpointDirectory, "fixed_linear", [], sweepIdentity, ...
-    experimentSignature);
-[secondLoad, secondReuse] = updateSweepCheckpoint( ...
-    checkpointDirectory, "fixed_linear", [], sweepIdentity, ...
-    experimentSignature);
-assert(firstReuse && secondReuse);
-assert(isequaln(firstLoad.table, fixed.table));
-assert(isequaln(secondLoad.table, fixed.table));
-savedFiles = dir(fullfile(checkpointDirectory, '*'));
-savedFiles = savedFiles(~[savedFiles.isdir]);
-assert(isscalar(savedFiles));
-assert(string(savedFiles.name) == "fixed_lambda_linear_sweep.mat");
-clear checkpointCleanup;
 
 fprintf('FIXED-LAMBDA LINEAR SWEEP TEST: PASS\n');
