@@ -213,7 +213,7 @@ en 0.363 dB y a la PNNN sparse en 2.634 dB. La red sparse, a su vez, mejora
 \Cval{2}{FLOPsPerSample}{0} FLOPs/muestra; N12 sparse usa
 \Cval{8}{FLOPsPerSample}{0} cuando se omiten pesos cero, o
 \Cval{8}{DenseMatrixFLOPsPerSample}{0} si se ejecutan las matrices completas,
-además de 12 ELU y otras operaciones adicionales. La evaluación completa
+además de 12 evaluaciones sigmoidales y otras operaciones adicionales. La evaluación completa
 incluye las muestras de identificación y no es un test independiente de
 generalización.
 
@@ -535,7 +535,7 @@ histórico, pero no es el resultado principal.
 \section{PNNN dense y sparse}
 
 La PNNN recibe $D=84$ features phase-normalized y produce dos salidas reales que
-se recombinan y se restauran a la fase original. Tiene una capa oculta ELU y una
+se recombinan y se restauran a la fase original. Tiene una capa oculta sigmoide y una
 salida lineal de dos componentes. Para $H$ neuronas,
 \begin{equation}
  P(H)=DH+H+2H+2=H(D+3)+2.
@@ -631,7 +631,7 @@ compleja y 6 a una multiplicación compleja. Para
 (a+jb)(c+jd)=(ac-bd)+j(ad+bc)
 \end{equation*}
 hay cuatro multiplicaciones y dos sumas reales: 6 FLOPs. Se informan por separado
-módulos, raíces, divisiones, ELU y exponenciales porque no se ha acordado una
+módulos, raíces, divisiones, evaluaciones de activación y exponenciales porque no se ha acordado una
 conversión homogénea a FLOPs.
 
 \begin{table}[ht]
@@ -643,7 +643,7 @@ Modelo & Parámetros & Full-signal NMSE & FLOPs/muestra & Operaciones adicionale
 \midrule
 Independent PN-IQ & \Rval{2}{NumRealParameters}{0} & \Rval{2}{FullSignalNMSEdB}{3} dB & \Cval{2}{FLOPsPerSample}{0} & 12 módulos/raíces, 2 divisiones\\
 Complex GMP matched & \Rval{3}{NumRealParameters}{0} & \Rval{3}{FullSignalNMSEdB}{3} dB & \Cval{3}{FLOPsPerSample}{0} & 14 módulos/raíces\\
-PNNN N12 sparse & \Rval{8}{NumRealParameters}{0} & \Rval{8}{FullSignalNMSEdB}{3} dB & \Cval{8}{FLOPsPerSample}{0} & 14 módulos/raíces, 2 divisiones, 12 ELU (hasta 12 exp)\\
+PNNN N12 sparse & \Rval{8}{NumRealParameters}{0} & \Rval{8}{FullSignalNMSEdB}{3} dB & \Cval{8}{FLOPsPerSample}{0} & 14 módulos/raíces, 2 divisiones, 12 sigmoidales (hasta 12 exp)\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -657,7 +657,7 @@ ajusta dos salidas. Parámetros y operaciones no son la misma magnitud.
 
 La cifra principal de N12 sparse, 876 FLOPs/muestra, supone que la implementación
 omite multiplicaciones por sus pesos exactamente nulos. Ejecutar las matrices
-originales completas requiere 2252 FLOPs/muestra. Las redes añaden ELU: H4 tiene
+originales completas requiere 2252 FLOPs/muestra. Las redes añaden evaluaciones sigmoidales: H4 tiene
 4 y N12, 12 por muestra. Ninguna de estas cifras demuestra automáticamente
 tiempo MATLAB, coste FPGA, latencia o energía.
 
@@ -733,7 +733,7 @@ Las diferencias sobre la señal completa, redondeadas a tres decimales, son:
 En coste, N12 sparse requiere 876 FLOPs/muestra si se omiten pesos nulos y 2252
 si se ejecutan las matrices completas, mientras PN-IQ full usa 1062. La red
 sparse ahorra 186 FLOPs bajo la primera implementación, pero requiere 1190 más
-bajo la segunda y mantiene 12 ELU adicionales.
+bajo la segunda y mantiene 12 evaluaciones sigmoidales adicionales.
 
 \begin{figure}[ht]
 \centering
@@ -912,7 +912,7 @@ principal.
 omite pesos exactamente nulos; ejecutar las matrices completas eleva el coste de
 876 a 2252 FLOPs/muestra.
 \item \textbf{¿La red sparse será realmente más rápida?} No necesariamente: hace
-falta kernel sparse, y latencia depende de hardware, memoria y ELU.
+falta kernel sparse, y latencia depende de hardware, memoria y activaciones sigmoidales.
 \item \textbf{¿Contribución defendible?} La derivación PN-GMP coupled, su extensión
 independent con controles justos, y la comparación de parámetros/FLOPs.
 \item \textbf{¿Qué no debemos afirmar?} ``Primero'', superioridad universal o
@@ -947,7 +947,7 @@ N12 dense. Los tres modelos principales tienen 358 parámetros.''
 
 \textbf{Coste y cierre (55 s).} ``PN-IQ usa 1062 FLOPs/muestra. N12 sparse usa
 876 si se omiten pesos cero o 2252 si se ejecutan matrices completas, más 12
-ELU. Por tanto, PN-IQ gana NMSE en esta captura y la red gana el conteo
+evaluaciones sigmoidales. Por tanto, PN-IQ gana NMSE en esta captura y la red gana el conteo
 aritmético bajo ejecución sparse. La evaluación completa incluye identificación;
 faltan hold-out multi-captura, múltiples seeds y validación hardware.''
 
@@ -956,7 +956,7 @@ phase-normalized. La variante coupled es algebraicamente el mismo GMP; al libera
 I/Q obtenemos una clase más flexible. Con 358 parámetros, Independent PN-IQ logra
 -38.534 dB y PNNN N12 sparse -35.900 dB sobre la señal completa. PN-IQ cuesta
 1062 FLOPs; la red sparse, 876 si se omiten ceros y 2252 con matrices completas,
-más 12 ELU. Es un resultado de una captura cuya evaluación incluye
+más 12 evaluaciones sigmoidales. Es un resultado de una captura cuya evaluación incluye
 identificación, no una victoria universal.''
 
 \section{Resumen de una página para estudiar}
@@ -982,7 +982,7 @@ Protocolo & Identificación 19,661 (4.00004\%); selección interna 16,711/2,950;
 Parámetros & GMP-100=200; PN-IQ=358; GMP matched=358; H4=350; N12 sparse=358 activos.\\
 Full-signal NMSE & PN-IQ $-38.534$; GMP matched $-38.170$; N12 sparse $-35.900$; H4 $-33.633$ dB.\\
 FLOPs/muestra & PN-IQ 1062; GMP matched 1899; H4 876; N12 sparse 876 omitiendo ceros/2252 con matrices completas.\\
-Special ops & PN-IQ 26; N12 sparse 54, incluidas 12 ELU/exp de peor caso.\\
+Special ops & PN-IQ 26; N12 sparse 54, incluidas 12 sigmoidales/exp de peor caso.\\
 Sí puedo decir & Equivalencia coupled; mejora observada al liberar I/Q; controles parameter-matched y sin PN; coste analítico explícito.\\
 No debo decir & Primero absoluto; mejor hardware; menor energía/latencia; generaliza a cualquier PA; sparse ideal garantizado.\\
 \bottomrule

@@ -51,7 +51,7 @@ Independent I/Q without PN & 394 & -37.810 & -36.417 & 1086 &
 Parameter-matched GMP & 358 & -38.170 & -36.686 & 1899 &
 14 complex magnitudes \\
 Sparse PNNN N12 & 358 & -35.900 & -- & 876 &
-14 complex magnitudes, 2 divisions, 12 ELU \\
+14 complex magnitudes, 2 divisions, 12 sigmoid evaluations \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -84,7 +84,7 @@ With the fixed Ridge value, the three linear rows reach -36.940, -36.417, and
 $10^{-5}$, but its regularized estimates preserve every frozen support and
 inference cost. Sparse PNNN N12 has the lowest analytical count when zero
 weights are skipped, while PN-IQ has the best NMSE in both displayed linear
-fits. GMP and the no-PN control avoid the 12 ELU evaluations of the sparse
+fits. GMP and the no-PN control avoid the 12 sigmoid evaluations of the sparse
 network. Analytical FLOPs do not establish latency, power, or hardware cost.
 
 \end{document}

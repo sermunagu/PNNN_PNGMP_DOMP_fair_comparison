@@ -264,7 +264,7 @@ assert(pnnn_flops.CoreFLOPsPerSample == 876);
 assert(pnnn_flops.FLOPsPerSample == 876);
 assert(pnnn_flops.DenseExecutionCoreFLOPsPerSample == 876);
 assert(pnnn_flops.IdealSparseCoreFLOPsPerSample == 876);
-assert(pnnn_flops.NumELUPerSample == 4);
+assert(pnnn_flops.NumActivationEvaluationsPerSample == 4);
 assert(pnnn_flops.NumSqrtPerSample == 14);
 assert(pnnn_flops.NumRealDivisionsPerSample == 2);
 

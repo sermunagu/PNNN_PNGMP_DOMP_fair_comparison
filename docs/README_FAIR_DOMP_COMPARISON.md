@@ -22,7 +22,7 @@ snapshot so PNNN cannot create a private partition.
 ## PNNN models
 
 The phase-normalized PNNN input is built with periodic memory `M=13`, orders
-`[1 3 5 7]`, full features, ELU, and two real outputs. The active builder
+`[1 3 5 7]`, full features, sigmoid activation, and two real outputs. The active builder
 currently gives `D=84`. A one-hidden-layer network with width `H` has
 
 ```text
@@ -84,7 +84,7 @@ For `PNNN N12 sparse`, two core arithmetic counts are reported:
 - `IdealSparseCoreFLOPsPerSample`: only nonzero weights, requiring a sparse
   kernel that actually skips zero products.
 
-The ideal count is not a guaranteed MATLAB or hardware cost. ELU, worst-case
+The ideal count is not a guaranteed MATLAB or hardware cost. Activation evaluations, worst-case
 exponential, square root, division, and absolute-value calls remain separate
 special-operation columns. These algorithmic counts do not directly establish
 FPGA resources, latency, power, or wall-clock runtime.

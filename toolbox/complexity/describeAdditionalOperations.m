@@ -20,8 +20,9 @@ end
 if row.NumRealDivisionsPerSample > 0
     parts(end+1) = sprintf('%d division', row.NumRealDivisionsPerSample);
 end
-if row.NumELUPerSample > 0
-    parts(end+1) = sprintf('%d %s', row.NumELUPerSample, activationName);
+if row.NumActivationEvaluationsPerSample > 0
+    parts(end+1) = sprintf('%d %s', ...
+        row.NumActivationEvaluationsPerSample, activationName);
 end
 if row.NumExpWorstCasePerSample > 0
     parts(end+1) = sprintf('up to %d exp', row.NumExpWorstCasePerSample);

@@ -58,6 +58,8 @@ for filename = exactTables
         'TextType', 'string');
     candidateTable = readtable(fullfile(candidateDirectory, filename), ...
         'TextType', 'string');
+    baselineTable = normalizeHistoricalActivationName(baselineTable);
+    candidateTable = normalizeHistoricalActivationName(candidateTable);
     if ismember('RegularizationMode', candidateTable.Properties.VariableNames)
         candidateTable = historicalRows(candidateTable);
     end
@@ -158,6 +160,15 @@ for variableName = variables
         assert(isequaln(baselineValues, candidateValues), ...
             'Table mismatch in %s.', variableName);
     end
+end
+end
+
+function value = normalizeHistoricalActivationName(value)
+oldName = 'NumELUPerSample';
+newName = 'NumActivationEvaluationsPerSample';
+if ismember(oldName, value.Properties.VariableNames) && ...
+        ~ismember(newName, value.Properties.VariableNames)
+    value = renamevars(value, oldName, newName);
 end
 end
 
