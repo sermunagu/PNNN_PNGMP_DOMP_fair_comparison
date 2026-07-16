@@ -1,0 +1,141 @@
+% Test fixed-ridge refits on stored, family-specific synthetic sweep supports.
+% The fixture supplies paths directly and therefore invokes no DOMP or PNNN.
+% It also verifies atomic reuse of the supplementary checkpoint.
+
+clearvars;
+projectRoot = fileparts(fileparts(mfilename('fullpath')));
+addpath(fullfile(projectRoot, 'config'));
+addpath(fullfile(projectRoot, 'toolbox', 'metrics'));
+addpath(fullfile(projectRoot, 'toolbox', 'pn_gmp_comparison'));
+addpath(fullfile(projectRoot, 'toolbox', 'sweep'));
+
+rng(731, 'twister');
+n = 128;
+x = 0.4*(randn(n, 1) + 1j*randn(n, 1));
+y = 0.8*x + 0.12*x.*abs(x).^2 + ...
+    0.005*(randn(n, 1) + 1j*randn(n, 1));
+split.identificationIndices = (1:64).';
+split.fullSignalIndices = (1:n).';
+targets = [4; 6; 8];
+counts = targets/2;
+
+cfg = getFairDOMPComparisonConfig(projectRoot);
+cfg.sweep.parameterGrid = targets.';
+cfg.sweep.candidateBlockSize = 32;
+cfg.gmp.blockSize = 32;
+manager = GMP_createRegressorManager(x, y, cfg.gmp);
+population = (1:numel(manager.regPopulation)).';
+[probe, details] = buildPhaseNormalizedIQRegressors( ...
+    x, 1, manager, population);
+[~, reduction] = removeStructurallyZeroQFeatures( ...
+    probe, details.featureMetadata, 1e-12);
+featureMetadata = reduction.featureMetadata(reduction.keptIndices, :);
+
+complexPath = population(1:max(counts));
+pnCandidates = find(~ismember( ...
+    featureMetadata.SourceRegressorIndex, complexPath));
+pnPath = pnCandidates(1:max(counts));
+complexSupports = cell(numel(targets), 1);
+pnFeatureSupports = cell(numel(targets), 1);
+pnComplexSupports = cell(numel(targets), 1);
+for index = 1:numel(targets)
+    complexSupports{index} = complexPath(1:counts(index));
+    pnFeatureSupports{index} = pnPath(1:counts(index));
+    pnComplexSupports{index} = unique(featureMetadata.SourceRegressorIndex( ...
+        pnFeatureSupports{index}), 'stable');
+end
+assert(~isequal(complexSupports{end}, pnComplexSupports{end}));
+
+TargetRealParameters = targets;
+ActualRealParameters = targets;
+FLOPsPerSample = 100 + targets;
+linear.complexTable = table(TargetRealParameters, ...
+    ActualRealParameters, FLOPsPerSample);
+linear.pnTable = table(TargetRealParameters, ...
+    ActualRealParameters, FLOPsPerSample);
+linear.supports = struct('complex', {complexSupports}, ...
+    'pnFeatures', {pnFeatureSupports}, 'pnComplex', {pnComplexSupports});
+linear.paths = struct('complexTrain', flipud(complexPath), ...
+    'complexIdentification', complexPath, 'pnTrain', flipud(pnPath), ...
+    'pnIdentification', pnPath);
+linear.featureMetadata = featureMetadata;
+
+fixed = runFixedLambdaLinearSweep(x, y, split, cfg, linear);
+assert(height(fixed.table) == 18);
+assert(isequal(sort(unique(string(fixed.table.Model))), ...
+    sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"])));
+assert(isequal(sort(unique(fixed.table.FixedLambda)), ...
+    [1e-5; 1e-4; 1e-3]));
+for model = unique(string(fixed.table.Model)).'
+    for lambda = fixed.fixedLambdas.'
+        rows = string(fixed.table.Model) == model & ...
+            fixed.table.FixedLambda == lambda;
+        assert(nnz(rows) == numel(targets));
+    end
+end
+assert(isequaln(fixed.supports.complex, complexSupports));
+assert(isequaln(fixed.supports.pnFeatures, pnFeatureSupports));
+assert(isequaln(fixed.supports.pnComplex, pnComplexSupports));
+assert(isequaln(fixed.paths.complexIdentification, complexPath));
+assert(isequaln(fixed.paths.pnIdentification, pnPath));
+assert(fixed.metadata.dompInvocationCount == 0);
+assert(fixed.metadata.pnnnTrainingCount == 0);
+assert(all(structfun(@(value) value == 1, ...
+    fixed.metadata.matrixPassCount)));
+assert(all(isfinite(fixed.table.IdentificationNMSEdB)));
+assert(all(isfinite(fixed.table.FullSignalNMSEdB)));
+
+selectedTarget = targets(2);
+selected = buildSelectedFixedLambdaPredictions( ...
+    x, y, split, cfg, linear, fixed, selectedTarget);
+assert(height(selected.fixedLambdaComparisonTable) == 6);
+assert(isequal(selected.fixedLambdaComparisonTable.FixedLambda, ...
+    repmat([1e-3; 1e-4; 1e-5], 2, 1)));
+assert(isequaln(selected.supports.complex, complexSupports(2)));
+assert(isequaln(selected.supports.pnFeatures, pnFeatureSupports(2)));
+assert(isequaln(selected.supports.pnComplex, pnComplexSupports(2)));
+for family = {'complexGMP','pnIQ'}
+    values = selected.fullSignalPredictions.(family{1});
+    assert(all(structfun(@(prediction) ...
+        isequal(size(prediction), [n 1]), values)));
+end
+assert(selected.metadata.dompInvocationCount == 0);
+assert(selected.metadata.pnnnTrainingCount == 0);
+assert(selected.metadata.maximumIdentificationNMSEDifferenceDb <= 1e-9);
+assert(selected.metadata.maximumFullSignalNMSEDifferenceDb <= 1e-9);
+
+source = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'runFixedLambdaLinearSweep.m'));
+assert(~contains(source, 'selectDOMPSupport('));
+assert(~contains(source, 'runPNNN'));
+selectedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'buildSelectedFixedLambdaPredictions.m'));
+assert(~contains(selectedSource, 'selectDOMPSupport('));
+assert(~contains(selectedSource, 'runPNNN'));
+
+checkpointDirectory = tempname;
+mkdir(checkpointDirectory);
+checkpointCleanup = onCleanup(@() rmdir(checkpointDirectory, 's'));
+sweepIdentity = struct('digest', "fixed-ridge-fixture");
+experimentSignature = struct('schemaVersion', 2, ...
+    'digest', "fixed-ridge-experiment");
+[~, saved, filename] = updateSweepCheckpoint( ...
+    checkpointDirectory, "fixed_linear", [], sweepIdentity, ...
+    experimentSignature, fixed);
+assert(saved && endsWith(filename, 'fixed_lambda_linear_sweep.mat'));
+[firstLoad, firstReuse] = updateSweepCheckpoint( ...
+    checkpointDirectory, "fixed_linear", [], sweepIdentity, ...
+    experimentSignature);
+[secondLoad, secondReuse] = updateSweepCheckpoint( ...
+    checkpointDirectory, "fixed_linear", [], sweepIdentity, ...
+    experimentSignature);
+assert(firstReuse && secondReuse);
+assert(isequaln(firstLoad.table, fixed.table));
+assert(isequaln(secondLoad.table, fixed.table));
+savedFiles = dir(fullfile(checkpointDirectory, '*'));
+savedFiles = savedFiles(~[savedFiles.isdir]);
+assert(isscalar(savedFiles));
+assert(string(savedFiles.name) == "fixed_lambda_linear_sweep.mat");
+clear checkpointCleanup;
+
+fprintf('FIXED-LAMBDA LINEAR SWEEP TEST: PASS\n');

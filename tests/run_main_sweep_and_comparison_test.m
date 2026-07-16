@@ -28,22 +28,31 @@ writelines([ ...
     "results = struct('selectedParameters', target, 'sweep', sweep);"; ...
     "end"], fullfile(fixtureDirectory, ...
     'run_fair_PNNN_vs_PNGMP_DOMP.m'));
+writelines([ ...
+    "function results = writeSelectedPointSpectra(results)"; ...
+    "global mockSpectrumCalls"; ...
+    "mockSpectrumCalls = mockSpectrumCalls + 1;"; ...
+    "results.selectedPointDirectory = 'fixture';"; ...
+    "end"], fullfile(fixtureDirectory, 'writeSelectedPointSpectra.m'));
 
 addpath(projectRoot, '-end');
 cd(fixtureDirectory);
 rehash;
 clear input run_parameter_sweep run_fair_PNNN_vs_PNGMP_DOMP ...
-    main_sweep_and_comparison;
-global mockInputValues mockInputIndex mockSweepTargets %#ok<GVMIS>
+    writeSelectedPointSpectra main_sweep_and_comparison;
+global mockInputValues mockInputIndex mockSweepTargets ...
+    mockSpectrumCalls %#ok<GVMIS>
 mockInputValues = ["text", "NaN", "Inf", "344", "510", "340"];
 mockInputIndex = 0;
 mockSweepTargets = [];
+mockSpectrumCalls = 0;
 
 results = main_sweep_and_comparison();
 assert(results.selectedParameters == 340);
 assert(mockInputIndex == numel(mockInputValues));
 assert(isequal(mockSweepTargets, 20:10:500));
 assert(results.sweep.fixture);
+assert(mockSpectrumCalls == 1);
 
 clear cleanup;
 fprintf('MAIN SWEEP AND COMPARISON TEST: PASS\n');
@@ -51,7 +60,7 @@ fprintf('MAIN SWEEP AND COMPARISON TEST: PASS\n');
 function restoreFixture(directory, fixtureDirectory, warningState)
 cd(directory);
 clear input run_parameter_sweep run_fair_PNNN_vs_PNGMP_DOMP ...
-    main_sweep_and_comparison;
+    writeSelectedPointSpectra main_sweep_and_comparison;
 warning(warningState);
 if isfolder(fixtureDirectory)
     rmdir(fixtureDirectory, 's');

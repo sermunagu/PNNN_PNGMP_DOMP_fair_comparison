@@ -23,4 +23,5 @@ end
 fprintf('Selected parameter budget: %d active real parameters.\n', ...
     selectedParameters);
 results = run_fair_PNNN_vs_PNGMP_DOMP(selectedParameters, sweep);
+results = writeSelectedPointSpectra(results);
 end

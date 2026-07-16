@@ -17,6 +17,9 @@ end
     sweep, selectedParameters);
 signature = sweep.experimentSignature;
 identity = sweep.sweepIdentity;
+[targetFullSignal, fullSignalIndices, sampleRateHz, sampleRateSource, ...
+    fittingContext] = ...
+    recoverFullSignalTarget(sweep, signature);
 
 summaryArtifact = loadSignedArtifact(fullfile(sweepDirectory, ...
     'complexity_sweep.mat'), identity, signature);
@@ -34,7 +37,13 @@ pnnnArtifact = loadSignedArtifact(fullfile(sweepDirectory, ...
     linearArtifact.payload, selectedRows, selectedParameters);
 pnnnPrediction = selectPNNNPoint(pnnnArtifact.payload, ...
     denseArtifact.payload, selectedRows, selectedParameters);
-validatePredictionSizes(linearPredictions, pnnnPrediction);
+validatePredictionSizes(linearPredictions, pnnnPrediction, ...
+    targetFullSignal, fullSignalIndices);
+[fixedLambdaTable, fixedLambdaPredictions, ridgePredictionTime] = ...
+    selectedFixedLambdaPredictions(sweep, sweepDirectory, identity, ...
+    signature, linearArtifact.payload, fittingContext, selectedParameters);
+validateFixedPredictionSizes(fixedLambdaTable, fixedLambdaPredictions, ...
+    numel(targetFullSignal));
 
 comparisonTable = selectedRows(:, {'Model','ActualRealParameters', ...
     'FullSignalNMSEdB','FLOPsPerSample'});
@@ -51,16 +60,138 @@ results = struct( ...
     'reusedDenseSource', true, ...
     'selectedSweepRows', selectedRows, ...
     'linearSupports', linearSupports, ...
+    'targetFullSignal', targetFullSignal, ...
+    'fullSignalIndices', fullSignalIndices, ...
+    'sampleRateHz', sampleRateHz, ...
+    'sampleRateSource', sampleRateSource, ...
+    'fixedLambdaComparisonTable', fixedLambdaTable, ...
+    'fixedLambdaFullSignalPredictions', fixedLambdaPredictions, ...
+    'ridgePredictionTimeSeconds', ridgePredictionTime, ...
     'fullSignalPredictions', struct( ...
         'complexGMP', linearPredictions.complexGMP, ...
         'pnIQ', linearPredictions.pnIQ, ...
-        'sparsePNNNN12', pnnnPrediction), ...
-    'pendingOutputs', "Final spectra are not produced in this phase.");
+        'sparsePNNNN12', pnnnPrediction));
 
 disp(comparisonTable);
 fprintf('Reused linear sweep: YES\n');
+fprintf('Reused fixed-lambda checkpoint: YES\n');
 fprintf('Reused sparse PNNN target %d: YES\n', selectedParameters);
+fprintf('Selected fixed-lambda predictions completed in %.2f s.\n', ...
+    ridgePredictionTime);
 fprintf('Sweep results: %s\n', sweepDirectory);
+end
+
+function [target, indices, sampleRateHz, source, fittingContext] = ...
+    recoverFullSignalTarget(sweep, expectedSignature)
+provided = {'targetFullSignal','fullSignalIndices','sampleRateHz'};
+if all(isfield(sweep, provided))
+    target = sweep.targetFullSignal(:);
+    indices = double(sweep.fullSignalIndices(:));
+    sampleRateHz = double(sweep.sampleRateHz);
+    source = "Provided signed-sweep context";
+    if isfield(sweep, 'sampleRateSource')
+        source = string(sweep.sampleRateSource);
+    end
+    fittingContext = [];
+    validateTargetContext(target, indices, sampleRateHz);
+    return;
+end
+
+projectRoot = fileparts(mfilename('fullpath'));
+addpath(fullfile(projectRoot, 'config'));
+addpath(fullfile(projectRoot, 'toolbox', 'pnnn'));
+addpath(fullfile(projectRoot, 'toolbox', 'pn_gmp_comparison'));
+addpath(fullfile(projectRoot, 'toolbox', 'splits'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
+measurement = load(cfg.measurementFile, 'x', 'y', 'fs', 'info_signal');
+if ~all(isfield(measurement, {'x','y'}))
+    error('run_fair_PNNN_vs_PNGMP_DOMP:InvalidMeasurement', ...
+        'The configured measurement must contain x and y.');
+end
+[x, y] = selectXYByMapping( ...
+    measurement.x, measurement.y, cfg.mappingMode);
+x = x(:);
+y = y(:);
+actualSignature = buildExperimentSignature(x, y, cfg);
+if ~isequaln(actualSignature, expectedSignature)
+    error('run_fair_PNNN_vs_PNGMP_DOMP:SignatureMismatch', ...
+        'The configured measurement does not match the signed sweep.');
+end
+if cfg.pnnn.removeDC
+    x = x - mean(x);
+    y = y - mean(y);
+end
+split = buildCommonComparisonSplit(x, y, cfg);
+indices = double(split.fullSignalIndices(:));
+target = y(indices);
+[sampleRateHz, source] = measurementSampleRate(measurement);
+fittingContext = struct('x', x, 'y', y, 'split', split, 'cfg', cfg);
+validateTargetContext(target, indices, sampleRateHz);
+end
+
+function [tableValue, predictions, elapsedSeconds] = ...
+    selectedFixedLambdaPredictions(sweep, directory, identity, signature, ...
+    linear, fittingContext, target)
+provided = {'fixedLambdaComparisonTable', ...
+    'fixedLambdaFullSignalPredictions'};
+if all(isfield(sweep, provided))
+    tableValue = sweep.fixedLambdaComparisonTable;
+    predictions = sweep.fixedLambdaFullSignalPredictions;
+    elapsedSeconds = 0;
+    return;
+end
+if isempty(fittingContext)
+    error('run_fair_PNNN_vs_PNGMP_DOMP:MissingFittingContext', ...
+        'Selected fixed-lambda predictions require the signed signal context.');
+end
+fixedArtifact = loadSignedArtifact(fullfile(directory, ...
+    'fixed_lambda_linear_sweep.mat'), identity, signature);
+selected = buildSelectedFixedLambdaPredictions( ...
+    fittingContext.x, fittingContext.y, fittingContext.split, ...
+    fittingContext.cfg, linear, fixedArtifact.payload, target);
+tableValue = selected.fixedLambdaComparisonTable;
+predictions = selected.fullSignalPredictions;
+elapsedSeconds = selected.elapsedSeconds;
+end
+
+function [sampleRateHz, source] = measurementSampleRate(measurement)
+if isfield(measurement, 'fs') && isscalar(measurement.fs) && ...
+        isfinite(measurement.fs) && measurement.fs > 0
+    sampleRateHz = double(measurement.fs);
+    source = "measurement.fs";
+    if isfield(measurement, 'info_signal') && ...
+            isstruct(measurement.info_signal) && ...
+            isfield(measurement.info_signal, 'fsovs')
+        oversampledRate = double(measurement.info_signal.fsovs);
+        if ~isscalar(oversampledRate) || ~isfinite(oversampledRate) || ...
+                abs(oversampledRate - sampleRateHz) > ...
+                eps(max(oversampledRate, sampleRateHz))
+            error('run_fair_PNNN_vs_PNGMP_DOMP:SampleRateMismatch', ...
+                'Measurement fs and info_signal.fsovs disagree.');
+        end
+        source = "measurement.fs, confirmed by info_signal.fsovs";
+    end
+elseif isfield(measurement, 'info_signal') && ...
+        isstruct(measurement.info_signal) && ...
+        isfield(measurement.info_signal, 'fsovs')
+    sampleRateHz = double(measurement.info_signal.fsovs);
+    source = "measurement.info_signal.fsovs";
+else
+    % This local fallback corresponds to the expected capture rate.
+    sampleRateHz = 614.4e6;
+    source = "Local fallback for the current capture";
+end
+end
+
+function validateTargetContext(target, indices, sampleRateHz)
+valid = ~isempty(target) && numel(target) == numel(indices) && ...
+    all(isfinite(target)) && all(isfinite(indices)) && ...
+    all(indices == floor(indices)) && all(indices > 0) && ...
+    isscalar(sampleRateHz) && isfinite(sampleRateHz) && sampleRateHz > 0;
+if ~valid
+    error('run_fair_PNNN_vs_PNGMP_DOMP:InvalidTargetContext', ...
+        'The full-signal target, indices, or sample rate are invalid.');
+end
 end
 
 function validateTarget(target)
@@ -216,15 +347,44 @@ if ~isequaln(actual(:,columns), expected(:,columns))
 end
 end
 
-function validatePredictionSizes(linearPredictions, pnnnPrediction)
+function validatePredictionSizes( ...
+    linearPredictions, pnnnPrediction, target, indices)
 count = numel(linearPredictions.complexGMP);
 valid = count > 0 && numel(linearPredictions.pnIQ) == count && ...
-    numel(pnnnPrediction) == count && ...
+    numel(pnnnPrediction) == count && numel(target) == count && ...
+    numel(indices) == count && ...
     all(isfinite(linearPredictions.complexGMP)) && ...
     all(isfinite(linearPredictions.pnIQ)) && all(isfinite(pnnnPrediction));
 if ~valid
     error('run_fair_PNNN_vs_PNGMP_DOMP:InvalidPredictions', ...
         'The three stored full-signal predictions must be aligned and finite.');
+end
+end
+
+function validateFixedPredictionSizes(tableValue, predictions, count)
+models = ["Complex GMP-DOMP"; "PN-IQ PN-DOMP"];
+lambdas = [1e-3; 1e-4; 1e-5];
+families = {'complexGMP','pnIQ'};
+fields = {'lambda1e3','lambda1e4','lambda1e5'};
+valid = istable(tableValue) && height(tableValue) == 6 && ...
+    all(ismember({'Model','FixedLambda'}, ...
+    tableValue.Properties.VariableNames)) && ...
+    isequal(sort(unique(string(tableValue.Model))), sort(models)) && ...
+    isequal(sort(unique(tableValue.FixedLambda)), sort(lambdas));
+for familyIndex = 1:numel(families)
+    family = families{familyIndex};
+    valid = valid && isfield(predictions, family) && ...
+        all(isfield(predictions.(family), fields));
+    if valid
+        for fieldIndex = 1:numel(fields)
+            value = predictions.(family).(fields{fieldIndex});
+            valid = valid && numel(value) == count && all(isfinite(value));
+        end
+    end
+end
+if ~valid
+    error('run_fair_PNNN_vs_PNGMP_DOMP:InvalidFixedPredictions', ...
+        'Exactly six aligned fixed-lambda predictions are required.');
 end
 end
 

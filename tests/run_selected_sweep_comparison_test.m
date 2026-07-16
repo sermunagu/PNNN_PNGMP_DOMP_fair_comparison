@@ -34,6 +34,30 @@ n = 24;
 complexPrediction = complex((1:n).', -(1:n).');
 pnPrediction = 0.9*complexPrediction;
 pnnnPrediction = 0.8*complexPrediction;
+targetFullSignal = 1.1*complexPrediction;
+fixedMatrix = complexPrediction.*[0.99 0.98 0.97 0.89 0.88 0.87];
+fixedPredictions = struct( ...
+    'complexGMP', struct('lambda1e3', fixedMatrix(:, 1), ...
+        'lambda1e4', fixedMatrix(:, 2), ...
+        'lambda1e5', fixedMatrix(:, 3)), ...
+    'pnIQ', struct('lambda1e3', fixedMatrix(:, 4), ...
+        'lambda1e4', fixedMatrix(:, 5), ...
+        'lambda1e5', fixedMatrix(:, 6)));
+fixedModel = repelem(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"], 3);
+fixedTarget = repmat(target, 6, 1);
+fixedLambda = repmat([1e-3; 1e-4; 1e-5], 2, 1);
+fixedNMSE = (-32:-27).';
+fixedFLOPs = repelem(FLOPsPerSample(1:2), 3);
+fixedTable = table(fixedModel, fixedTarget, fixedTarget, fixedLambda, ...
+    fixedNMSE, fixedNMSE, fixedFLOPs, 'VariableNames', ...
+    {'Model','TargetRealParameters','ActualRealParameters','FixedLambda', ...
+    'IdentificationNMSEdB','FullSignalNMSEdB','FLOPsPerSample'});
+sweep.targetFullSignal = targetFullSignal;
+sweep.fullSignalIndices = (1:n).';
+sweep.sampleRateHz = 614.4e6;
+sweep.sampleRateSource = "Synthetic fixture";
+sweep.fixedLambdaComparisonTable = fixedTable;
+sweep.fixedLambdaFullSignalPredictions = fixedPredictions;
 supports = struct('complex', {{(1:target/2).'}}, ...
     'pnFeatures', {{(1:target/2).'}}, ...
     'pnComplex', {{(1:target/2).'}});
@@ -69,6 +93,13 @@ assert(results.reusedDenseSource);
 assert(isequal(results.fullSignalPredictions.complexGMP, complexPrediction));
 assert(isequal(results.fullSignalPredictions.pnIQ, pnPrediction));
 assert(isequal(results.fullSignalPredictions.sparsePNNNN12, pnnnPrediction));
+assert(isequal(results.fixedLambdaComparisonTable, fixedTable));
+assert(isequal(results.fixedLambdaFullSignalPredictions, fixedPredictions));
+assert(height(results.fixedLambdaComparisonTable) == 6);
+assert(isequal(results.targetFullSignal, targetFullSignal));
+assert(isequal(results.fullSignalIndices, (1:n).'));
+assert(results.sampleRateHz == 614.4e6);
+assert(results.sampleRateSource == "Synthetic fixture");
 assert(~any(contains(results.comparisonTable.Model, ...
     ["Historical", "H4", "dense"], 'IgnoreCase', true), 'all'));
 

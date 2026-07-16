@@ -100,10 +100,12 @@ end
 
 function name = artifactName(kind, target)
 kind = string(validatestring(kind, ...
-    {'linear','dense','pnnn','summary'}));
+    {'linear','fixed_linear','dense','pnnn','summary'}));
 switch kind
     case "linear"
         name = 'linear_sweep.mat';
+    case "fixed_linear"
+        name = 'fixed_lambda_linear_sweep.mat';
     case "dense"
         name = 'sweep_dense_source.mat';
     case "summary"

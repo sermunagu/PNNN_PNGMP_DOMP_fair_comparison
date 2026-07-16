@@ -1,8 +1,8 @@
-function results = writeSweepPresentationOutputs( ...
-    linear, pnnnRows, parameterGrid, directory)
+function [results, details] = writeSweepPresentationOutputs( ...
+    linear, fixedLinear, pnnnRows, parameterGrid, directory)
 % writeSweepPresentationOutputs - Build the public three-family sweep output.
-% This function validates and writes the canonical CSV and comparison figures.
-% All targets are handled uniformly under one shared presentation contract.
+% Fixed-ridge linear references remain supplementary to the canonical table.
+% All targets are validated before the CSV files and figures are replaced.
 
 requiredLinear = {'complexTable','pnTable'};
 if ~isstruct(linear) || ~all(isfield(linear, requiredLinear)) || ...
@@ -18,6 +18,12 @@ if isempty(targets) || any(~isfinite(targets)) || ...
 end
 results = [linear.complexTable; linear.pnTable; pnnnRows];
 validatePresentedResults(results, targets);
+if ~isstruct(fixedLinear) || ~isfield(fixedLinear, 'table')
+    error('writeSweepPresentationOutputs:InvalidFixedLinear', ...
+        'The supplementary fixed-ridge table is required.');
+end
+fixedResults = fixedLinear.table;
+validateFixedResults(fixedResults, results, targets);
 
 directory = string(directory);
 if ~isscalar(directory) || ismissing(directory) || strlength(directory) == 0
@@ -28,24 +34,20 @@ directoryPath = char(directory);
 if ~isfolder(directoryPath)
     mkdir(directoryPath);
 end
-csvFile = fullfile(directoryPath, 'complexity_sweep.csv');
-temporaryCSV = [tempname(directoryPath) '.csv'];
-csvCleanup = onCleanup(@() deleteIfPresent(temporaryCSV));
 fprintf('[Output] Writing complexity_sweep.csv...\n');
-writetable(results, temporaryCSV);
-[moved, message] = movefile(temporaryCSV, csvFile, 'f');
-if ~moved
-    error('writeSweepPresentationOutputs:CSVMoveFailed', ...
-        'Could not install the sweep CSV: %s', message);
-end
-clear csvCleanup;
+writeTableAtomically(results, directoryPath, 'complexity_sweep.csv');
+fprintf('[Output] Writing fixed_lambda_linear_sweep.csv...\n');
+writeTableAtomically(fixedResults, directoryPath, ...
+    'fixed_lambda_linear_sweep.csv');
 
 fprintf('[Output] Writing NMSE-vs-parameters figure...\n');
-writeComparisonFigure(results, directoryPath, 'ActualRealParameters', ...
-    'Active real parameters', 'comparison_nmse_parameters_sweep.png');
+details.parameterCurveCount = writeComparisonFigure( ...
+    results, fixedResults, directoryPath, 'ActualRealParameters', ...
+    'Active real parameters', 'comparison_nmse_parameters_sweep.png', true);
 fprintf('[Output] Writing NMSE-vs-FLOPs figure...\n');
-writeComparisonFigure(results, directoryPath, 'FLOPsPerSample', ...
-    'FLOPs per sample', 'comparison_nmse_flops_sweep.png');
+details.flopsCurveCount = writeComparisonFigure( ...
+    results, table(), directoryPath, 'FLOPsPerSample', ...
+    'FLOPs per sample', 'comparison_nmse_flops_sweep.png', false);
 end
 
 function validatePresentedResults(results, targets)
@@ -85,7 +87,65 @@ if any(results.ActiveWeights(pnnnRows) + ...
 end
 end
 
-function writeComparisonFigure(results, directory, xVariable, xLabel, filename)
+function validateFixedResults(fixed, principal, targets)
+required = {'Model','TargetRealParameters','ActualRealParameters', ...
+    'FixedLambda','IdentificationNMSEdB','FullSignalNMSEdB', ...
+    'FLOPsPerSample'};
+models = ["Complex GMP-DOMP"; "PN-IQ PN-DOMP"];
+lambdas = [1e-3; 1e-4; 1e-5];
+if ~istable(fixed) || ~all(ismember(required, ...
+        fixed.Properties.VariableNames)) || ...
+        height(fixed) ~= 6*numel(targets) || ...
+        ~isequal(sort(unique(string(fixed.Model))), sort(models))
+    error('writeSweepPresentationOutputs:InvalidFixedRows', ...
+        'The fixed-ridge table must contain two families and three lambdas.');
+end
+principalModels = ["Complex GMP DOMP sweep"; ...
+    "Independent PN-IQ PN-DOMP sweep"];
+for modelIndex = 1:numel(models)
+    for lambdaIndex = 1:numel(lambdas)
+        rows = string(fixed.Model) == models(modelIndex) & ...
+            fixed.FixedLambda == lambdas(lambdaIndex);
+        if nnz(rows) ~= numel(targets) || ...
+                ~isequal(sort(fixed.TargetRealParameters(rows)), ...
+                sort(targets))
+            error('writeSweepPresentationOutputs:MissingFixedCurve', ...
+                'Every fixed family/lambda combination needs all targets.');
+        end
+    end
+    for targetIndex = 1:numel(targets)
+        auxiliaryRows = string(fixed.Model) == models(modelIndex) & ...
+            fixed.TargetRealParameters == targets(targetIndex);
+        principalRow = string(principal.Model) == ...
+            principalModels(modelIndex) & ...
+            principal.TargetRealParameters == targets(targetIndex);
+        if nnz(auxiliaryRows) ~= numel(lambdas) || nnz(principalRow) ~= 1 || ...
+                any(fixed.ActualRealParameters(auxiliaryRows) ~= ...
+                principal.ActualRealParameters(principalRow)) || ...
+                any(fixed.FLOPsPerSample(auxiliaryRows) ~= ...
+                principal.FLOPsPerSample(principalRow))
+            error('writeSweepPresentationOutputs:FixedComplexityMismatch', ...
+                'Fixed ridge must preserve principal support complexity.');
+        end
+    end
+end
+end
+
+function writeTableAtomically(value, directory, filename)
+finalFile = fullfile(directory, filename);
+temporaryFile = [tempname(directory) '.csv'];
+cleanup = onCleanup(@() deleteIfPresent(temporaryFile));
+writetable(value, temporaryFile);
+[moved, message] = movefile(temporaryFile, finalFile, 'f');
+if ~moved
+    error('writeSweepPresentationOutputs:CSVMoveFailed', ...
+        'Could not install %s: %s', filename, message);
+end
+clear cleanup;
+end
+
+function curveCount = writeComparisonFigure( ...
+    results, fixed, directory, xVariable, xLabel, filename, includeFixed)
 figureHandle = figure('Visible', 'off', 'Color', 'w', ...
     'Position', [100 100 900 600]);
 figureCleanup = onCleanup(@() closeIfValid(figureHandle));
@@ -93,18 +153,51 @@ hold on;
 models = ["Complex GMP DOMP sweep", ...
     "Independent PN-IQ PN-DOMP sweep", "Sparse PNNN N12"];
 labels = ["Complex GMP-DOMP", "PN-IQ PN-DOMP", "Sparse PNNN N12"];
+mainHandles = gobjects(numel(models), 1);
 for index = 1:numel(models)
     rows = string(results.Model) == models(index);
     x = results.(xVariable)(rows);
     y = results.FullSignalNMSEdB(rows);
     [x, order] = sort(x);
-    plot(x, y(order), '-o', 'DisplayName', labels(index));
+    if includeFixed
+        mainHandles(index) = plot(x, y(order), '-o', 'LineWidth', 2, ...
+            'DisplayName', labels(index));
+    else
+        mainHandles(index) = plot(x, y(order), '-o', ...
+            'DisplayName', labels(index));
+    end
+end
+curveCount = numel(models);
+if includeFixed
+    auxiliaryModels = ["Complex GMP-DOMP", "PN-IQ PN-DOMP"];
+    lambdas = [1e-3, 1e-4, 1e-5];
+    lineStyles = ["--", ":", "-."];
+    for modelIndex = 1:numel(auxiliaryModels)
+        for lambdaIndex = 1:numel(lambdas)
+            rows = string(fixed.Model) == auxiliaryModels(modelIndex) & ...
+                fixed.FixedLambda == lambdas(lambdaIndex);
+            x = fixed.(xVariable)(rows);
+            y = fixed.FullSignalNMSEdB(rows);
+            [x, order] = sort(x);
+            label = auxiliaryModels(modelIndex) + ", lambda=" + ...
+                compose('%g', lambdas(lambdaIndex));
+            plot(x, y(order), 'LineStyle', lineStyles(lambdaIndex), ...
+                'Color', mainHandles(modelIndex).Color, 'LineWidth', 1, ...
+                'DisplayName', label);
+            curveCount = curveCount + 1;
+        end
+    end
 end
 grid on;
 xlabel(xLabel);
 ylabel('Full-signal NMSE (dB)');
-legend('Location', 'southoutside', 'Orientation', 'horizontal', ...
-    'Interpreter', 'none');
+if includeFixed
+    legend('Location', 'southoutside', 'Orientation', 'horizontal', ...
+        'NumColumns', 3, 'Interpreter', 'none');
+else
+    legend('Location', 'southoutside', 'Orientation', 'horizontal', ...
+        'Interpreter', 'none');
+end
 exportgraphics(figureHandle, fullfile(directory, filename), ...
     'Resolution', 160);
 clear figureCleanup;
