@@ -1,6 +1,6 @@
 % Test nested Complex GMP and genuine PN-DOMP paths on a small fixture.
-% The fixture verifies exact prefixes, validation-only lambda selection,
-% finite predictions, and a separate configurable historical reference.
+% The fixture verifies exact prefixes and validation-only lambda selection.
+% A controlled support separately checks the fixed historical DOMP-100 contract.
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
@@ -18,26 +18,13 @@ y = 0.7*x + 0.12*x.*abs(x).^2 + ...
     0.03*circshift(x, 1).*abs(circshift(x, 2)).^2;
 cfg = getFairDOMPComparisonConfig(projectRoot);
 cfg.sweep.parameterGrid = [4 6 8];
+cfg.sweep.includeHistoricalPNIQReference = false;
 cfg.sweep.candidateBlockSize = 128;
-cfg.gmp.maxPopulation = 2;
 cfg.gmp.blockSize = 128;
 split.internalTrainIndices = (1:320).';
 split.internalValidationIndices = (321:400).';
 split.identificationIndices = (1:480).';
 split.fullSignalIndices = (1:n).';
-
-manager = GMP_createRegressorManager(x, y, cfg.gmp);
-population = (1:numel(manager.regPopulation)).';
-trainU = buildGMPRegressorRows( ...
-    x, split.internalTrainIndices, manager, population);
-historicalSupport = selectDOMPSupport( ...
-    trainU, y(split.internalTrainIndices), cfg.gmp.maxPopulation, ...
-    cfg.gmp.dompOptions);
-[historicalRaw, historicalDetails] = buildPhaseNormalizedIQRegressors( ...
-    x, split.internalTrainIndices, manager, historicalSupport);
-[historicalFeatures, ~] = removeStructurallyZeroQFeatures( ...
-    historicalRaw, historicalDetails.featureMetadata, 1e-12);
-cfg.sweep.historicalReferenceParameters = 2*size(historicalFeatures, 2);
 
 sweep = runLinearComplexitySweep(x, y, split, cfg);
 assert(isequal(sweep.complexTable.ActualRealParameters.', ...
@@ -61,11 +48,54 @@ assert(all(isfinite(sweep.predictions.complexIdentification), 'all'));
 assert(all(isfinite(sweep.predictions.complexFull), 'all'));
 assert(all(isfinite(sweep.predictions.pnIdentification), 'all'));
 assert(all(isfinite(sweep.predictions.pnFull), 'all'));
-assert(height(sweep.historicalTable) == 1);
-assert(sweep.historicalTable.SweepRole == "Historical reference");
-assert(sweep.historicalTable.ActualRealParameters == ...
-    cfg.sweep.historicalReferenceParameters);
-assert(all(isfinite(sweep.predictions.historicalIdentification)));
-assert(all(isfinite(sweep.predictions.historicalFull)));
+assert(isempty(sweep.historicalTable));
+
+manager = GMP_createRegressorManager(x, y, cfg.gmp);
+population = (1:numel(manager.regPopulation)).';
+[~, structure] = analyzeRegressorStructure( ...
+    manager.regPopulation, population);
+descriptors = structure.descriptors;
+realIndices = find([descriptors.QColumnStructurallyZero]);
+complexIndices = find(~[descriptors.QColumnStructurallyZero]);
+realIndices = realIndices(:);
+complexIndices = complexIndices(:);
+historicalSupport = [realIndices(1:28); complexIndices(1:72)];
+[historicalRaw, historicalDetails] = buildPhaseNormalizedIQRegressors( ...
+    x, split.internalTrainIndices, manager, historicalSupport);
+[historicalFeatures, ~] = removeStructurallyZeroQFeatures( ...
+    historicalRaw, historicalDetails.featureMetadata, 1e-12);
+assert(cfg.gmp.baseSupportSize == 100);
+assert(size(historicalRaw, 2) == 200);
+assert(size(historicalFeatures, 2) == 172);
+
+remaining = setdiff(population, historicalSupport, 'stable');
+maximumPath = [historicalSupport; remaining];
+grids = {[300 344 380], [280 344 400]};
+historicalSupports = cell(size(grids));
+for index = 1:numel(grids)
+    gridConfig = cfg;
+    gridConfig.sweep.parameterGrid = grids{index};
+    maximumTerms = max(max(gridConfig.sweep.parameterGrid)/2, ...
+        gridConfig.gmp.baseSupportSize);
+    assert(numel(maximumPath) >= maximumTerms);
+    historicalSupports{index} = ...
+        maximumPath(1:gridConfig.gmp.baseSupportSize);
+end
+[identificationRaw, identificationDetails] = ...
+    buildPhaseNormalizedIQRegressors(x, split.identificationIndices, ...
+    manager, historicalSupports{1});
+[identificationFeatures, ~] = removeStructurallyZeroQFeatures( ...
+    identificationRaw, identificationDetails.featureMetadata, 1e-12);
+metadata = struct( ...
+    'HistoricalGMPComplexSupportSize', numel(historicalSupports{1}), ...
+    'HistoricalEffectivePNFeatures', size(identificationFeatures, 2), ...
+    'HistoricalNumRealParameters', 2*size(identificationFeatures, 2));
+assert(metadata.HistoricalGMPComplexSupportSize == 100);
+assert(metadata.HistoricalEffectivePNFeatures == 172);
+assert(metadata.HistoricalNumRealParameters == 344);
+assert(isequal(historicalSupports{1}, historicalSupport));
+assert(isequal(historicalSupports{1}, historicalSupports{2}));
+parameterMatchedSupport = maximumPath(1:344/2);
+assert(~isequal(historicalSupports{1}, parameterMatchedSupport));
 
 fprintf('LINEAR COMPLEXITY SWEEP TEST: PASS\n');
