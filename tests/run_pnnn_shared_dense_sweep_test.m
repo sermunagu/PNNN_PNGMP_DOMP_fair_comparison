@@ -85,8 +85,8 @@ end
 assert(reusedFirst && reusedSecond);
 assert(loadedFirst.target == targetsToFit(1));
 assert(loadedSecond.target == targetsToFit(2));
-corrupt = true;
-save(firstFile, 'corrupt');
+checkpointArtifact = struct('schemaVersion', -1);
+save(firstFile, 'checkpointArtifact');
 [~, reusedCorrupt] = updateSweepCheckpoint(checkpointDirectory, ...
     "pnnn", targetsToFit(1), sweepIdentity, experimentSignature);
 [~, reusedUnaffected] = updateSweepCheckpoint(checkpointDirectory, ...

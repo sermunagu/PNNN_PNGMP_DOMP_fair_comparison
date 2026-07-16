@@ -14,6 +14,7 @@ addpath(fullfile(project_root, 'toolbox', 'metrics'));
 addpath(fullfile(project_root, 'toolbox', 'splits'));
 addpath(fullfile(project_root, 'toolbox', 'pnnn'));
 addpath(fullfile(project_root, 'toolbox', 'pnnn', 'pruning'));
+addpath(fullfile(project_root, 'toolbox', 'sweep'));
 
 rng(712, 'twister');
 n_samples = 768;
@@ -23,6 +24,17 @@ y = 0.82*x + 0.13*circshift(x, 1).*abs(circshift(x, 2)).^2 + ...
     0.04*conj(circshift(x, 3));
 
 cfg = getFairDOMPComparisonConfig(project_root);
+assert(~cfg.sweep.enabled);
+assert(~isfield(cfg.sweep, 'checkpointEnabled'));
+assert(strcmp(cfg.sweep.resultsRoot, ...
+    fullfile(project_root, 'results', 'parameter_sweep')));
+entryPoints = {'run_fair_PNNN_vs_PNGMP_DOMP.m', ...
+    'run_parameter_sweep.m', ...
+    fullfile('toolbox', 'sweep', 'runLinearComplexitySweep.m'), ...
+    fullfile('toolbox', 'sweep', 'runPNNNSparseSweep.m'), ...
+    fullfile('toolbox', 'sweep', 'updateSweepCheckpoint.m')};
+assert(all(cellfun(@(name) isfile(fullfile(project_root, name)), ...
+    entryPoints)));
 smoke_cfg = cfg.gmp;
 smoke_cfg.maxPopulation = 12;
 smoke_cfg.blockSize = 128;
