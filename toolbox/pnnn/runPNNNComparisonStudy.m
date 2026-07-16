@@ -127,7 +127,7 @@ for source = reusableSources(cfg).'
         continue;
     end
     saved = load(splitFile);
-    savedConfig = load(configFile, 'experiment_signature');
+    savedConfig = loadOptionalExperimentSignature(configFile);
     previous = readtable(resultFile, TextType='string');
     sparseRow = previous.Model == "PNNN N12 sparse";
     if nnz(sparseRow) ~= 1

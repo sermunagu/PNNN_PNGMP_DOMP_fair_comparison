@@ -1,0 +1,59 @@
+% Test the interactive main with Command Window dependencies shadowed.
+% Invalid text and numeric inputs are rejected before accepting target 340.
+% No measurement, sweep artifact, DOMP path, or neural model is used.
+
+clearvars;
+projectRoot = fileparts(fileparts(mfilename('fullpath')));
+fixtureDirectory = tempname;
+mkdir(fixtureDirectory);
+originalDirectory = pwd;
+warningState = warning('off', 'MATLAB:dispatcher:nameConflict');
+cleanup = onCleanup(@() restoreFixture( ...
+    originalDirectory, fixtureDirectory, warningState));
+
+writelines([ ...
+    "function value = input(varargin)"; ...
+    "global mockInputValues mockInputIndex"; ...
+    "mockInputIndex = mockInputIndex + 1;"; ...
+    "value = char(mockInputValues(mockInputIndex));"; ...
+    "end"], fullfile(fixtureDirectory, 'input.m'));
+writelines([ ...
+    "function sweep = run_parameter_sweep(targets)"; ...
+    "global mockSweepTargets"; ...
+    "mockSweepTargets = targets;"; ...
+    "sweep = struct('fixture', true);"; ...
+    "end"], fullfile(fixtureDirectory, 'run_parameter_sweep.m'));
+writelines([ ...
+    "function results = run_fair_PNNN_vs_PNGMP_DOMP(target, sweep)"; ...
+    "results = struct('selectedParameters', target, 'sweep', sweep);"; ...
+    "end"], fullfile(fixtureDirectory, ...
+    'run_fair_PNNN_vs_PNGMP_DOMP.m'));
+
+addpath(projectRoot, '-end');
+cd(fixtureDirectory);
+rehash;
+clear input run_parameter_sweep run_fair_PNNN_vs_PNGMP_DOMP ...
+    main_sweep_and_comparison;
+global mockInputValues mockInputIndex mockSweepTargets %#ok<GVMIS>
+mockInputValues = ["text", "NaN", "Inf", "344", "510", "340"];
+mockInputIndex = 0;
+mockSweepTargets = [];
+
+results = main_sweep_and_comparison();
+assert(results.selectedParameters == 340);
+assert(mockInputIndex == numel(mockInputValues));
+assert(isequal(mockSweepTargets, 20:10:500));
+assert(results.sweep.fixture);
+
+clear cleanup;
+fprintf('MAIN SWEEP AND COMPARISON TEST: PASS\n');
+
+function restoreFixture(directory, fixtureDirectory, warningState)
+cd(directory);
+clear input run_parameter_sweep run_fair_PNNN_vs_PNGMP_DOMP ...
+    main_sweep_and_comparison;
+warning(warningState);
+if isfolder(fixtureDirectory)
+    rmdir(fixtureDirectory, 's');
+end
+end

@@ -56,22 +56,22 @@ savedSplit.internal_validation_indices = split.internalValidationIndices;
 savedSplit.identification_indices = split.identificationIndices;
 savedConfig.experiment_signature = signature;
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 344, 344);
+    savedSplit, savedConfig, split, signature, 340, 340);
 assert(matches && reason == "compatible");
 
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 344, 350);
+    savedSplit, savedConfig, split, signature, 340, 350);
 assert(~matches && reason == "sparse target mismatch");
 
 savedConfig.experiment_signature = ...
     buildExperimentSignature(x_modified, y, cfg);
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 344, 344);
+    savedSplit, savedConfig, split, signature, 340, 340);
 assert(~matches && reason == "experiment signature mismatch");
 
 savedConfig = struct();
 [matches, reason] = isReusablePNNNSelection( ...
-    savedSplit, savedConfig, split, signature, 344, 344);
+    savedSplit, savedConfig, split, signature, 340, 340);
 assert(~matches && reason == "missing experiment signature");
 
 fprintf('EXPERIMENT SIGNATURE TEST: PASS\n');
