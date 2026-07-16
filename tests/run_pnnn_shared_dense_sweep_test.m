@@ -63,4 +63,39 @@ for index = 1:numel(points)
     assert(all(isfinite(point.fullSignalPrediction)));
 end
 
+checkpointDirectory = tempname;
+mkdir(checkpointDirectory);
+checkpointCleanup = onCleanup(@() rmdir(checkpointDirectory, 's'));
+sweepIdentity = struct('digest', "fixture-sweep");
+experimentSignature = struct('schemaVersion', 2, ...
+    'digest', "fixture-experiment");
+for index = 1:numel(points)
+    target = targetsToFit(index);
+    [~, ~, filename] = updateSweepCheckpoint(checkpointDirectory, ...
+        "pnnn", target, sweepIdentity, experimentSignature, points(index));
+    assert(endsWith(string(filename), ...
+        compose("pnnn_target_%04d.mat", target)));
+end
+[loadedFirst, reusedFirst, firstFile] = updateSweepCheckpoint( ...
+    checkpointDirectory, "pnnn", targetsToFit(1), ...
+    sweepIdentity, experimentSignature);
+[loadedSecond, reusedSecond] = updateSweepCheckpoint( ...
+    checkpointDirectory, "pnnn", targetsToFit(2), ...
+    sweepIdentity, experimentSignature);
+assert(reusedFirst && reusedSecond);
+assert(loadedFirst.target == targetsToFit(1));
+assert(loadedSecond.target == targetsToFit(2));
+corrupt = true;
+save(firstFile, 'corrupt');
+[~, reusedCorrupt] = updateSweepCheckpoint(checkpointDirectory, ...
+    "pnnn", targetsToFit(1), sweepIdentity, experimentSignature);
+[~, reusedUnaffected] = updateSweepCheckpoint(checkpointDirectory, ...
+    "pnnn", targetsToFit(2), sweepIdentity, experimentSignature);
+assert(~reusedCorrupt && reusedUnaffected);
+incompatibleIdentity = struct('digest', "different-sweep");
+[~, reusedIncompatible] = updateSweepCheckpoint(checkpointDirectory, ...
+    "pnnn", targetsToFit(2), incompatibleIdentity, experimentSignature);
+assert(~reusedIncompatible);
+clear checkpointCleanup;
+
 fprintf('PNNN SHARED DENSE SWEEP TEST: PASS\n');
