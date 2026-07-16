@@ -8,20 +8,23 @@ function [payload, reusable, filename] = updateSweepCheckpoint( ...
 if nargin < 6
     newPayload = [];
 end
-validateattributes(resultDirectory, {'char','string'}, {'scalartext'});
+resultDirectory = normalizePath(resultDirectory, 'resultDirectory');
+resultDirectoryPath = char(resultDirectory);
 if ~isstruct(sweepIdentity) || ~isfield(sweepIdentity, 'digest') || ...
         ~validExperimentSignature(experimentSignature)
     error('updateSweepCheckpoint:InvalidIdentity', ...
         'Signed experiment and sweep identities are required.');
 end
-if ~isfolder(resultDirectory)
-    mkdir(resultDirectory);
+if ~isfolder(resultDirectoryPath)
+    mkdir(resultDirectoryPath);
 end
-filename = fullfile(resultDirectory, artifactName(artifactKind, target));
+filename = string(fullfile( ...
+    resultDirectoryPath, artifactName(artifactKind, target)));
+filenamePath = char(filename);
 
 if isempty(newPayload)
     [payload, reusable] = loadArtifact( ...
-        filename, sweepIdentity, experimentSignature);
+        filenamePath, sweepIdentity, experimentSignature);
     return;
 end
 
@@ -29,20 +32,22 @@ checkpointArtifact = struct('schemaVersion', 1, ...
     'sweepIdentity', sweepIdentity, ...
     'experimentSignature', experimentSignature, ...
     'payload', newPayload);
-[directory, base, extension] = fileparts(filename);
-temporary = fullfile(directory, [base '.tmp' extension]);
-if isfile(temporary)
-    delete(temporary);
-end
-cleanup = onCleanup(@() deleteIfPresent(temporary));
-save(temporary, 'checkpointArtifact', '-v7.3');
+[directory, ~, ~] = fileparts(filenamePath);
+temporary = string(tempname(directory)) + ".mat";
+temporaryPath = char(temporary);
+cleanup = onCleanup(@() deleteIfPresent(temporaryPath));
+save(temporaryPath, 'checkpointArtifact', '-v7.3');
 [verified, reusable] = loadArtifact( ...
-    temporary, sweepIdentity, experimentSignature);
+    temporaryPath, sweepIdentity, experimentSignature);
 if ~reusable || isempty(verified)
     error('updateSweepCheckpoint:SerializationFailed', ...
         'The temporary sweep artifact failed verification.');
 end
-movefile(temporary, filename, 'f');
+[moved, message] = movefile(temporaryPath, filenamePath, 'f');
+if ~moved
+    error('updateSweepCheckpoint:AtomicMoveFailed', ...
+        'Could not install the verified sweep artifact: %s', message);
+end
 payload = newPayload;
 reusable = true;
 clear cleanup;
@@ -50,13 +55,15 @@ end
 
 function [payload, reusable] = loadArtifact( ...
     filename, expectedIdentity, expectedSignature)
+filename = normalizePath(filename, 'filename');
+filenamePath = char(filename);
 payload = [];
 reusable = false;
-if ~isfile(filename)
+if ~isfile(filenamePath)
     return;
 end
 try
-    saved = load(filename, 'checkpointArtifact');
+    saved = load(filenamePath, 'checkpointArtifact');
     if ~isfield(saved, 'checkpointArtifact')
         return;
     end
@@ -74,6 +81,20 @@ try
 catch
     payload = [];
     reusable = false;
+end
+end
+
+function path = normalizePath(value, label)
+validType = (ischar(value) && isrow(value)) || ...
+    (isstring(value) && isscalar(value));
+if ~validType
+    error('updateSweepCheckpoint:InvalidPath', ...
+        '%s must be a character row or string scalar.', label);
+end
+path = string(value);
+if ismissing(path) || strlength(path) == 0
+    error('updateSweepCheckpoint:InvalidPath', ...
+        '%s must not be empty.', label);
 end
 end
 
@@ -106,6 +127,7 @@ value = validExperimentSignature(a) && validExperimentSignature(b) && ...
 end
 
 function deleteIfPresent(filename)
+filename = char(normalizePath(filename, 'temporary filename'));
 if isfile(filename)
     delete(filename);
 end
