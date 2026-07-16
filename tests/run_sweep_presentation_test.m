@@ -31,9 +31,15 @@ linear = struct('complexTable', fixture(1:3, :), ...
 outputDirectory = tempname;
 mkdir(outputDirectory);
 outputCleanup = onCleanup(@() rmdir(outputDirectory, 's'));
+linearCheckpoint = fullfile(outputDirectory, 'linear_sweep.mat');
+checkpointSentinel = uint8(0:31);
+save(linearCheckpoint, 'checkpointSentinel');
+checkpointBytesBefore = readBinaryFile(linearCheckpoint);
 
 results = writeSweepPresentationOutputs( ...
     linear, fixture(7:9, :), targets, outputDirectory);
+checkpointBytesAfter = readBinaryFile(linearCheckpoint);
+assert(isequal(checkpointBytesAfter, checkpointBytesBefore));
 assert(height(results) == 3*numel(targets));
 assert(~any(results.SweepRole == "Historical reference"));
 assert(~any(contains(results.Model, "Historical")));
@@ -62,3 +68,11 @@ assert(isfile(fullfile(outputDirectory, ...
 clear outputCleanup;
 
 fprintf('SWEEP PRESENTATION TEST: PASS\n');
+
+function bytes = readBinaryFile(filename)
+file = fopen(filename, 'rb');
+assert(file >= 0);
+cleanup = onCleanup(@() fclose(file));
+bytes = fread(file, Inf, '*uint8');
+clear cleanup;
+end

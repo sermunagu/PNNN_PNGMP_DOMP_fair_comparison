@@ -68,7 +68,7 @@ end
 
 %% Prepare or reuse one N12 dense source
 denseTimer = tic;
-fprintf('[PNNN] Preparing one shared dense N12 source...\n');
+fprintf('[PNNN] Training or reusing one shared dense N12 source...\n');
 [denseSource, reusable] = updateSweepCheckpoint(resultDirectory, "dense", [], ...
     sweepIdentity, cfg.experimentSignature);
 if ~reusable || ~validDenseSource(denseSource)
