@@ -123,6 +123,21 @@ incompatibleSweep.experimentSignature.digest = "different-experiment";
 expectError(@() run_selected_comparison(target, incompatibleSweep), ...
     "run_selected_comparison:IncompatibleArtifact");
 
+corruptDirectory = fullfile(fixtureDirectory, 'corrupt_payload');
+mkdir(corruptDirectory);
+corruptSweep = sweep;
+corruptSweep.resultDirectory = string(corruptDirectory);
+corruptLinear = linearPayload;
+corruptLinear.complexTable.FullSignalNMSEdB = ...
+    corruptLinear.complexTable.FullSignalNMSEdB + 1;
+corruptPayloads = {corruptLinear, densePayload, pnnnPayload, summaryPayload};
+for index = 1:numel(files)
+    writeArtifact(fullfile(corruptDirectory, files(index)), ...
+        identity, signature, corruptPayloads{index});
+end
+expectError(@() run_selected_comparison(target, corruptSweep), ...
+    "run_selected_comparison:ArtifactRowMismatch");
+
 source = string(fileread(fullfile(projectRoot, ...
     'run_selected_comparison.m')));
 for forbidden = ["runPNGMPDOMPStudy", "runPNNNComparisonStudy", ...

@@ -89,6 +89,12 @@ source = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'run_fixed_ridge_sweep.m'));
 assert(~contains(source, 'selectDOMPSupport('));
 assert(~contains(source, 'runPNNN'));
+for removedWrapper = {'fitComplexVariants','fitPNVariants', ...
+        'buildSelectedPNFeatures','evaluateComplexVariants', ...
+        'evaluatePNVariants','buildResultTable'}
+    assert(~contains(source, removedWrapper{1}));
+end
+assert(contains(source, 'conj(blockRotation) .* predictionNormalized'));
 
 checkpointDirectory = tempname;
 mkdir(checkpointDirectory);
