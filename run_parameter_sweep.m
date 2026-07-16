@@ -90,7 +90,11 @@ for index = 1:numel(cfg.sweep.parameterGrid)
         resultDirectory, "pnnn", target, sweepIdentity, ...
         cfg.experimentSignature);
     [~, base, extension] = fileparts(filename);
-    artifactName = string([base extension]);
+    artifactName = string(base) + string(extension);
+    if reusable
+        point = normalizeArtifactFile( ...
+            point, artifactName, string(base), string(extension));
+    end
     if ~reusable || ~validPNNNPoint( ...
             point, target, artifactName, denseSource, split)
         point = runPNNNSparseSweep(denseSource, target, features, ...
@@ -192,6 +196,25 @@ try
 catch
     valid = false;
 end
+end
+
+function point = normalizeArtifactFile(point, expected, base, extension)
+validRow = isstruct(point) && isfield(point, 'row') && ...
+    istable(point.row) && height(point.row) == 1 && ...
+    ismember('ArtifactFile', point.row.Properties.VariableNames);
+if ~validRow
+    error('run_parameter_sweep:InvalidArtifactFile', ...
+        'A one-row point table containing ArtifactFile is required.');
+end
+actual = point.row.ArtifactFile;
+current = isstring(actual) && isscalar(actual) && actual == expected;
+legacy = isstring(actual) && isequal(size(actual), [1 2]) && ...
+    actual(1) == base && actual(2) == extension;
+if ~(current || legacy)
+    error('run_parameter_sweep:InvalidArtifactFile', ...
+        'ArtifactFile does not match the current or exact legacy format.');
+end
+point.row.ArtifactFile = expected;
 end
 
 function valid = validPNNNPoint( ...

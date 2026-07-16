@@ -53,6 +53,8 @@ assert(numel(points) == numel(targetsToFit));
 for index = 1:numel(points)
     point = points(index);
     assert(point.target == targetsToFit(index));
+    assert(height(point.row) == 1);
+    assert(isscalar(point.row.ArtifactFile));
     assert(point.row.ActualRealParameters == targetsToFit(index));
     assert(isnan(point.row.InternalValidationNMSEdB));
     assert(point.row.ActiveBiases == parameterCount.realBiases);
@@ -69,6 +71,49 @@ checkpointCleanup = onCleanup(@() rmdir(checkpointDirectory, 's'));
 sweepIdentity = struct('digest', "fixture-sweep");
 experimentSignature = struct('schemaVersion', 2, ...
     'digest', "fixture-experiment");
+nameTargets = [300 344 380];
+artifactNames = strings(size(nameTargets));
+nameDirectory = fullfile(checkpointDirectory, 'artifact_names');
+for index = 1:numel(nameTargets)
+    [~, ~, filename] = updateSweepCheckpoint(nameDirectory, ...
+        "pnnn", nameTargets(index), sweepIdentity, experimentSignature, ...
+        struct('target', nameTargets(index)));
+    [~, base, extension] = fileparts(filename);
+    artifactNames(index) = string(base) + string(extension);
+    assert(isscalar(artifactNames(index)));
+end
+assert(numel(unique(artifactNames)) == numel(nameTargets));
+assert(isequal(artifactNames, compose( ...
+    "pnnn_target_%04d.mat", nameTargets)));
+
+reusable = true;
+reusedPoint = points(1);
+reusedPoint.row.ArtifactFile = ["pnnn_target_0300", ".mat"];
+if reusable
+    legacyArtifactFile = reusedPoint.row.ArtifactFile;
+    assert(isequal(size(legacyArtifactFile), [1 2]));
+    assert(legacyArtifactFile(1) + legacyArtifactFile(2) == ...
+        artifactNames(1));
+    reusedPoint.row.ArtifactFile = artifactNames(1);
+end
+assert(isscalar(reusedPoint.row.ArtifactFile));
+assert(reusedPoint.row.ArtifactFile == "pnnn_target_0300.mat");
+
+schema = cfg.sweep.resultSchema;
+pnnnRows = table('Size', [0 numel(schema.names)], ...
+    'VariableTypes', schema.types, 'VariableNames', schema.names);
+pointRow = points(1).row;
+pointRow.ArtifactFile = artifactNames(1);
+assert(height(pointRow) == 1 && width(pointRow) == width(pnnnRows));
+assert(isequal(pointRow.Properties.VariableNames, ...
+    pnnnRows.Properties.VariableNames));
+for index = 1:width(pointRow)
+    name = schema.names{index};
+    assert(string(class(pointRow.(name))) == schema.types(index));
+end
+pnnnRows(1, :) = pointRow;
+assert(isscalar(pnnnRows.ArtifactFile));
+
 checkpointDirectories = { ...
     fullfile(checkpointDirectory, 'char_input'), ...
     string(fullfile(checkpointDirectory, 'string_input'))};
