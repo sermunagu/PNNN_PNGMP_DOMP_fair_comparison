@@ -1,7 +1,7 @@
 function points = runPNNNSparseSweep(denseSource, requestedTargets, ...
     features, targets, rotation, y, split, cfg)
 % runPNNNSparseSweep - Prune one immutable N12 dense source per target.
-% Targets are independent, biases remain protected, and the historical
+% Targets are independent, biases remain protected, and one shared
 % fine-tuning budget is reused without target-specific validation claims.
 
 validateInputs(denseSource, requestedTargets, features, targets, ...

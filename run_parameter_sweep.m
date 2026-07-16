@@ -17,10 +17,12 @@ if nargin >= 1 && ~isempty(parameterGrid)
 end
 validateattributes(cfg.sweep.parameterGrid, {'numeric'}, ...
     {'vector','integer','positive','finite'});
+validateSweepTargets(cfg.sweep.parameterGrid, cfg);
 if any(mod(cfg.sweep.parameterGrid, 2))
     error('run_parameter_sweep:OddTarget', ...
         'Every sweep target must contain an even number of real parameters.');
 end
+sweepTimer = tic;
 
 %% Prepare data and the common split
 measurement = load(cfg.measurementFile, 'x', 'y');
@@ -42,42 +44,57 @@ resultDirectory = resolveResultDirectory(cfg, sweepIdentity);
 if ~isfolder(resultDirectory)
     mkdir(resultDirectory);
 end
-fprintf('\n=== Signed parameter-complexity sweep ===\n%s\n', resultDirectory);
+fprintf('\n=== Signed parameter-complexity sweep ===\n');
+fprintf('Targets: %s\n', formatTargets(cfg.sweep.parameterGrid));
+fprintf('Result directory: %s\n', resultDirectory);
 
 %% Run or reuse the atomic linear family
+linearTimer = tic;
 [linear, reusable] = updateSweepCheckpoint(resultDirectory, "linear", [], ...
     sweepIdentity, cfg.experimentSignature);
 if ~reusable || ~validLinearArtifact(linear, cfg, split)
+    fprintf('[Linear] Building shared matrices and maximum DOMP paths...\n');
     linear = runLinearComplexitySweep(x, y, split, cfg);
     updateSweepCheckpoint(resultDirectory, "linear", [], ...
         sweepIdentity, cfg.experimentSignature, linear);
+    fprintf('[Linear] Completed in %.1f s.\n', toc(linearTimer));
+else
+    fprintf('[Linear] Reusing shared Complex GMP matrices.\n');
+    fprintf('[Linear] Reusing Complex GMP DOMP paths.\n');
+    fprintf('[Linear] Reusing shared PN-IQ matrices.\n');
+    fprintf('[Linear] Reusing PN-IQ PN-DOMP paths.\n');
+    fprintf('[Linear] Reused checkpoint in %.1f s.\n', toc(linearTimer));
 end
 
 %% Prepare or reuse one N12 dense source
+denseTimer = tic;
+fprintf('[PNNN] Preparing one shared dense N12 source...\n');
 [denseSource, reusable] = updateSweepCheckpoint(resultDirectory, "dense", [], ...
     sweepIdentity, cfg.experimentSignature);
-if ~reusable || ~validDenseSource(denseSource, cfg)
+if ~reusable || ~validDenseSource(denseSource)
     denseStudy = runPNNNComparisonStudy(x, y, split, cfg, ...
-        cfg.sweep.historicalReferenceParameters, "sweep_n12");
+        cfg.reducedRealParameterTarget, "sweep_n12");
     denseSource = struct('denseFit', denseStudy.n12DenseFit, ...
         'signature', buildNetworkSignature(denseStudy.n12DenseFit), ...
         'bestDenseEpoch', denseStudy.selection.n12Dense.bestDenseEpoch, ...
         'fineTuneEpochs', denseStudy.selection.n12Sparse.bestFineTuneEpoch, ...
-        'fineTuneBudgetSource', ...
-            "historical parameter-matched 344 selection", ...
-        'historicalTarget', cfg.sweep.historicalReferenceParameters, ...
+        'fineTuneBudgetSource', "shared N12 internal selection", ...
         'runtimeConfig', denseStudy.runtimeConfig);
     updateSweepCheckpoint(resultDirectory, "dense", [], ...
         sweepIdentity, cfg.experimentSignature, denseSource);
     features = denseStudy.features;
     neuralTargets = denseStudy.targets;
     rotation = denseStudy.rotation;
+    fprintf('[PNNN] Shared dense N12 completed in %.1f s.\n', toc(denseTimer));
 else
+    denseSource.fineTuneBudgetSource = "shared N12 internal selection";
     [features, neuralTargets, rotation] = buildPhaseNormDataset( ...
         x, y, cfg.pnnn.M, cfg.pnnn.orders, cfg.pnnn.featMode);
     features = features.';
     neuralTargets = neuralTargets.';
     rotation = rotation(:);
+    fprintf('[PNNN] Reused shared dense N12 checkpoint in %.1f s.\n', ...
+        toc(denseTimer));
 end
 
 %% Run or reuse independent sparse PNNN targets
@@ -86,6 +103,9 @@ pnnnRows = table('Size', [0 numel(schema.names)], ...
     'VariableTypes', schema.types, 'VariableNames', schema.names);
 for index = 1:numel(cfg.sweep.parameterGrid)
     target = cfg.sweep.parameterGrid(index);
+    pointTimer = tic;
+    fprintf('[PNNN %d/%d] Target %d parameters...\n', ...
+        index, numel(cfg.sweep.parameterGrid), target);
     [point, reusable, filename] = updateSweepCheckpoint( ...
         resultDirectory, "pnnn", target, sweepIdentity, ...
         cfg.experimentSignature);
@@ -102,13 +122,19 @@ for index = 1:numel(cfg.sweep.parameterGrid)
         point.row.ArtifactFile = artifactName;
         updateSweepCheckpoint(resultDirectory, "pnnn", target, ...
             sweepIdentity, cfg.experimentSignature, point);
+        fprintf('[PNNN %d/%d] Completed in %.1f s.\n', ...
+            index, numel(cfg.sweep.parameterGrid), toc(pointTimer));
+    else
+        point.row.FineTuneBudgetSource = denseSource.fineTuneBudgetSource;
+        fprintf('[PNNN %d/%d] Reused checkpoint in %.1f s.\n', ...
+            index, numel(cfg.sweep.parameterGrid), toc(pointTimer));
     end
     pnnnRows(index, :) = point.row;
 end
 
 %% Package the canonical table without duplicating predictions
-results = [linear.complexTable; linear.pnTable; ...
-    linear.historicalTable; pnnnRows];
+results = writeSweepPresentationOutputs( ...
+    linear, pnnnRows, cfg.sweep.parameterGrid, resultDirectory);
 summary = struct('results', results, ...
     'metadata', struct('fullSignalIsIndependentHoldout', false, ...
         'fullSignalUsedOnlyForEvaluation', true, ...
@@ -117,35 +143,28 @@ summary = struct('results', results, ...
     'experimentSignature', cfg.experimentSignature, ...
     'artifactFiles', ["linear_sweep.mat"; "sweep_dense_source.mat"; ...
         pnnnRows.ArtifactFile], ...
-    'linearSupports', linear.supports, ...
-    'pnComparison344', linear.comparison344, ...
-    'rows344', results(results.ActualRealParameters == ...
-        cfg.sweep.historicalReferenceParameters, :));
+    'linearSupports', linear.supports);
+fprintf('[Output] Writing complexity_sweep.mat...\n');
 updateSweepCheckpoint(resultDirectory, "summary", [], sweepIdentity, ...
     cfg.experimentSignature, summary);
-writeCanonicalOutputs(results, resultDirectory, linear.historicalTable);
 result = summary;
 result.resultDirectory = string(resultDirectory);
 disp(results(:, {'Model','SweepRole','ActualRealParameters', ...
     'SelectedLambda','FullSignalNMSEdB','FLOPsPerSample'}));
+fprintf('Sweep completed in %.1f s.\n', toc(sweepTimer));
 end
 
 function identity = buildSweepIdentity(cfg)
 maximumPopulation = max(cfg.sweep.parameterGrid)/2;
-if cfg.sweep.includeHistoricalPNIQReference
-    maximumPopulation = max(maximumPopulation, cfg.gmp.maxPopulation);
-end
 identity = struct('schemaVersion', cfg.sweep.schemaVersion, ...
     'experimentDigest', cfg.experimentSignature.digest, ...
     'parameterGrid', cfg.sweep.parameterGrid, 'lambdaGrid', cfg.lambdaGrid, ...
     'fixedRidgeLambda', cfg.fixedRidgeLambda, ...
     'gmpOrders', [cfg.gmp.Qpmax cfg.gmp.Qnmax cfg.gmp.Pmax], ...
     'maximumPopulation', maximumPopulation, ...
-    'historicalBaseSupportSize', cfg.gmp.baseSupportSize, ...
     'dompOptions', cfg.gmp.dompOptions, 'predictionBlock', cfg.gmp.blockSize, ...
     'pnCandidateBlock', cfg.sweep.candidateBlockSize, ...
-    'historicalPNIQ', cfg.sweep.includeHistoricalPNIQReference, ...
-    'historicalTarget', cfg.sweep.historicalReferenceParameters, ...
+    'denseSelectionTarget', cfg.reducedRealParameterTarget, ...
     'pnnn', cfg.pnnn, 'training', cfg.training, 'pruning', cfg.pruning, ...
     'resultColumns', {cfg.sweep.resultSchema.names});
 engine = javaMethod('getInstance', ...
@@ -165,7 +184,7 @@ directory = fullfile(cfg.sweep.resultsRoot, name);
 end
 
 function valid = validLinearArtifact(value, cfg, split)
-required = {'complexTable','pnTable','historicalTable','supports', ...
+required = {'complexTable','pnTable','supports', ...
     'paths','lambdas','predictions','metadata'};
 try
     valid = isstruct(value) && all(isfield(value, required)) && ...
@@ -184,17 +203,37 @@ catch
 end
 end
 
-function valid = validDenseSource(value, cfg)
+function valid = validDenseSource(value)
 required = {'denseFit','signature','fineTuneEpochs', ...
-    'fineTuneBudgetSource','historicalTarget','runtimeConfig'};
+    'fineTuneBudgetSource','runtimeConfig'};
 try
-    valid = isstruct(value) && all(isfield(value, required)) && ...
-        value.historicalTarget == cfg.sweep.historicalReferenceParameters;
+    valid = isstruct(value) && all(isfield(value, required));
     if valid
         valid = isequaln(buildNetworkSignature(value.denseFit), value.signature);
     end
 catch
     valid = false;
+end
+end
+
+function validateSweepTargets(targets, cfg)
+protectedBiases = cfg.pnnn.sparseBaseHiddenNeurons + 2;
+minimumTarget = protectedBiases + 1;
+if any(targets < minimumTarget)
+    error('run_parameter_sweep:TargetBelowPNNNMinimum', ...
+        ['Sweep targets must be at least %d parameters: %d protected ' ...
+        'biases and at least one active weight.'], ...
+        minimumTarget, protectedBiases);
+end
+end
+
+function value = formatTargets(targets)
+targets = targets(:).';
+if numel(targets) >= 2 && all(diff(targets) == targets(2) - targets(1))
+    value = sprintf('%d:%d:%d', targets(1), targets(2) - targets(1), ...
+        targets(end));
+else
+    value = strjoin(string(targets), ', ');
 end
 end
 
@@ -240,33 +279,4 @@ try
 catch
     valid = false;
 end
-end
-
-function writeCanonicalOutputs(results, directory, historical)
-csvFile = fullfile(directory, 'complexity_sweep.csv');
-temporaryCSV = fullfile(directory, 'complexity_sweep.tmp.csv');
-writetable(results, temporaryCSV);
-movefile(temporaryCSV, csvFile, 'f');
-figureHandle = figure('Visible', 'off', 'Color', 'w');
-hold on;
-families = ["Complex GMP DOMP sweep", ...
-    "Independent PN-IQ PN-DOMP sweep", "Sparse PNNN N12"];
-for family = families
-    rows = results.Model == family & results.SweepRole == "Sweep point";
-    plot(results.ActualRealParameters(rows), results.FullSignalNMSEdB(rows), ...
-        '-o', 'DisplayName', family);
-end
-if ~isempty(historical)
-    plot(historical.ActualRealParameters, historical.FullSignalNMSEdB, ...
-        'kp', 'MarkerSize', 11, 'MarkerFaceColor', 'y', ...
-        'LineStyle', 'none', 'DisplayName', ...
-        'Historical PN-IQ full, complex-DOMP-derived');
-end
-grid on;
-xlabel('Active real parameters');
-ylabel('Full-signal NMSE (dB)');
-legend('Location', 'best', 'Interpreter', 'none');
-exportgraphics(figureHandle, fullfile(directory, ...
-    'comparison_nmse_parameters_sweep.png'), 'Resolution', 160);
-close(figureHandle);
 end
