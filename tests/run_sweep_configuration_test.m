@@ -18,8 +18,7 @@ try
     error('run_sweep_configuration_test:ExpectedMinimumError', ...
         'A target containing only the protected biases must be rejected.');
 catch exception
-    assert(exception.identifier == ...
-        "run_parameter_sweep:TargetBelowPNNNMinimum");
+    assert(exception.identifier == "run_parameter_sweep:InvalidTargets");
 end
 
 source = string(fileread(fullfile(projectRoot, 'run_parameter_sweep.m')));

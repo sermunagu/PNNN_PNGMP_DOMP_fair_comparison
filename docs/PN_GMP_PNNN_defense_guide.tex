@@ -842,15 +842,14 @@ Asserts/tests & Invariantes de split, soporte y dimensiones & Detecta fugas y de
 Concepto & Función/script principal & Resultado generado\\
 \midrule
 Phase normalization & \texttt{computePhaseNormGMPRotation.m}, \texttt{buildPhaseNormalizedIQRegressors.m} & Regresores PN y predicción restaurada\\
-DOMP & \texttt{selectDOMPSupport.m}, \texttt{runPNGMPDOMPStudy.m} & \texttt{domp\_supports.mat}, history CSV\\
-Coupled real & \texttt{complexToCoupledReal.m}, \texttt{fitPhaseNormGMPReal.m} & GMP/PN-IQ equivalente\\
-Independent PN-IQ & \texttt{fitIndependentIQGMP.m}, \texttt{predictIndependentIQGMP.m} & PN-IQ full y reducido\\
-Parameter matching & \texttt{runPNGMPDOMPStudy.m} & GMP matched congelado\\
-Sparse PNNN & \texttt{refitFairPNNNDense.m}, \texttt{refitFairPNNNSparse.m} & modelos finales ajustados con identificación completa\\
+DOMP y PN-DOMP & \texttt{selectDOMPSupport.m}, \texttt{run\_linear\_sweep.m} & \texttt{linear\_sweep.mat} y soportes por presupuesto\\
+Independent PN-IQ & \texttt{run\_linear\_sweep.m}, \texttt{fitIndependentIQGMP.m} & Curva PN-IQ y predicciones restauradas\\
+Ridge fija & \texttt{run\_fixed\_ridge\_sweep.m} & \texttt{fixed\_lambda\_linear\_sweep.mat}\\
+Sparse PNNN & \texttt{prepare\_pnnn\_dense\_source.m}, \texttt{fit\_sparse\_pnnn\_target.m} & Fuente N12 y puntos sparse ajustados con identificación completa\\
 NMSE & \texttt{nmseComplexDb.m} & columnas NMSE CSV\\
 FLOPs & \texttt{countModelFLOPs.m}, \texttt{countPNNNFLOPs.m}, \texttt{countSparsePNNNFLOPs.m} & \texttt{complexity\_flops.csv}\\
-Reporte & \texttt{run\_fair\_PNNN\_vs\_PNGMP\_DOMP.m} & CSV, MAT, PNG, PDF y predicciones full-signal\\
-Tests & \texttt{run\_domp\_unit\_test.m}, \texttt{run\_fair\_comparison\_smoke\_test.m} & asserts PASS/FAIL\\
+Reporte & \texttt{run\_selected\_comparison.m} & Tabla seleccionada y cuatro figuras espectrales\\
+Tests & \texttt{run\_domp\_unit\_test.m}, \texttt{run\_scientific\_pipeline\_smoke\_test.m} & asserts PASS/FAIL\\
 \bottomrule
 \end{tabularx}
 \end{table}

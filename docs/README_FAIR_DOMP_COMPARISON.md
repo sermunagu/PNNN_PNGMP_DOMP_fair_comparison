@@ -1,9 +1,9 @@
 # Fair PNNN versus PN-GMP DOMP comparison
 
-This project compares Complex GMP, coupled and independent PN-IQ models, and
-PNNN under one modeled-block X/Y convention. Support selection, regularization,
-and neural schedules use only the identification domain. Final metrics are
-reported over identification and over the complete signal.
+This project compares the three families used by the current sweep: Complex
+GMP-DOMP, independent PN-IQ PN-DOMP, and sparse PNNN N12. Support selection,
+regularization, and neural schedules use only the identification domain. Final
+metrics are reported over identification and over the complete signal.
 
 ## Main protocol
 
@@ -57,12 +57,6 @@ square roots, divisions, and magnitudes remain separately reported operations.
 - Sparse PNNN N12 prunes every target independently from one signed dense N12
   source; pruning is never progressive.
 
-The historical 344-parameter Independent PN-IQ point is also reported, but it
-is a separate marker. Its features are induced by the Complex GMP DOMP-100
-support and are not forced into the genuine PN-DOMP path. A difference between
-the two 344-parameter PN-IQ points therefore reflects different feature
-selection protocols, not a regression.
-
 Sweep outputs are written below:
 
 ```text
@@ -71,16 +65,24 @@ results/parameter_sweep/sweep_<identity-digest>/
     sweep_dense_source.mat
     pnnn_target_0150.mat
     ...
+    fixed_lambda_linear_sweep.csv
+    fixed_lambda_linear_sweep.mat
     complexity_sweep.csv
     complexity_sweep.mat
     comparison_nmse_parameters_sweep.png
+    comparison_nmse_flops_sweep.png
+    selected_point/
+        selected_output_spectrum.png
+        selected_error_spectrum.png
+        selected_ridge_output_spectrum.png
+        selected_ridge_error_spectrum.png
 ```
 
 The linear family is one atomic resume unit. Each PNNN target is one atomic,
 deterministically named artifact, so a corrupt or incompatible target causes
 only that target to be recalculated. The consolidated MAT contains tables,
-signatures, artifact names, summarized linear supports, and the 344 comparison;
-it does not duplicate all PNNN predictions.
+signatures, artifact names, and summarized linear supports; it does not
+duplicate all PNNN predictions.
 
 ## Commands
 
@@ -89,11 +91,13 @@ From the project root:
 ```powershell
 matlab -batch "run('tests/run_domp_unit_test.m')"
 matlab -batch "run('tests/run_experiment_signature_test.m')"
+matlab -batch "run('tests/run_scientific_pipeline_smoke_test.m')"
 matlab -batch "run('tests/run_linear_complexity_sweep_test.m')"
+matlab -batch "run('tests/run_fixed_lambda_linear_sweep_test.m')"
 matlab -batch "run('tests/run_pnnn_shared_dense_sweep_test.m')"
-matlab -batch "run('tests/run_fair_comparison_smoke_test.m')"
-matlab -batch "run_fair_PNNN_vs_PNGMP_DOMP"
-matlab -batch "run_parameter_sweep"
+matlab -batch "run('tests/run_selected_sweep_comparison_test.m')"
+matlab -batch "sweep = run_parameter_sweep(20:10:500);"
+matlab -batch "main_sweep_and_comparison"
 ```
 
 The sweep is disabled in the normal comparison configuration. The full sweep

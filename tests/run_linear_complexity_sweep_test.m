@@ -25,7 +25,7 @@ split.internalValidationIndices = (321:400).';
 split.identificationIndices = (1:480).';
 split.fullSignalIndices = (1:n).';
 
-sweep = runLinearComplexitySweep(x, y, split, cfg);
+sweep = run_linear_sweep(x, y, split, cfg);
 assert(isequal(sweep.complexTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
 assert(isequal(sweep.pnTable.ActualRealParameters.', ...

@@ -82,7 +82,7 @@ end
 bytesBefore = cellfun(@(name) readBinaryFile(fullfile( ...
     fixtureDirectory, name)), cellstr(files), 'UniformOutput', false);
 
-results = run_fair_PNNN_vs_PNGMP_DOMP(target, sweep);
+results = run_selected_comparison(target, sweep);
 assert(results.selectedParameters == target);
 assert(height(results.comparisonTable) == 3);
 assert(isequal(results.comparisonTable.Model, ...
@@ -100,27 +100,31 @@ assert(isequal(results.targetFullSignal, targetFullSignal));
 assert(isequal(results.fullSignalIndices, (1:n).'));
 assert(results.sampleRateHz == 614.4e6);
 assert(results.sampleRateSource == "Synthetic fixture");
+assert(isfile(results.outputSpectrumFigure));
+assert(isfile(results.errorSpectrumFigure));
+assert(isfile(results.ridgeOutputSpectrumFigure));
+assert(isfile(results.ridgeErrorSpectrumFigure));
 assert(~any(contains(results.comparisonTable.Model, ...
     ["Historical", "H4", "dense"], 'IgnoreCase', true), 'all'));
 
-expectError(@() run_fair_PNNN_vs_PNGMP_DOMP(), ...
-    "run_fair_PNNN_vs_PNGMP_DOMP:MissingTarget");
+expectError(@() run_selected_comparison(), ...
+    "run_selected_comparison:InvalidTarget");
 for invalid = {NaN, Inf, 14, 340.5}
-    expectError(@() run_fair_PNNN_vs_PNGMP_DOMP(invalid{1}, sweep), ...
+    expectError(@() run_selected_comparison(invalid{1}, sweep), ...
         invalidIdentifier(invalid{1}));
 end
 for ordinaryMissingTarget = [200 344]
-    expectError(@() run_fair_PNNN_vs_PNGMP_DOMP( ...
+    expectError(@() run_selected_comparison( ...
         ordinaryMissingTarget, sweep), ...
-        "run_fair_PNNN_vs_PNGMP_DOMP:MissingSweepPoint");
+        "run_selected_comparison:MissingSweepPoint");
 end
 incompatibleSweep = sweep;
 incompatibleSweep.experimentSignature.digest = "different-experiment";
-expectError(@() run_fair_PNNN_vs_PNGMP_DOMP(target, incompatibleSweep), ...
-    "run_fair_PNNN_vs_PNGMP_DOMP:IncompatibleArtifact");
+expectError(@() run_selected_comparison(target, incompatibleSweep), ...
+    "run_selected_comparison:IncompatibleArtifact");
 
 source = string(fileread(fullfile(projectRoot, ...
-    'run_fair_PNNN_vs_PNGMP_DOMP.m')));
+    'run_selected_comparison.m')));
 for forbidden = ["runPNGMPDOMPStudy", "runPNNNComparisonStudy", ...
         "selectDOMPSupport", "fitFair", "344", "200"]
     assert(~contains(source, forbidden));
@@ -159,8 +163,8 @@ end
 
 function identifier = invalidIdentifier(value)
 if isequal(value, 14)
-    identifier = "run_fair_PNNN_vs_PNGMP_DOMP:TargetBelowPNNNMinimum";
+    identifier = "run_selected_comparison:TargetBelowPNNNMinimum";
 else
-    identifier = "run_fair_PNNN_vs_PNGMP_DOMP:InvalidTarget";
+    identifier = "run_selected_comparison:InvalidTarget";
 end
 end

@@ -60,7 +60,7 @@ linear.paths = struct('complexTrain', flipud(complexPath), ...
     'pnIdentification', pnPath);
 linear.featureMetadata = featureMetadata;
 
-fixed = runFixedLambdaLinearSweep(x, y, split, cfg, linear);
+fixed = run_fixed_ridge_sweep(x, y, split, cfg, linear);
 assert(height(fixed.table) == 18);
 assert(isequal(sort(unique(string(fixed.table.Model))), ...
     sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"])));
@@ -85,33 +85,10 @@ assert(all(structfun(@(value) value == 1, ...
 assert(all(isfinite(fixed.table.IdentificationNMSEdB)));
 assert(all(isfinite(fixed.table.FullSignalNMSEdB)));
 
-selectedTarget = targets(2);
-selected = buildSelectedFixedLambdaPredictions( ...
-    x, y, split, cfg, linear, fixed, selectedTarget);
-assert(height(selected.fixedLambdaComparisonTable) == 6);
-assert(isequal(selected.fixedLambdaComparisonTable.FixedLambda, ...
-    repmat([1e-3; 1e-4; 1e-5], 2, 1)));
-assert(isequaln(selected.supports.complex, complexSupports(2)));
-assert(isequaln(selected.supports.pnFeatures, pnFeatureSupports(2)));
-assert(isequaln(selected.supports.pnComplex, pnComplexSupports(2)));
-for family = {'complexGMP','pnIQ'}
-    values = selected.fullSignalPredictions.(family{1});
-    assert(all(structfun(@(prediction) ...
-        isequal(size(prediction), [n 1]), values)));
-end
-assert(selected.metadata.dompInvocationCount == 0);
-assert(selected.metadata.pnnnTrainingCount == 0);
-assert(selected.metadata.maximumIdentificationNMSEDifferenceDb <= 1e-9);
-assert(selected.metadata.maximumFullSignalNMSEDifferenceDb <= 1e-9);
-
 source = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
-    'runFixedLambdaLinearSweep.m'));
+    'run_fixed_ridge_sweep.m'));
 assert(~contains(source, 'selectDOMPSupport('));
 assert(~contains(source, 'runPNNN'));
-selectedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
-    'buildSelectedFixedLambdaPredictions.m'));
-assert(~contains(selectedSource, 'selectDOMPSupport('));
-assert(~contains(selectedSource, 'runPNNN'));
 
 checkpointDirectory = tempname;
 mkdir(checkpointDirectory);
