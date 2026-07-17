@@ -9,12 +9,10 @@ projectRoot = char(string(projectRoot));
 
 cfg = struct();
 cfg.projectRoot = projectRoot;
-cfg.measurementName = 'experiment20260429T134032_xy';
-cfg.measurementFile = fullfile(projectRoot, 'measurements', ...
-    [cfg.measurementName '.mat']);
+cfg.measurementName = 'experiment20260429T134032_forward_xy';
+cfg.measurementFile = fullfile(projectRoot, 'measurements', [cfg.measurementName '.mat']);
 cfg.mappingMode = 'xy_forward';
-cfg.resultsRoot = fullfile(projectRoot, 'results', ...
-    'full_signal_domp_comparison');
+cfg.resultsRoot = fullfile(projectRoot, 'results', 'full_signal_domp_comparison');
 
 cfg.identificationFraction = 0.10;
 cfg.identificationSeed = 1004;
@@ -102,8 +100,7 @@ cfg.pruning.hybridExactTarget = false;
 cfg.pruning.fineTuneEnabled = true;
 cfg.pruning.fineTuneEpochs = [];
 cfg.pruning.historicalFineTuneEpochs = 20;
-cfg.pruning.fineTuneInitialLearnRate = ...
-    cfg.training.initialLearnRate;
+cfg.pruning.fineTuneInitialLearnRate = cfg.training.initialLearnRate;
 cfg.pruning.fineTuneLearnRateDropPeriod = [];
 cfg.pruning.fineTuneSeedOffset = 100000;
 cfg.pruning.freezePruned = true;

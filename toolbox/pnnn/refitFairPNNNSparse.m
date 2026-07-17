@@ -1,6 +1,4 @@
-function fit = refitFairPNNNSparse(denseFinalFit, features, targets, ...
-    phaseRotation, y, identificationRows, fullSignalRows, ...
-    targetActiveParams, nnSeed, selectedFineTuneEpochs, cfg)
+function fit = refitFairPNNNSparse(denseFinalFit, features, targets, phaseRotation, y, identificationRows, fullSignalRows, targetActiveParams, nnSeed, selectedFineTuneEpochs, cfg)
 % refitFairPNNNSparse - Prune and refit the final identification PNNN.
 % Biases remain protected, zero weights remain frozen, and fixed-epoch
 % fine-tuning uses all identification rows without full-signal selection.
@@ -49,12 +47,11 @@ end
 assertBiasMasksProtected(pruned_network, pruning_state.masks);
 
 normalization = denseFinalFit.normalization;
-features_identification = normalizeFeatures( ...
-    features(identificationRows, :), normalization);
-targets_identification = normalizeTargets( ...
-    targets(identificationRows, :), normalization);
-fine_tune_cfg = struct('training', cfg.training, ...
-    'pruning', pruning_cfg);
+
+features_identification = normalizeFeatures(features(identificationRows, :), normalization);
+targets_identification = normalizeTargets(targets(identificationRows, :), normalization);
+
+fine_tune_cfg = struct('training', cfg.training, 'pruning', pruning_cfg);
 rng(nnSeed + double(pruning_cfg.fineTuneSeedOffset), 'twister');
 [network, fine_tune_info, pruning_stats] = fineTunePrunedNetwork( ...
     pruned_network, features_identification, targets_identification, ...
@@ -80,13 +77,9 @@ if counts.activeBiasParams ~= counts.totalBiasParams || ...
         'Every final bias must remain active and protected.');
 end
 
-features_full_signal = normalizeFeatures( ...
-    features(fullSignalRows, :), normalization);
-identification_prediction = predictPhaseNorm(network, ...
-    features_identification, normalization, ...
-    phaseRotation(identificationRows));
-full_signal_prediction = predictPhaseNorm(network, ...
-    features_full_signal, normalization, phaseRotation(fullSignalRows));
+features_full_signal = normalizeFeatures(features(fullSignalRows, :), normalization);
+identification_prediction = predictPhaseNorm(network,features_identification, normalization, phaseRotation(identificationRows));
+full_signal_prediction = predictPhaseNorm(network, features_full_signal, normalization, phaseRotation(fullSignalRows));
 
 fit = denseFinalFit;
 fit.network = network;

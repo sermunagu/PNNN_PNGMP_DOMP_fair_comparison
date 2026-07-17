@@ -9,10 +9,11 @@ manager = GMP_createRegressorManager(x, y, cfg.gmp);
 population = (1:numel(manager.regPopulation)).';
 
 %% Fit the two scientific model families
-complexModel = fit_complex_gmp_domp( ...
-    x, y, split, cfg, manager, population);
-pnModel = fit_independent_pniq_domp( ...
-    x, y, split, cfg, manager, population);
+complexModel = fit_complex_gmp_domp(x, y, split, cfg, manager, population);
+pnModel = fit_independent_pniq_domp(x, y, split, cfg, manager, population);
+
+
+
 
 %% Package the shared linear artifact
 sweep.complexTable = complexModel.table;

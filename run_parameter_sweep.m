@@ -27,7 +27,7 @@ measurement = load(cfg.measurementFile, 'x', 'y');
 x = x(:);
 y = y(:);
 
-cfg.experimentSignature = buildExperimentSignature(x, y, cfg);
+cfg.experimentSignature = buildExperimentSignature(x, y, cfg); % Compute hashes to reuse experiments based on their metadata
 
 if cfg.pnnn.removeDC
     x = x - mean(x);
@@ -36,7 +36,6 @@ end
 
 split = buildCommonComparisonSplit(x, y, cfg);
 
-% TODO: review the scientific split protocol after this equivalence rewrite.
 sweepIdentity = buildSweepIdentity(cfg);
 resultDirectory = resolveResultDirectory(cfg, sweepIdentity);
 
@@ -51,31 +50,27 @@ fprintf('Result directory: %s\n', resultDirectory);
 %% Complex GMP and PN-IQ: select paths, fit prefixes, and predict
 linearTimer = tic;
 linearFile = fullfile(resultDirectory, 'linear_sweep.mat');
-if ~isfile(linearFile)
+
+if ~isfile(linearFile) % Check that this experiment does not already exist before running the corresponding computations
     fprintf('[Linear] Building designs, DOMP paths, fits, and predictions...\n');
+    
     linear = run_linear_sweep(x, y, split, cfg);
-    checkpointArtifact = struct('schemaVersion', 1, ...
-        'sweepIdentity', sweepIdentity, ...
-        'experimentSignature', cfg.experimentSignature, ...
-        'payload', linear);
+    checkpointArtifact = struct('schemaVersion', 1, 'sweepIdentity', sweepIdentity, 'experimentSignature', cfg.experimentSignature, 'payload', linear);
+    
     save(linearFile, 'checkpointArtifact', '-v7.3');
     fprintf('[Linear] Completed in %.1f s.\n', toc(linearTimer));
+
 else
     saved = load(linearFile, 'checkpointArtifact');
     checkpointArtifact = saved.checkpointArtifact;
-    if ~isequaln(checkpointArtifact.experimentSignature, ...
-            cfg.experimentSignature) || ...
-            ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', ...
-            'The linear checkpoint belongs to another experiment.');
+    
+    if ~isequaln(checkpointArtifact.experimentSignature, cfg.experimentSignature) || ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
+        error('run_parameter_sweep:ExperimentMismatch', 'The linear checkpoint belongs to another experiment.');
     end
     linear = checkpointArtifact.payload;
-    if any(string(linear.complexTable.Model) ~= ...
-            "Complex GMP DOMP sweep") || ...
-            any(string(linear.pnTable.Model) ~= ...
-            "Independent PN-IQ PN-DOMP sweep")
-        error('run_parameter_sweep:FamilyMismatch', ...
-            'The linear checkpoint mixes model families.');
+    
+    if any(string(linear.complexTable.Model) ~= "Complex GMP DOMP sweep") || any(string(linear.pnTable.Model) ~= "Independent PN-IQ PN-DOMP sweep")
+        error('run_parameter_sweep:FamilyMismatch', 'The linear checkpoint mixes model families.');
     end
     fprintf('[Linear] Reused matrices, paths, fits, and predictions in %.1f s.\n', ...
         toc(linearTimer));
@@ -87,10 +82,7 @@ fixedFile = fullfile(resultDirectory, 'fixed_lambda_linear_sweep.mat');
 
 if ~isfile(fixedFile)
     fixedLinear = run_fixed_ridge_sweep(x, y, split, cfg, linear);
-    checkpointArtifact = struct('schemaVersion', 1, ...
-        'sweepIdentity', sweepIdentity, ...
-        'experimentSignature', cfg.experimentSignature, ...
-        'payload', fixedLinear);
+    checkpointArtifact = struct('schemaVersion', 1, 'sweepIdentity', sweepIdentity, 'experimentSignature', cfg.experimentSignature, 'payload', fixedLinear);
     save(fixedFile, 'checkpointArtifact', '-v7.3');
     fprintf('[Fixed ridge] Completed in %.1f s.\n', toc(fixedTimer));
 
@@ -98,22 +90,16 @@ else
     saved = load(fixedFile, 'checkpointArtifact');
     checkpointArtifact = saved.checkpointArtifact;
     
-    if ~isequaln(checkpointArtifact.experimentSignature, ...
-            cfg.experimentSignature) || ...
-            ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', ...
-            'The fixed-ridge checkpoint belongs to another experiment.');
+    if ~isequaln(checkpointArtifact.experimentSignature, cfg.experimentSignature) || ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
+        error('run_parameter_sweep:ExperimentMismatch', 'The fixed-ridge checkpoint belongs to another experiment.');
     end
     fixedLinear = checkpointArtifact.payload;
     
-    if ~isequal(sort(unique(string(fixedLinear.table.Model))), ...
-            sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"]))
-        error('run_parameter_sweep:FamilyMismatch', ...
-            'The fixed-ridge checkpoint mixes model families.');
+    if ~isequal(sort(unique(string(fixedLinear.table.Model))), sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"]))
+        error('run_parameter_sweep:FamilyMismatch', 'The fixed-ridge checkpoint mixes model families.');
     end
     
-    fprintf('[Fixed ridge] Reused supplementary checkpoint in %.1f s.\n', ...
-        toc(fixedTimer));
+    fprintf('[Fixed ridge] Reused supplementary checkpoint in %.1f s.\n', toc(fixedTimer));
 end
 
 %% Sparse PNNN: prepare or reuse one immutable dense N12 source
@@ -123,8 +109,9 @@ denseFile = fullfile(resultDirectory, 'sweep_dense_source.mat');
 if ~isfile(denseFile)
     fprintf('[PNNN] Selecting epochs and fitting one dense N12 source...\n');
 
-    denseStudy = prepare_pnnn_dense_source( ...
-        x, y, split, cfg, cfg.reducedRealParameterTarget);
+    
+    denseStudy = prepare_pnnn_dense_source(x, y, split, cfg, cfg.reducedRealParameterTarget);
+
 
     denseSource = struct('denseFit', denseStudy.n12DenseFit, ...
         'signature', buildNetworkSignature(denseStudy.n12DenseFit), ...
@@ -139,6 +126,7 @@ if ~isfile(denseFile)
         'payload', denseSource);
     save(denseFile, 'checkpointArtifact', '-v7.3');
 
+
     features = denseStudy.features;
     neuralTargets = denseStudy.targets;
     phaseRotation = denseStudy.rotation;
@@ -147,12 +135,14 @@ if ~isfile(denseFile)
 else
     saved = load(denseFile, 'checkpointArtifact');
     checkpointArtifact = saved.checkpointArtifact;
+    
     if ~isequaln(checkpointArtifact.experimentSignature, ...
             cfg.experimentSignature) || ...
             ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
         error('run_parameter_sweep:ExperimentMismatch', ...
             'The dense PNNN checkpoint belongs to another experiment.');
     end
+    
     denseSource = checkpointArtifact.payload;
     denseSource.fineTuneBudgetSource = "shared N12 internal selection";
     [features, neuralTargets, phaseRotation] = buildPhaseNormDataset( ...
@@ -161,28 +151,30 @@ else
 
     neuralTargets = neuralTargets.';
     phaseRotation = phaseRotation(:);
-    fprintf('[PNNN] Reused dense N12 checkpoint in %.1f s.\n', ...
-        toc(denseTimer));
+    fprintf('[PNNN] Reused dense N12 checkpoint in %.1f s.\n', toc(denseTimer));
 end
 
 %% Sparse PNNN: prune and predict every requested parameter budget
 schema = cfg.sweep.resultSchema;
-pnnnRows = table('Size', [0 numel(schema.names)], ...
-    'VariableTypes', schema.types, 'VariableNames', schema.names);
+pnnnRows = table('Size', [0 numel(schema.names)], 'VariableTypes', schema.types, 'VariableNames', schema.names);
 
 for index = 1:numel(targets)
     target = targets(index);
     timer = tic;
-    fprintf('[PNNN %d/%d] Target %d parameters...\n', ...
-        index, numel(targets), target);
+
+    fprintf('[PNNN %d/%d] Target %d parameters...\n', index, numel(targets), target);
+    
     artifactName = compose("pnnn_target_%04d.mat", target);
     filename = fullfile(resultDirectory, artifactName);
     [~, base, extension] = fileparts(filename);
     artifactName = string(base) + string(extension);
     
     if ~isfile(filename)
+        
         point = fit_sparse_pnnn_target(denseSource, target, features, ...
             neuralTargets, phaseRotation, y, split, cfg);
+        
+        
         point.row.ArtifactFile = artifactName;
         checkpointArtifact = struct('schemaVersion', 1, ...
             'sweepIdentity', sweepIdentity, ...
@@ -223,6 +215,14 @@ for index = 1:numel(targets)
     
     pnnnRows(index, :) = point.row;
 end
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURES AND METADATA
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %% Build the two public tables
 results = [linear.complexTable; linear.pnTable; pnnnRows];
@@ -291,6 +291,14 @@ disp(results(:, {'Model','SweepRole','ActualRealParameters', ...
 fprintf('Sweep completed in %.1f s.\n', toc(sweepTimer));
 end
 
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AUXILIAR FUNCTIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 function identity = buildSweepIdentity(cfg)
 identity = struct('schemaVersion', cfg.sweep.schemaVersion, ...
     'experimentDigest', cfg.experimentSignature.digest, ...
@@ -318,6 +326,7 @@ end
 
 function directory = resolveResultDirectory(cfg, identity)
 name = "sweep_" + extractBefore(string(identity.digest), 13);
+
 if ~cfg.sweep.resume
     name = name + "_" + string(datetime('now', ...
         'Format', 'yyyyMMdd_HHmmss'));
@@ -340,10 +349,12 @@ temporaryFile = [tempname(directory) '.csv'];
 cleanup = onCleanup(@() deleteIfPresent(temporaryFile));
 writetable(value, temporaryFile);
 [moved, message] = movefile(temporaryFile, finalFile, 'f');
+
 if ~moved
     error('run_parameter_sweep:CSVMoveFailed', ...
         'Could not install %s: %s', filename, message);
 end
+
 clear cleanup;
 end
 
@@ -357,6 +368,7 @@ models = ["Complex GMP DOMP sweep", ...
     "Independent PN-IQ PN-DOMP sweep", "Sparse PNNN N12"];
 labels = ["Complex GMP-DOMP", "PN-IQ PN-DOMP", "Sparse PNNN N12"];
 mainLines = gobjects(3, 1);
+
 for index = 1:3
     rows = string(results.Model) == models(index);
     x = results.(xVariable)(rows);
@@ -365,6 +377,7 @@ for index = 1:3
     mainLines(index) = plot(x, y(order), '-o', ...
         'LineWidth', 1 + includeFixed, 'DisplayName', labels(index));
 end
+
 if includeFixed
     fixedModels = ["Complex GMP-DOMP", "PN-IQ PN-DOMP"];
     styles = ["--", ":", "-."];
@@ -382,6 +395,7 @@ if includeFixed
         end
     end
 end
+
 grid on;
 xlabel(xLabel);
 ylabel('Full-signal NMSE (dB)');

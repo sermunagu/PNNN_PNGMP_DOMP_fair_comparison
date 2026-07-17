@@ -10,7 +10,7 @@ function [X_in, Y_out, r_vec] = buildPhaseNormDataset(x, y, M, orders, featMode)
 %   M, orders, featMode - Memory depth, nonlinear orders, and feature mode.
 %
 % Outputs:
-%   X_in - D x N phase-normalized input feature matrix.
+%   X_in  - D x N phase-normalized input feature matrix.
 %   Y_out - 2 x N real/imag target matrix in the rotated frame.
 %   r_vec - 1 x N phase-rotation vector for reconstruction.
 

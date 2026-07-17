@@ -4,13 +4,17 @@ function signature = buildExperimentSignature(x, y, cfg)
 % configurations that happen to produce identical split indices.
 
 validateInputs(x, y, cfg);
+
 identity = configurationIdentity(cfg, numel(x), numel(y));
+
 configurationText = jsonencode(identity);
+
 xHash = hashNumericArray(x);
 yHash = hashNumericArray(y);
+
 configurationHash = hashText(configurationText);
-digest = hashText(strjoin(["PNNN experiment signature v2", ...
-    string(xHash), string(yHash), string(configurationHash)], "|"));
+
+digest = hashText(strjoin(["PNNN experiment signature v2", string(xHash), string(yHash), string(configurationHash)], "|"));
 
 signature = struct( ...
     'schemaVersion', 2, ...
@@ -76,27 +80,28 @@ identity = struct( ...
 end
 
 function digestText = hashNumericArray(values)
-digest = javaMethod('getInstance', ...
-    'java.security.MessageDigest', 'SHA-256');
+digest = javaMethod('getInstance', 'java.security.MessageDigest', 'SHA-256');
 updateDigest(digest, unicode2native(class(values), 'UTF-8'));
 updateDigest(digest, numericBytes(uint64(size(values))));
 updateDigest(digest, uint8(~isreal(values)));
 updateDigest(digest, numericBytes(real(values(:))));
+
 if ~isreal(values)
     updateDigest(digest, numericBytes(imag(values(:))));
 end
+
 digestText = finishDigest(digest);
 end
 
 function digestText = hashText(value)
-digest = javaMethod('getInstance', ...
-    'java.security.MessageDigest', 'SHA-256');
+digest = javaMethod('getInstance', 'java.security.MessageDigest', 'SHA-256');
 updateDigest(digest, unicode2native(char(string(value)), 'UTF-8'));
 digestText = finishDigest(digest);
 end
 
 function bytes = numericBytes(values)
 [~, ~, endian] = computer;
+
 if endian == 'B'
     values = swapbytes(values);
 end
@@ -119,18 +124,22 @@ requiredTop = {'measurementName','mappingMode','identificationFraction', ...
     'identificationSeed','internalTrainFraction','internalSplitSeed', ...
     'amplitudeBinCount', ...
     'pnnn','training','pruning'};
+
 requiredPNNN = {'M','orders','featMode','actType','removeDC', ...
     'sparseBaseHiddenNeurons','nnSeeds'};
+
 requiredTraining = {'miniBatchSize','optimizer','initialLearnRate', ...
     'learnRateSchedule','learnRateDropPeriod','learnRateDropFactor', ...
     'validationPatience','shuffle','historicalTrainFraction', ...
     'historicalMaxEpochs','historicalLearnRateDropPeriod', ...
     'historicalValidationPatience'};
+
 requiredPruning = {'targetMode','scope','structureMode','includeBiases', ...
     'structuredRanking','structuredTargetPolicy','hybridExactTarget', ...
     'fineTuneEnabled','fineTuneEpochs','historicalFineTuneEpochs', ...
     'fineTuneInitialLearnRate','fineTuneLearnRateDropPeriod', ...
     'fineTuneSeedOffset','freezePruned'};
+
 if ~isnumeric(x) || ~isnumeric(y) || isempty(x) || isempty(y) || ...
         any(~isfinite(x), 'all') || any(~isfinite(y), 'all') || ...
         ~isstruct(cfg) || ~all(isfield(cfg, requiredTop)) || ...

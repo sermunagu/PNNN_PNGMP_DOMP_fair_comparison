@@ -1,0 +1,22 @@
+Model,RegularizationMode,NumRealParameters,ParameterMatchedTarget,ParameterDifference,ActualActiveParams,ActiveWeights,ActiveBiases,WeightSparsityPercent,FinalFitSamples
+Complex GMP DOMP-100,LS,200,NaN,NaN,200,200,0,0,49151
+Complex GMP DOMP-100,Fixed Ridge,200,NaN,NaN,200,200,0,0,49151
+Complex GMP DOMP-100,Validation-selected Ridge,200,NaN,NaN,200,200,0,0,49151
+Coupled PN-IQ (shared DOMP-100),LS,200,NaN,NaN,200,200,0,0,49151
+Coupled PN-IQ (shared DOMP-100),Fixed Ridge,200,NaN,NaN,200,200,0,0,49151
+Coupled PN-IQ (shared DOMP-100),Validation-selected Ridge,200,NaN,NaN,200,200,0,0,49151
+Independent PN-IQ full,LS,344,344,0,344,344,0,0,49151
+Independent PN-IQ full,Fixed Ridge,344,344,0,344,344,0,0,49151
+Independent PN-IQ full,Validation-selected Ridge,344,344,0,344,344,0,0,49151
+Complex GMP DOMP parameter-matched,LS,344,344,0,344,344,0,0,49151
+Complex GMP DOMP parameter-matched,Fixed Ridge,344,344,0,344,344,0,0,49151
+Complex GMP DOMP parameter-matched,Validation-selected Ridge,344,344,0,344,344,0,0,49151
+Independent I/Q without PN,LS,396,NaN,NaN,396,396,0,0,49151
+Independent I/Q without PN,Fixed Ridge,396,NaN,NaN,396,396,0,0,49151
+Independent I/Q without PN,Validation-selected Ridge,396,NaN,NaN,396,396,0,0,49151
+Independent PN-IQ reduced DOMP,LS,200,200,0,200,200,0,0,49151
+Independent PN-IQ reduced DOMP,Fixed Ridge,200,200,0,200,200,0,0,49151
+Independent PN-IQ reduced DOMP,Validation-selected Ridge,200,200,0,200,200,0,0,49151
+PNNN H4 dense,Not applicable,350,344,6,350,344,6,0,49151
+PNNN N12 dense,Not applicable,1046,344,702,1046,1032,14,0,49151
+PNNN N12 sparse,Not applicable,344,344,0,344,330,14,68.0232558139535,49151

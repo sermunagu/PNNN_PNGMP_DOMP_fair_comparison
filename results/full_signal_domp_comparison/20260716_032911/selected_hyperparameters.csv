@@ -1,0 +1,22 @@
+Model,RegularizationMode,SelectedLambda,DOMPSupportSize,InternalValidationNMSEdB,BestDenseEpoch,BestFineTuneEpoch,SelectionMethod
+Complex GMP DOMP-100,LS,0,100,-38.2627190420314,NaN,NaN,DOMP
+Complex GMP DOMP-100,Fixed Ridge,1e-05,100,-36.5725849102039,NaN,NaN,DOMP
+Complex GMP DOMP-100,Validation-selected Ridge,0,100,-38.2627190420314,NaN,NaN,DOMP
+Coupled PN-IQ (shared DOMP-100),LS,0,100,-38.2627190420875,NaN,NaN,DOMP
+Coupled PN-IQ (shared DOMP-100),Fixed Ridge,1e-05,100,-36.5725849102039,NaN,NaN,DOMP
+Coupled PN-IQ (shared DOMP-100),Validation-selected Ridge,0,100,-38.2627190420875,NaN,NaN,DOMP
+Independent PN-IQ full,LS,0,100,-38.8161069790024,NaN,NaN,DOMP
+Independent PN-IQ full,Fixed Ridge,1e-05,100,-36.9824809268199,NaN,NaN,DOMP
+Independent PN-IQ full,Validation-selected Ridge,0,100,-38.8161069790024,NaN,NaN,DOMP
+Complex GMP DOMP parameter-matched,LS,0,172,-38.4770680706315,NaN,NaN,DOMP
+Complex GMP DOMP parameter-matched,Fixed Ridge,1e-05,172,-36.7446709414427,NaN,NaN,DOMP
+Complex GMP DOMP parameter-matched,Validation-selected Ridge,0,172,-38.4770680706315,NaN,NaN,DOMP
+Independent I/Q without PN,LS,0,100,-38.1830453553326,NaN,NaN,DOMP
+Independent I/Q without PN,Fixed Ridge,1e-05,100,-36.5501945093171,NaN,NaN,DOMP
+Independent I/Q without PN,Validation-selected Ridge,0,100,-38.1830453553326,NaN,NaN,DOMP
+Independent PN-IQ reduced DOMP,LS,0,100,-38.006665670406,NaN,NaN,DOMP
+Independent PN-IQ reduced DOMP,Fixed Ridge,1e-05,100,-36.8097604129728,NaN,NaN,DOMP
+Independent PN-IQ reduced DOMP,Validation-selected Ridge,0,100,-38.006665670406,NaN,NaN,DOMP
+PNNN H4 dense,Not applicable,NaN,NaN,-29.6778631827641,1259,0,internal validation; fixed identification refit
+PNNN N12 dense,Not applicable,NaN,NaN,-35.0174181954988,1258,0,internal validation; fixed identification refit
+PNNN N12 sparse,Not applicable,NaN,NaN,-35.1363828954939,1258,163,internal validation; fixed identification refit

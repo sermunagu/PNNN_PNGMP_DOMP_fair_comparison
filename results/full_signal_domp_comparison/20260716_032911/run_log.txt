@@ -1,0 +1,113 @@
+
+=== Full-signal PNNN versus PN-GMP DOMP comparison ===
+Result directory: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\full_signal_domp_comparison\20260716_032911
+Mapping: xy_forward (local modeled-block X/Y convention)
+Internal train=41778 | internal validation=7373 | identification=49151 | full signal=491520
+Identification is contained in full signal: YES
+
+Fitting six linear DOMP models under the corrected protocol...
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+[Warning: Variable "experiment_signature" not found.] 
+[> In runPNNNComparisonStudy>selectHyperparameters (line 130)
+In runPNNNComparisonStudy (line 45)
+In run_fair_PNNN_vs_PNGMP_DOMP (line 72)
+In run (line 100)] 
+Pruning scope : global
+Pruning target mode: activeTrainableParams
+Target active trainable params: 344
+Pruning target: 68.02 % effective prunable sparsity
+Pruning actual: 68.02 % (702/1032 prunable parameters)
+Active trainable params: 344/1046 (weights=330, biases=14, protected=14)
+PNNN hyperparameter selection reused: FALSE
+Selected epochs H4/N12/fine-tune: 1259 / 1258 / 163
+
+Final H4 refit on all 49151 identification rows...
+Final N12 dense refit on all identification rows...
+Final N12 pruning and fixed-epoch identification fine-tuning...
+Pruning scope : global
+Pruning target mode: activeTrainableParams
+Target active trainable params: 344
+Pruning target: 68.02 % effective prunable sparsity
+Pruning actual: 68.02 % (702/1032 prunable parameters)
+Active trainable params: 344/1046 (weights=330, biases=14, protected=14)
+ 
+=== Corrected full-signal main comparison ===
+                   Model                        RegularizationMode         SelectedLambda    NumRealParameters    IdentificationNMSEdB    FullSignalNMSEdB    FLOPsPerSample                                                    AdditionalOperationsPerSample                                                
+    ____________________________________    ___________________________    ______________    _________________    ____________________    ________________    ______________    _____________________________________________________________________________________________________________________________
+
+    "Independent PN-IQ full"                "LS"                                   0                344                 -39.005               -38.839              1026         "13 magnitude (including 13 sqrt), 2 division, phase normalization/restoration arithmetic in FLOPs"                          
+    "Independent PN-IQ full"                "Fixed Ridge"                      1e-05                344                 -37.204                -37.12              1026         "13 magnitude (including 13 sqrt), 2 division, phase normalization/restoration arithmetic in FLOPs"                          
+    "Independent PN-IQ full"                "Validation-selected Ridge"            0                344                 -39.005               -38.839              1026         "13 magnitude (including 13 sqrt), 2 division, phase normalization/restoration arithmetic in FLOPs"                          
+    "Complex GMP DOMP parameter-matched"    "LS"                                   0                344                 -38.672               -38.458              1837         "14 magnitude (including 14 sqrt)"                                                                                           
+    "Complex GMP DOMP parameter-matched"    "Fixed Ridge"                      1e-05                344                 -36.934                -36.86              1837         "14 magnitude (including 14 sqrt)"                                                                                           
+    "Complex GMP DOMP parameter-matched"    "Validation-selected Ridge"            0                344                 -38.672               -38.458              1837         "14 magnitude (including 14 sqrt)"                                                                                           
+    "PNNN N12 sparse"                       "Not applicable"                     NaN                344                 -35.697                -35.66               848         "14 magnitude (including 14 sqrt), 2 division, 12 sigmoid, up to 12 exp, phase normalization/restoration arithmetic in FLOPs"
+
+ 
+=== All corrected-protocol models ===
+                   Model                        RegularizationMode         SelectedLambda    NumRealParameters    IdentificationNMSEdB    FullSignalNMSEdB    FLOPsPerSample
+    ____________________________________    ___________________________    ______________    _________________    ____________________    ________________    ______________
+
+    "Complex GMP DOMP-100"                  "LS"                                   0                200                 -38.402               -38.257              1100     
+    "Complex GMP DOMP-100"                  "Fixed Ridge"                      1e-05                200                 -36.782               -36.706              1100     
+    "Complex GMP DOMP-100"                  "Validation-selected Ridge"            0                200                 -38.402               -38.257              1100     
+    "Coupled PN-IQ (shared DOMP-100)"       "LS"                                   0                200                 -38.402               -38.257              1026     
+    "Coupled PN-IQ (shared DOMP-100)"       "Fixed Ridge"                      1e-05                200                 -36.782               -36.706              1026     
+    "Coupled PN-IQ (shared DOMP-100)"       "Validation-selected Ridge"            0                200                 -38.402               -38.257              1026     
+    "Independent PN-IQ full"                "LS"                                   0                344                 -39.005               -38.839              1026     
+    "Independent PN-IQ full"                "Fixed Ridge"                      1e-05                344                 -37.204                -37.12              1026     
+    "Independent PN-IQ full"                "Validation-selected Ridge"            0                344                 -39.005               -38.839              1026     
+    "Complex GMP DOMP parameter-matched"    "LS"                                   0                344                 -38.672               -38.458              1837     
+    "Complex GMP DOMP parameter-matched"    "Fixed Ridge"                      1e-05                344                 -36.934                -36.86              1837     
+    "Complex GMP DOMP parameter-matched"    "Validation-selected Ridge"            0                344                 -38.672               -38.458              1837     
+    "Independent I/Q without PN"            "LS"                                   0                396                 -38.519               -38.228              1092     
+    "Independent I/Q without PN"            "Fixed Ridge"                      1e-05                396                 -36.869               -36.691              1092     
+    "Independent I/Q without PN"            "Validation-selected Ridge"            0                396                 -38.519               -38.228              1092     
+    "Independent PN-IQ reduced DOMP"        "LS"                                   0                200                 -38.613               -38.484               738     
+    "Independent PN-IQ reduced DOMP"        "Fixed Ridge"                      1e-05                200                 -36.904               -36.843               738     
+    "Independent PN-IQ reduced DOMP"        "Validation-selected Ridge"            0                200                 -38.613               -38.484               738     
+    "PNNN H4 dense"                         "Not applicable"                     NaN                350                 -30.299               -30.359               876     
+    "PNNN N12 dense"                        "Not applicable"                     NaN               1046                 -35.448               -35.456              2252     
+    "PNNN N12 sparse"                       "Not applicable"                     NaN                344                 -35.697                -35.66               848     
+
+ 
+=== Complex/coupled equivalence by regularization ===
+        RegularizationMode         Lambda    InternalTrainRelativeError    InternalValidationRelativeError    IdentificationRelativeError    FullSignalRelativeError
+    ___________________________    ______    __________________________    _______________________________    ___________________________    _______________________
+
+    "LS"                               0             1.3539e-11                      1.3685e-11                       1.3242e-11                   1.3256e-11       
+    "Fixed Ridge"                  1e-05             8.1776e-16                      8.3566e-16                       7.6587e-16                   7.6605e-16       
+    "Validation-selected Ridge"        0             1.3539e-11                      1.3685e-11                       1.3242e-11                   1.3256e-11       
+
+All final model fits used 49151 identification rows.
+Full-signal evaluation used 491520 rows and includes the identification rows.
+Results: C:\Sergi\Investigacion\Códigos\NN\PNNN_PNGMP_DOMP_fair_comparison\results\full_signal_domp_comparison\20260716_032911

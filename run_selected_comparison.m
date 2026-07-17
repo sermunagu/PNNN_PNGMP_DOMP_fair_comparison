@@ -133,7 +133,7 @@ else
         y = y - mean(y);
     end
     split = buildCommonComparisonSplit(x, y, cfg);
-    % TODO: review the scientific split protocol after this equivalence rewrite.
+
     fullSignalIndices = double(split.fullSignalIndices(:));
     targetFullSignal = y(fullSignalIndices);
     [sampleRateHz, sampleRateSource] = measurementSampleRate(measurement);
@@ -160,8 +160,7 @@ else
     selectedLinear.complexTable = linear.complexTable(complexIndex, :);
     selectedLinear.pnTable = linear.pnTable(pnIndex, :);
     selectedLinear.supports.complex = linear.supports.complex(complexIndex);
-    selectedLinear.supports.pnFeatures = ...
-        linear.supports.pnFeatures(pnIndex);
+    selectedLinear.supports.pnFeatures = linear.supports.pnFeatures(pnIndex);
     selectedLinear.supports.pnComplex = linear.supports.pnComplex(pnIndex);
     selectedConfig = fittingContext.cfg;
     selectedConfig.sweep.parameterGrid = selectedParameters;

@@ -1,8 +1,12 @@
-function [support, history] = selectDOMPSupport( ...
-    X, y, maxComponents, options)
+function [support, history] = selectDOMPSupport(X, y, maxComponents, options)
 % selectDOMPSupport - Select a sparse support using fixed DOMP.
 % Candidate columns are Gram-Schmidt orthogonalized while the residual is
 % recomputed by minimum-norm LS on the original design matrix each step.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHECKS AND VERIFICATIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if nargin < 4
     options = struct();
@@ -29,6 +33,19 @@ if ~isnumeric(maxComponents) || ~isreal(maxComponents) || ...
         'maxComponents must be a positive integer scalar.');
 end
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MAIN PROCESSING LOGIC: DOMP MAIN SELECTION LOOP
+
+% At each iteration:
+% 1. Normalize the remaining orthogonalized candidates.
+% 2. Select the candidate with the highest residual correlation.
+% 3. Orthogonalize the remaining candidates against the selected one.
+% 4. Refit all selected regressors using the original matrix X.
+% 5. Update the residual and store the iteration diagnostics.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 n_candidates = size(X, 2);
 maxComponents = min(double(maxComponents), n_candidates);
 Z = X;
@@ -44,11 +61,9 @@ elapsed_time = zeros(maxComponents, 1);
 orthogonality_error = zeros(maxComponents, 1);
 
 initial_column_norms = sqrt(sum(abs(X).^2, 1));
-absolute_column_tolerance = options.columnTolerance * ...
-    max(1, max(initial_column_norms));
+absolute_column_tolerance = options.columnTolerance * max(1, max(initial_column_norms));
 initial_residual_norm = norm(y, 'fro');
-absolute_residual_tolerance = options.residualTolerance * ...
-    max(1, initial_residual_norm);
+absolute_residual_tolerance = options.residualTolerance * max(1, initial_residual_norm);
 start_time = tic;
 selected_count = 0;
 stop_reason = "maximum_components";
@@ -63,12 +78,14 @@ for iteration = 1:maxComponents
 
     Z(:, eligible) = Z(:, eligible) ./ column_norms(eligible);
     Z(:, ~eligible) = 0;
+    
     correlations = Z(:, eligible)' * residual;
     scores = sqrt(sum(abs(correlations).^2, 2));
+    
     eligible_indices = find(eligible);
     [best_score, local_index] = max(scores);
-    correlation_floor = options.correlationTolerance * ...
-        max(1, norm(residual, 'fro'));
+    correlation_floor = options.correlationTolerance * max(1, norm(residual, 'fro'));
+
     if ~isfinite(best_score) || best_score <= correlation_floor
         stop_reason = "correlation_tolerance";
         break;
@@ -85,19 +102,16 @@ for iteration = 1:maxComponents
     support_buffer(selected_count) = best_index;
     active_support = support_buffer(1:selected_count);
     X_selected = X(:, active_support);
-    [coefficients, selected_condition] = solveSelectedLeastSquares( ...
-        X_selected, y, options.lsTolerance);
+    [coefficients, selected_condition] = solveSelectedLeastSquares(X_selected, y, options.lsTolerance);
     prediction = X_selected * coefficients;
     residual = y - prediction;
 
     remaining_norms = sqrt(sum(abs(Z).^2, 1));
-    remaining = ~selected.' & ...
-        remaining_norms > absolute_column_tolerance;
+    remaining = ~selected.' & remaining_norms > absolute_column_tolerance;
+    
     if any(remaining)
-        normalized_remaining = Z(:, remaining) ./ ...
-            remaining_norms(remaining);
-        orthogonality_error(selected_count) = ...
-            max(abs(q' * normalized_remaining), [], 'all');
+        normalized_remaining = Z(:, remaining) ./ remaining_norms(remaining);
+        orthogonality_error(selected_count) = max(abs(q' * normalized_remaining), [], 'all');
     end
 
     selected_index(selected_count) = best_index;
@@ -126,13 +140,11 @@ end
 history = struct();
 history.selectedIndex = selected_index(1:selected_count);
 history.residualNorm = residual_norm(1:selected_count);
-history.normalizedCorrelation = ...
-    normalized_correlation(1:selected_count);
+history.normalizedCorrelation = normalized_correlation(1:selected_count);
 history.selectedColumnNorm = selected_column_norm(1:selected_count);
 history.conditionNumberSelected = condition_number(1:selected_count);
 history.elapsedTime = elapsed_time(1:selected_count);
-history.maxOrthogonalityError = ...
-    orthogonality_error(1:selected_count);
+history.maxOrthogonalityError = orthogonality_error(1:selected_count);
 history.stopReason = stop_reason;
 history.selectedCount = selected_count;
 history.requestedComponents = maxComponents;
@@ -141,6 +153,9 @@ history.finalResidualNorm = norm(residual, 'fro');
 history.options = options;
 history.targetColumns = size(y, 2);
 end
+
+
+
 
 function [coefficients, condition_number] = solveSelectedLeastSquares( ...
     X_selected, y, requested_tolerance)

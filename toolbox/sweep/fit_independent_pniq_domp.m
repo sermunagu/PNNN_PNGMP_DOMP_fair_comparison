@@ -14,34 +14,32 @@ fullSignalRows = split.fullSignalIndices(:);
 
 %% Describe the candidate PN-IQ population
 nRegressors = numel(population);
-descriptors = repmat(factorizeGMPRegressor( ...
-    manager.regPopulation(population(1)), population(1)), nRegressors, 1);
+descriptors = repmat(factorizeGMPRegressor(manager.regPopulation(population(1)), population(1)), nRegressors, 1);
 for index = 1:nRegressors
-    descriptors(index) = factorizeGMPRegressor( ...
-        manager.regPopulation(population(index)), population(index));
+    descriptors(index) = factorizeGMPRegressor(manager.regPopulation(population(index)), population(index));
 end
 
 SourceRegressorIndex = [population; population];
-Component = [repmat("I", nRegressors, 1); ...
-    repmat("Q", nRegressors, 1)];
+Component = [repmat("I", nRegressors, 1); repmat("Q", nRegressors, 1)];
+
 Signature = strings(2*nRegressors, 1);
 StructuralZero = false(2*nRegressors, 1);
+
 CanonicalGMP = false(2*nRegressors, 1);
 ExactAuxiliaryFallback = false(2*nRegressors, 1);
+
 for index = 1:nRegressors
     descriptor = descriptors(index);
     Signature(index) = descriptor.iSignature;
     Signature(nRegressors + index) = descriptor.qSignature;
     StructuralZero(index) = descriptor.IColumnStructurallyZero;
-    StructuralZero(nRegressors + index) = ...
-        descriptor.QColumnStructurallyZero;
+    StructuralZero(nRegressors + index) = descriptor.QColumnStructurallyZero;
     CanonicalGMP([index, nRegressors + index]) = descriptor.canonicalGMP;
-    ExactAuxiliaryFallback([index, nRegressors + index]) = ...
-        ~descriptor.canonicalGMP;
+    ExactAuxiliaryFallback([index, nRegressors + index]) = ~descriptor.canonicalGMP;
 end
+
 RelationSign = ones(2*nRegressors, 1);
-rawMetadata = table(SourceRegressorIndex, Component, Signature, ...
-    StructuralZero, RelationSign, CanonicalGMP, ExactAuxiliaryFallback);
+rawMetadata = table(SourceRegressorIndex, Component, Signature, StructuralZero, RelationSign, CanonicalGMP, ExactAuxiliaryFallback);
 keptFeatures = find(~StructuralZero);
 featureMetadata = rawMetadata(keptFeatures, :);
 rawFeatureCount = height(rawMetadata);
@@ -51,38 +49,32 @@ effectiveFeatureCount = height(featureMetadata);
 trainInput = x(trainRows);
 trainRotation = complex(ones(size(trainInput)));
 nonzero = abs(trainInput) ~= 0;
-trainRotation(nonzero) = ...
-    conj(trainInput(nonzero)) ./ abs(trainInput(nonzero));
+trainRotation(nonzero) =  conj(trainInput(nonzero)) ./ abs(trainInput(nonzero));
 trainTarget = trainRotation .* y(trainRows);
 
 validationInput = x(validationRows);
 validationRotation = complex(ones(size(validationInput)));
 nonzero = abs(validationInput) ~= 0;
-validationRotation(nonzero) = ...
-    conj(validationInput(nonzero)) ./ abs(validationInput(nonzero));
+validationRotation(nonzero) = conj(validationInput(nonzero)) ./ abs(validationInput(nonzero));
 validationTarget = y(validationRows);
 
 fprintf('[Linear] Building PN-IQ internal matrices...\n');
 trainFeatures = zeros(numel(trainRows), effectiveFeatureCount);
 for first = 1:cfg.sweep.candidateBlockSize:numel(trainRows)
-    local = first:min(first + cfg.sweep.candidateBlockSize - 1, ...
-        numel(trainRows));
-    raw = buildFeatures(x, trainRows(local), trainRotation(local), ...
-        manager, population, descriptors);
+    local = first:min(first + cfg.sweep.candidateBlockSize - 1, numel(trainRows));
+    raw = buildFeatures(x, trainRows(local), trainRotation(local), manager, population, descriptors);
     trainFeatures(local, :) = raw(:, keptFeatures);
 end
+
 validationFeatures = zeros(numel(validationRows), effectiveFeatureCount);
 for first = 1:cfg.sweep.candidateBlockSize:numel(validationRows)
-    local = first:min(first + cfg.sweep.candidateBlockSize - 1, ...
-        numel(validationRows));
-    raw = buildFeatures(x, validationRows(local), ...
-        validationRotation(local), manager, population, descriptors);
+    local = first:min(first + cfg.sweep.candidateBlockSize - 1, numel(validationRows));
+    raw = buildFeatures(x, validationRows(local), validationRotation(local), manager, population, descriptors);
     validationFeatures(local, :) = raw(:, keptFeatures);
 end
 
 fprintf('[Linear] Computing one PN-IQ PN-DOMP path on internal train...\n');
-[trainPath, ~] = selectDOMPSupport( ...
-    trainFeatures, trainTarget, maximumFeatures, cfg.gmp.dompOptions);
+[trainPath, ~] = selectDOMPSupport(trainFeatures, trainTarget, maximumFeatures, cfg.gmp.dompOptions);
 trainPath = trainPath(:);
 
 selectedLambdas = zeros(size(featureCounts));
@@ -156,6 +148,7 @@ identificationPath = identificationPath(:);
 
 coefficientsI = zeros(maximumFeatures, numel(targets));
 coefficientsQ = zeros(maximumFeatures, numel(targets));
+
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     support = identificationPath(1:count);
@@ -202,6 +195,7 @@ selectedColumns(isQ) = selectedColumns(isQ) + numel(complexSupport);
 
 fullPredictions = complex(zeros(numel(fullSignalRows), numel(targets)));
 fullBuildCount = 0;
+
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, ...
         numel(fullSignalRows));
@@ -265,6 +259,11 @@ model.metadata = struct('candidateFeatures', rawFeatureCount, ...
     'matrixInternalValidation', 1, 'matrixIdentification', 1, ...
     'matrixFullSignal', 1, 'fullSignalBuildCount', fullBuildCount);
 end
+
+
+
+
+
 
 function features = buildFeatures( ...
     x, rows, rotation, manager, support, descriptors)

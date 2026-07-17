@@ -3,6 +3,11 @@ function U = buildGMPRegressorRows(x, rows, rManagerGMP, support)
 % The helper preserves the periodic indexing and regressor ordering used by
 % the current block GMP baseline without mutating the regressor manager.
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHECKS AND VERIFICATIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 x = x(:);
 if isempty(x) || ~isnumeric(x) || ~isfloat(x) || any(~isfinite(x))
     error('buildGMPRegressorRows:InvalidInput', ...
@@ -12,15 +17,17 @@ end
 if nargin < 2 || isempty(rows)
     rows = (1:numel(x)).';
 end
+
 rows = validateIndexVector(rows, numel(x), 'rows');
 
-if nargin < 3 || ~isobject(rManagerGMP) || ...
-        ~isprop(rManagerGMP, 'regPopulation')
+if nargin < 3 || ~isobject(rManagerGMP) || ~isprop(rManagerGMP, 'regPopulation')
     error('buildGMPRegressorRows:InvalidManager', ...
         'rManagerGMP must expose a regPopulation property.');
 end
+
 regPopulation = rManagerGMP.regPopulation;
 nPopulation = numel(regPopulation);
+
 if nPopulation == 0
     error('buildGMPRegressorRows:EmptyPopulation', ...
         'rManagerGMP.regPopulation must not be empty.');
@@ -29,11 +36,18 @@ end
 if nargin < 4 || isempty(support)
     support = 1:nPopulation;
 end
+
 support = validateIndexVector(support, nPopulation, 'support').';
+
 if numel(unique(support, 'stable')) ~= numel(support)
     error('buildGMPRegressorRows:DuplicateSupport', ...
         'support must not contain duplicate indices.');
 end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MAIN PROCESSING LOGIC: BUILD THE GMP REGRESSION MATRIX
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 regSpecs = prepareRegressorSpecs(regPopulation);
 shifts = collectShifts(regSpecs, support);
@@ -43,6 +57,7 @@ nSignal = numel(x);
 
 tap = cell(numel(shifts), 1);
 absTap = cell(numel(shifts), 1);
+
 for k = 1:numel(shifts)
     idx = wrapIndex(rows - shifts(k), nSignal);
     tap{k} = x(idx);
@@ -50,6 +65,7 @@ for k = 1:numel(shifts)
 end
 
 U = complex(zeros(nRows, nRegs));
+
 for k = 1:nRegs
     spec = regSpecs(support(k));
     value = complex(ones(nRows, 1));
@@ -75,6 +91,12 @@ if any(~isfinite(U), 'all')
         'The evaluated GMP matrix contains NaN or Inf values.');
 end
 end
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AUXILIAR FUNCTIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function regSpecs = prepareRegressorSpecs(regPopulation)
 nRegs = numel(regPopulation);

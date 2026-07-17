@@ -8,8 +8,11 @@ function fit = refitFairPNNNDense(features, targets, phaseRotation, y, ...
 validateInputs(features, targets, phaseRotation, y, ...
     identificationRows, fullSignalRows, hiddenNeurons, nnSeed, ...
     selectedEpochs, cfg);
+
 timer = tic;
+
 input_dimension = size(features, 2);
+
 normalization = computePNNNNormalization( ...
     features(identificationRows, :), targets(identificationRows, :));
 features_identification = normalizeFeatures( ...
@@ -20,9 +23,11 @@ features_full_signal = normalizeFeatures( ...
     features(fullSignalRows, :), normalization);
 
 rng(nnSeed, 'twister');
+
 layers = buildFairPNNNLayers(input_dimension, hiddenNeurons);
-iterations_per_epoch = max(1, ceil(numel(identificationRows) / ...
-    cfg.miniBatchSize));
+
+iterations_per_epoch = max(1, ceil(numel(identificationRows) / cfg.miniBatchSize));
+
 options = trainingOptions(cfg.optimizer, ...
     MaxEpochs=selectedEpochs, ...
     MiniBatchSize=cfg.miniBatchSize, ...
@@ -38,12 +43,14 @@ options = trainingOptions(cfg.optimizer, ...
     Plots=cfg.trainingPlots, ...
     Verbose=cfg.verbose, ...
     VerboseFrequency=iterations_per_epoch);
+
 [network, training_info] = trainnet(features_identification, ...
     targets_identification, layers, "mse", options);
 
 identification_prediction = predictPhaseNorm(network, ...
     features_identification, normalization, ...
     phaseRotation(identificationRows));
+
 full_signal_prediction = predictPhaseNorm(network, ...
     features_full_signal, normalization, phaseRotation(fullSignalRows));
 parameter_count = countPNNNParameters(input_dimension, hiddenNeurons);
@@ -65,17 +72,14 @@ fit.activeWeights = parameter_count.realWeights;
 fit.activeBiases = parameter_count.realBiases;
 fit.weightSparsityPercent = 0;
 fit.iterationsPerEpoch = iterations_per_epoch;
-fit.denseTrainingUpdates = finalTrainingIterations(training_info, ...
-    selectedEpochs*iterations_per_epoch);
+fit.denseTrainingUpdates = finalTrainingIterations(training_info, selectedEpochs*iterations_per_epoch);
 fit.fineTuneUpdates = 0;
 fit.bestDenseEpoch = double(selectedEpochs);
 fit.bestFineTuneEpoch = 0;
 fit.identificationPrediction = identification_prediction;
 fit.fullSignalPrediction = full_signal_prediction;
-fit.identificationNMSEdB = nmseComplexDb( ...
-    y(identificationRows), identification_prediction);
-fit.fullSignalNMSEdB = nmseComplexDb( ...
-    y(fullSignalRows), full_signal_prediction);
+fit.identificationNMSEdB = nmseComplexDb(y(identificationRows), identification_prediction);
+fit.fullSignalNMSEdB = nmseComplexDb(y(fullSignalRows), full_signal_prediction);
 fit.finalTrainingInfo = training_info;
 fit.finalFitSamples = numel(identificationRows);
 fit.fullSignalSamples = numel(fullSignalRows);
@@ -88,6 +92,9 @@ fit.finalContract = struct( ...
     'fixedEpochs', double(selectedEpochs));
 fit.trainingTimeSeconds = toc(timer);
 end
+
+
+
 
 function values = normalizeFeatures(values, stats)
 values = (values - stats.muX) ./ stats.sigmaX;
@@ -110,6 +117,7 @@ end
 
 function validateInputs(features, targets, rotation, y, ...
     identificationRows, fullSignalRows, hidden, seed, epochs, cfg)
+
 n = size(features, 1);
 if ~isnumeric(features) || ~isreal(features) || isempty(features) || ...
         any(~isfinite(features), 'all') || size(targets, 1) ~= n || ...
