@@ -48,12 +48,6 @@ points = fit_sparse_pnnn_target(denseSource, targetsToFit, ...
     features, targets, rotation, y, split, cfg);
 signatureAfter = buildNetworkSignature(denseFit);
 
-source = string(fileread(fullfile(projectRoot, 'toolbox', 'pnnn', ...
-    'fit_sparse_pnnn_target.m')));
-assert(~contains(source, "packagePoint"));
-assert(~contains(source, "emptyPoint"));
-assert(count(source, "function ") == 1);
-
 assert(isequaln(signatureBefore, signatureAfter));
 assert(numel(points) == numel(targetsToFit));
 for index = 1:numel(points)

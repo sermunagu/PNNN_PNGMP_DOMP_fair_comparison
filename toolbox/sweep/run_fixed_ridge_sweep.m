@@ -15,7 +15,7 @@ maximumFeatures = max(featureCounts);
 identificationRows = double(split.identificationIndices(:));
 fullSignalRows = double(split.fullSignalIndices(:));
 
-fixedLambdas = [1e-3; 1e-4; 1e-5];
+fixedLambdas = cfg.fixedRidgeLambdas(:);
 lambdaCount = numel(fixedLambdas);
 variantCount = numel(targets)*lambdaCount;
 complexPath = double(linear.paths.complexIdentification(:));
@@ -63,9 +63,16 @@ complexCoefficients = complex(zeros(maximumFeatures, variantCount));
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
-    fit = fitComplexGMPGrid(identificationU, identificationTarget, ...
-        1:count, fixedLambdas, complexColumnNorms);
-    complexCoefficients(1:count, columns) = fit.coefficients;
+    columnNorms = complexColumnNorms(1:count);
+    normalizedU = identificationU(:, 1:count) ./ columnNorms.';
+    gram = normalizedU' * normalizedU;
+    rhs = normalizedU' * identificationTarget;
+    for lambdaIndex = 1:lambdaCount
+        normalizedCoefficients = ...
+            (gram + fixedLambdas(lambdaIndex)*eye(count)) \ rhs;
+        complexCoefficients(1:count, columns(lambdaIndex)) = ...
+            normalizedCoefficients ./ columnNorms;
+    end
 end
 complexIdentificationPredictions = identificationU * complexCoefficients;
 complexIdentificationError = sum(abs( ...
@@ -102,20 +109,61 @@ pnComplexSupport = unique(selectedMetadata.SourceRegressorIndex, 'stable');
     selectedMetadata.SourceRegressorIndex, pnComplexSupport);
 isQ = string(selectedMetadata.Component) == "Q";
 selectedColumns(isQ) = selectedColumns(isQ) + numel(pnComplexSupport);
+pnDescriptors = repmat(factorizeGMPRegressor( ...
+    manager.regPopulation(pnComplexSupport(1)), pnComplexSupport(1)), ...
+    numel(pnComplexSupport), 1);
+for index = 1:numel(pnComplexSupport)
+    pnDescriptors(index) = factorizeGMPRegressor( ...
+        manager.regPopulation(pnComplexSupport(index)), ...
+        pnComplexSupport(index));
+end
+identificationInput = x(identificationRows);
+identificationRotation = complex(ones(numel(identificationRows), 1));
+nonzero = abs(identificationInput) ~= 0;
+identificationRotation(nonzero) = ...
+    conj(identificationInput(nonzero)) ./ abs(identificationInput(nonzero));
 
 identificationFeatures = zeros(numel(identificationRows), maximumFeatures);
 for first = 1:cfg.sweep.candidateBlockSize:numel(identificationRows)
     local = first:min(first + cfg.sweep.candidateBlockSize - 1, ...
         numel(identificationRows));
-    raw = buildPhaseNormalizedIQRegressors( ...
-        x, identificationRows(local), manager, pnComplexSupport);
+    blockRows = identificationRows(local);
+    blockRotation = identificationRotation(local);
+    complexRegressors = buildGMPRegressorRows( ...
+        x, blockRows, manager, pnComplexSupport);
+    phaseNormalized = blockRotation .* complexRegressors;
+    regressorsI = zeros(numel(local), numel(pnComplexSupport));
+    regressorsQ = zeros(numel(local), numel(pnComplexSupport));
+    for regressorIndex = 1:numel(pnComplexSupport)
+        descriptor = pnDescriptors(regressorIndex);
+        if descriptor.canonicalGMP
+            carrierRows = mod(blockRows - descriptor.carrierLag - 1, ...
+                numel(x)) + 1;
+            normalizedCarrier = blockRotation .* x(carrierRows);
+            envelope = ones(numel(local), 1);
+            for termIndex = 1:numel(descriptor.envelopeLags)
+                envelopeRows = mod(blockRows - ...
+                    descriptor.envelopeLags(termIndex) - 1, numel(x)) + 1;
+                envelope = envelope .* abs(x(envelopeRows)).^ ...
+                    descriptor.envelopePowers(termIndex);
+            end
+            regressorsI(:, regressorIndex) = ...
+                real(normalizedCarrier) .* envelope;
+            regressorsQ(:, regressorIndex) = ...
+                imag(normalizedCarrier) .* envelope;
+            if descriptor.QColumnStructurallyZero
+                regressorsQ(:, regressorIndex) = 0;
+            end
+        else
+            regressorsI(:, regressorIndex) = ...
+                real(phaseNormalized(:, regressorIndex));
+            regressorsQ(:, regressorIndex) = ...
+                imag(phaseNormalized(:, regressorIndex));
+        end
+    end
+    raw = [regressorsI, regressorsQ];
     identificationFeatures(local, :) = raw(:, selectedColumns);
 end
-identificationRotation = complex(ones(numel(identificationRows), 1));
-identificationInput = x(identificationRows);
-nonzero = abs(identificationInput) ~= 0;
-identificationRotation(nonzero) = ...
-    conj(identificationInput(nonzero)) ./ abs(identificationInput(nonzero));
 normalizedTarget = identificationRotation .* identificationTarget;
 
 featureNorms = sqrt(sum(identificationFeatures.^2, 1)).';
@@ -156,17 +204,48 @@ storedPNFullPredictions = ...
 pnFullBuildCount = 0;
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullSignalRows));
-    raw = buildPhaseNormalizedIQRegressors( ...
-        x, fullSignalRows(local), manager, pnComplexSupport);
-    features = raw(:, selectedColumns);
-    predictionNormalized = features * pnCoefficientsI + ...
-        1j * (features * pnCoefficientsQ);
-
-    blockInput = x(fullSignalRows(local));
+    blockRows = fullSignalRows(local);
+    blockInput = x(blockRows);
     blockRotation = complex(ones(numel(local), 1));
     nonzero = abs(blockInput) ~= 0;
     blockRotation(nonzero) = ...
         conj(blockInput(nonzero)) ./ abs(blockInput(nonzero));
+    complexRegressors = buildGMPRegressorRows( ...
+        x, blockRows, manager, pnComplexSupport);
+    phaseNormalized = blockRotation .* complexRegressors;
+    regressorsI = zeros(numel(local), numel(pnComplexSupport));
+    regressorsQ = zeros(numel(local), numel(pnComplexSupport));
+    for regressorIndex = 1:numel(pnComplexSupport)
+        descriptor = pnDescriptors(regressorIndex);
+        if descriptor.canonicalGMP
+            carrierRows = mod(blockRows - descriptor.carrierLag - 1, ...
+                numel(x)) + 1;
+            normalizedCarrier = blockRotation .* x(carrierRows);
+            envelope = ones(numel(local), 1);
+            for termIndex = 1:numel(descriptor.envelopeLags)
+                envelopeRows = mod(blockRows - ...
+                    descriptor.envelopeLags(termIndex) - 1, numel(x)) + 1;
+                envelope = envelope .* abs(x(envelopeRows)).^ ...
+                    descriptor.envelopePowers(termIndex);
+            end
+            regressorsI(:, regressorIndex) = ...
+                real(normalizedCarrier) .* envelope;
+            regressorsQ(:, regressorIndex) = ...
+                imag(normalizedCarrier) .* envelope;
+            if descriptor.QColumnStructurallyZero
+                regressorsQ(:, regressorIndex) = 0;
+            end
+        else
+            regressorsI(:, regressorIndex) = ...
+                real(phaseNormalized(:, regressorIndex));
+            regressorsQ(:, regressorIndex) = ...
+                imag(phaseNormalized(:, regressorIndex));
+        end
+    end
+    raw = [regressorsI, regressorsQ];
+    features = raw(:, selectedColumns);
+    predictionNormalized = complex( ...
+        features * pnCoefficientsI, features * pnCoefficientsQ);
     prediction = conj(blockRotation) .* predictionNormalized;
     storedPNFullPredictions(local, :) = prediction(:, storedColumns);
     pnFullError = pnFullError + ...
@@ -213,10 +292,10 @@ fixed.paths = linear.paths;
 
 referenceRow = fixed.table.Model == "Complex GMP-DOMP" & ...
     fixed.table.TargetRealParameters == targets(referenceTargetIndex) & ...
-    fixed.table.FixedLambda == 1e-5;
+    fixed.table.FixedLambda == fixedLambdas(end);
 fixed.reference = struct('model', "Complex GMP-DOMP", ...
     'targetRealParameters', targets(referenceTargetIndex), ...
-    'fixedLambda', 1e-5, ...
+    'fixedLambda', fixedLambdas(end), ...
     'support', linear.supports.complex{referenceTargetIndex}, ...
     'actualRealParameters', fixed.table.ActualRealParameters(referenceRow), ...
     'flopsPerSample', fixed.table.FLOPsPerSample(referenceRow), ...

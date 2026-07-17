@@ -16,6 +16,7 @@ end
 %% Select the three comparable rows and load their signed checkpoints
 identity = sweep.sweepIdentity;
 signature = sweep.experimentSignature;
+fixedLambdas = identity.fixedRidgeLambdas(:);
 if ~ismember(selectedParameters, identity.parameterGrid)
     error('run_selected_comparison:UnsignedTarget', ...
         'The requested target is not part of the signed grid.');
@@ -169,8 +170,10 @@ else
         fittingContext.y, fittingContext.split, selectedConfig, ...
         selectedLinear, true);
     ridgeTime = toc(timer);
-    fixedTable = orderFixedRows(fixedSweep.table, selectedParameters);
-    evaluatedRows = orderFixedRows(evaluated.table, selectedParameters);
+    fixedTable = orderFixedRows( ...
+        fixedSweep.table, selectedParameters, fixedLambdas);
+    evaluatedRows = orderFixedRows( ...
+        evaluated.table, selectedParameters, fixedLambdas);
     if any(evaluatedRows.ActualRealParameters ~= ...
             fixedTable.ActualRealParameters) || ...
             any(evaluatedRows.FLOPsPerSample ~= fixedTable.FLOPsPerSample) || ...
@@ -185,9 +188,11 @@ else
         'complexGMP', predictionFamily(evaluated.predictions.complexFull), ...
         'pnIQ', predictionFamily(evaluated.predictions.pnFull));
 end
-fixedTable = orderFixedRows(fixedTable, selectedParameters);
-expectedFixedParameters = repelem(selectedRows.ActualRealParameters(1:2), 3);
-expectedFixedFLOPs = repelem(selectedRows.FLOPsPerSample(1:2), 3);
+fixedTable = orderFixedRows(fixedTable, selectedParameters, fixedLambdas);
+expectedFixedParameters = repelem( ...
+    selectedRows.ActualRealParameters(1:2), numel(fixedLambdas));
+expectedFixedFLOPs = repelem( ...
+    selectedRows.FLOPsPerSample(1:2), numel(fixedLambdas));
 if any(fixedTable.ActualRealParameters ~= expectedFixedParameters) || ...
         any(fixedTable.FLOPsPerSample ~= expectedFixedFLOPs)
     error('run_selected_comparison:FixedRidgeComplexityMismatch', ...
@@ -264,18 +269,20 @@ results.ridgeOutputSpectrumFigure = string(ridgeOutputFile);
 results.ridgeErrorSpectrumFigure = string(ridgeErrorFile);
 results.spectrumConfig = spectrum.config;
 results.spectrumConfig.sampleRateSource = sampleRateSource;
+fprintf('\n=== Main comparison ===\n');
 disp(comparisonTable);
+fprintf('\n=== Fixed Ridge comparison ===\n');
+disp(fixedTable);
 fprintf('Reused linear, fixed-ridge, dense N12, and sparse point checkpoints: YES\n');
 fprintf('Selected fixed-ridge predictions completed in %.2f s.\n', ridgeTime);
 fprintf('Selected-point figures: %s\n', selectedDirectory);
 end
 
-function rows = orderFixedRows(value, target)
+function rows = orderFixedRows(value, target, fixedLambdas)
 models = ["Complex GMP-DOMP"; "PN-IQ PN-DOMP"];
-lambdas = [1e-3; 1e-4; 1e-5];
 rows = value([],:);
 for model = models.'
-    for lambda = lambdas.'
+    for lambda = fixedLambdas.'
         match = string(value.Model) == model & ...
             value.TargetRealParameters == target & value.FixedLambda == lambda;
         if nnz(match) ~= 1

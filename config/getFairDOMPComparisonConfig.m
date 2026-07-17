@@ -15,8 +15,6 @@ cfg.measurementFile = fullfile(projectRoot, 'measurements', ...
 cfg.mappingMode = 'xy_forward';
 cfg.resultsRoot = fullfile(projectRoot, 'results', ...
     'full_signal_domp_comparison');
-cfg.historicalDisjointResultDirectory = fullfile(projectRoot, 'results', ...
-    'fair_domp_comparison', '20260714_013938');
 
 cfg.identificationFraction = 0.10;
 cfg.identificationSeed = 1004;
@@ -28,18 +26,15 @@ cfg.gmp = struct();
 cfg.gmp.Qpmax = 50;
 cfg.gmp.Qnmax = 50;
 cfg.gmp.Pmax = 13;
-cfg.gmp.baseSupportSize = 100;
-cfg.gmp.maxPopulation = cfg.gmp.baseSupportSize;
 cfg.gmp.blockSize = 8192;
 cfg.gmp.verbosity = 0;
-cfg.gmp.selectionMethod = 'DOMP';
 cfg.gmp.dompOptions = struct( ...
     'columnTolerance', 1e-12, ...
     'correlationTolerance', 1e-14, ...
     'residualTolerance', 1e-12, ...
     'lsTolerance', []);
 cfg.lambdaGrid = [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2];
-cfg.fixedRidgeLambda = 1e-5;
+cfg.fixedRidgeLambdas = [1e-3 1e-4 1e-5];
 cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
@@ -70,11 +65,7 @@ cfg.pnnn.orders = [1 3 5 7];
 cfg.pnnn.featMode = 'full';
 cfg.pnnn.actType = 'sigmoid';
 cfg.pnnn.removeDC = true;
-cfg.pnnn.parameterMatchedTargetModel = ...
-    'Independent PN-IQ full';
-cfg.pnnn.denseControlHiddenNeurons = 4;
 cfg.pnnn.sparseBaseHiddenNeurons = 12;
-cfg.pnnn.trainHistoricalN25 = false;
 cfg.pnnn.nnSeeds = 42;
 
 cfg.training = struct();
@@ -117,11 +108,4 @@ cfg.pruning.fineTuneLearnRateDropPeriod = [];
 cfg.pruning.fineTuneSeedOffset = 100000;
 cfg.pruning.freezePruned = true;
 
-cfg.warmStart = struct();
-cfg.warmStart.enabled = false;
-cfg.warmStart.useLatestDeploy = false;
-
-cfg.equivalence.relativePredictionTolerance = 1e-10;
-cfg.equivalence.nmseDifferenceToleranceDb = 1e-9;
-cfg.report.compilePDF = false;
 end

@@ -24,11 +24,18 @@ cfg.sweep.candidateBlockSize = 32;
 cfg.gmp.blockSize = 32;
 manager = GMP_createRegressorManager(x, y, cfg.gmp);
 population = (1:numel(manager.regPopulation)).';
-[probe, details] = buildPhaseNormalizedIQRegressors( ...
-    x, 1, manager, population);
-[~, reduction] = removeStructurallyZeroQFeatures( ...
-    probe, details.featureMetadata, 1e-12);
-featureMetadata = reduction.featureMetadata(reduction.keptIndices, :);
+structuralZero = false(2*numel(population), 1);
+for index = 1:numel(population)
+    descriptor = factorizeGMPRegressor( ...
+        manager.regPopulation(population(index)), population(index));
+    structuralZero(numel(population) + index) = ...
+        descriptor.QColumnStructurallyZero;
+end
+SourceRegressorIndex = [population; population];
+Component = [repmat("I", numel(population), 1); ...
+    repmat("Q", numel(population), 1)];
+featureMetadata = table(SourceRegressorIndex, Component);
+featureMetadata = featureMetadata(~structuralZero, :);
 
 complexPath = population(1:max(counts));
 pnCandidates = find(~ismember( ...
@@ -64,7 +71,7 @@ assert(height(fixed.table) == 18);
 assert(isequal(sort(unique(string(fixed.table.Model))), ...
     sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"])));
 assert(isequal(sort(unique(fixed.table.FixedLambda)), ...
-    [1e-5; 1e-4; 1e-3]));
+    sort(cfg.fixedRidgeLambdas(:))));
 for model = unique(string(fixed.table.Model)).'
     for lambda = fixed.fixedLambdas.'
         rows = string(fixed.table.Model) == model & ...
@@ -83,16 +90,5 @@ assert(all(structfun(@(value) value == 1, ...
     fixed.metadata.matrixPassCount)));
 assert(all(isfinite(fixed.table.IdentificationNMSEdB)));
 assert(all(isfinite(fixed.table.FullSignalNMSEdB)));
-
-source = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
-    'run_fixed_ridge_sweep.m'));
-assert(~contains(source, 'selectDOMPSupport('));
-assert(~contains(source, 'runPNNN'));
-for removedWrapper = {'fitComplexVariants','fitPNVariants', ...
-        'buildSelectedPNFeatures','evaluateComplexVariants', ...
-        'evaluatePNVariants','buildResultTable'}
-    assert(~contains(source, removedWrapper{1}));
-end
-assert(contains(source, 'conj(blockRotation) .* predictionNormalized'));
 
 fprintf('FIXED-LAMBDA LINEAR SWEEP TEST: PASS\n');

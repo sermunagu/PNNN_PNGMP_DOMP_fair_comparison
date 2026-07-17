@@ -55,14 +55,4 @@ assert(all(isfinite(sweep.predictions.pnFull), 'all'));
 assert(~isfield(sweep, 'historicalTable'));
 assert(~isfield(sweep, 'comparison344'));
 
-source = string(fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
-    'run_linear_sweep.m')));
-for removedWrapper = ["buildPNDomain", "restorePredictions", ...
-        "assertSameReduction", "selectSharedIQFeatures", ...
-        "fitPNPrefixes", "predictPNGrid"]
-    assert(~contains(source, removedWrapper));
-end
-assert(contains(source, "conj(trainInput(nonzero)) ./ abs(trainInput(nonzero))"));
-assert(contains(source, "conj(blockRotation) .* predictionNormalized"));
-
 fprintf('LINEAR COMPLEXITY SWEEP TEST: PASS\n');

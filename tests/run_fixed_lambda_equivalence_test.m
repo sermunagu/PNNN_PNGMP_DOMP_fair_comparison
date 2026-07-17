@@ -4,6 +4,9 @@
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
+addpath(fullfile(projectRoot, 'config'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
+referenceLambda = cfg.fixedRidgeLambdas(end);
 resultsRoot = fullfile(projectRoot, 'results', 'parameter_sweep');
 entries = dir(fullfile(resultsRoot, 'sweep_*'));
 entries = entries([entries.isdir]);
@@ -28,10 +31,10 @@ linear = linearArtifact.checkpointArtifact.payload;
 fixed = fixedArtifact.checkpointArtifact.payload;
 
 mainRows = linear.complexTable.TargetRealParameters == 20 & ...
-    linear.complexTable.SelectedLambda == 1e-5;
+    linear.complexTable.SelectedLambda == referenceLambda;
 fixedRows = string(fixed.table.Model) == "Complex GMP-DOMP" & ...
     fixed.table.TargetRealParameters == 20 & ...
-    fixed.table.FixedLambda == 1e-5;
+    fixed.table.FixedLambda == referenceLambda;
 assert(nnz(mainRows) == 1 && nnz(fixedRows) == 1);
 mainIndex = find(mainRows);
 reference = fixed.reference;
@@ -59,7 +62,7 @@ fullSignalPredictionError = relativeError(reference.fullSignalPrediction, ...
 
 assert(reference.model == "Complex GMP-DOMP");
 assert(reference.targetRealParameters == 20 && ...
-    reference.fixedLambda == 1e-5);
+    reference.fixedLambda == referenceLambda);
 assert(supportEqual && parametersEqual && flopsEqual);
 assert(identificationNMSEDifference <= 1e-9);
 assert(fullSignalNMSEDifference <= 1e-9);

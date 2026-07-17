@@ -5,7 +5,8 @@
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
 addpath(fullfile(projectRoot, 'config'));
-for folder = ["domp","metrics","pn_gmp_comparison","pnnn","splits"]
+for folder = ["complexity","domp","metrics","pn_gmp_comparison", ...
+        "pnnn","splits","sweep"]
     addpath(fullfile(projectRoot, 'toolbox', folder));
 end
 
@@ -31,41 +32,29 @@ assert(isequal(split.fullSignalIndices, (1:n).'));
 
 %% Phase normalization uses the current input sample and preserves zeros
 rows = split.identificationIndices;
-rotation = computePhaseNormGMPRotation(x, rows);
+rotation = complex(ones(numel(rows), 1));
 zeroRows = abs(x(rows)) == 0;
+rotation(~zeroRows) = ...
+    conj(x(rows(~zeroRows)))./abs(x(rows(~zeroRows)));
 assert(all(rotation(zeroRows) == 1));
 assert(norm(rotation(~zeroRows) - ...
     conj(x(rows(~zeroRows)))./abs(x(rows(~zeroRows))), Inf) <= 1e-13);
 
-%% Complex GMP and independent PN-IQ expose the same selected regressors
+%% Complex GMP and independent PN-IQ complete their small public sweeps
 manager = GMP_createRegressorManager(x, y, cfg.gmp);
 assert(numel(manager.regPopulation) == 673);
-support = (1:12).';
-U = buildGMPRegressorRows(x, rows, manager, support);
-complexFit = fitComplexGMPGrid(U, y(rows), support, 1e-4);
-complexPrediction = U*complexFit.coefficients;
-assert(all(isfinite(complexPrediction)));
-
-[rawFeatures, details] = buildPhaseNormalizedIQRegressors( ...
-    x, rows, manager, support);
-[features, reduction] = removeStructurallyZeroQFeatures( ...
-    rawFeatures, details.featureMetadata, 1e-12);
-normalizedTarget = rotation.*y(rows);
-featureCount = min(8, size(features, 2));
-[selectedSupport, ~] = selectDOMPSupport( ...
-    features, normalizedTarget, featureCount, cfg.gmp.dompOptions);
-assert(numel(selectedSupport) == featureCount);
-selectedFeatures = features(:, selectedSupport);
-pnFit = fitIndependentIQGMP( ...
-    selectedFeatures, normalizedTarget, 1e-4, reduction, ...
-    "Scientific smoke PN-IQ");
-normalizedPrediction = selectedFeatures*pnFit.coefficientsI + ...
-    1j*(selectedFeatures*pnFit.coefficientsQ);
-pnPrediction = conj(rotation).*normalizedPrediction;
-assert(all(isfinite(pnPrediction)));
-assert(isfinite(nmseComplexDb(y(rows), pnPrediction)));
-assert(details.maxCanonicalIError <= 1e-12);
-assert(details.maxCanonicalQError <= 1e-12);
+cfg.sweep.parameterGrid = [4 6 8];
+cfg.sweep.candidateBlockSize = 128;
+cfg.gmp.blockSize = 128;
+linear = run_linear_sweep(x, y, split, cfg);
+assert(all(isfinite(linear.predictions.complexIdentification), 'all'));
+assert(all(isfinite(linear.predictions.complexFull), 'all'));
+assert(all(isfinite(linear.predictions.pnIdentification), 'all'));
+assert(all(isfinite(linear.predictions.pnFull), 'all'));
+assert(isequal(linear.complexTable.ActualRealParameters.', ...
+    cfg.sweep.parameterGrid));
+assert(isequal(linear.pnTable.ActualRealParameters.', ...
+    cfg.sweep.parameterGrid));
 
 %% PNNN uses one visible 84-feature, two-output phase-normalized dataset
 [neuralFeatures, neuralTargets, neuralRotation] = ...

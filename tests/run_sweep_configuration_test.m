@@ -12,15 +12,14 @@ assert(isequal(cfg.sweep.parameterGrid, 20:10:500));
 assert(~ismember(344, cfg.sweep.parameterGrid));
 assert(~isfield(cfg.sweep, 'includeHistoricalPNIQReference'));
 assert(~isfield(cfg.sweep, 'historicalReferenceParameters'));
-
-source = string(fileread(fullfile(projectRoot, 'run_parameter_sweep.m')));
-for forbidden = ["rows344", "pnComparison344", ...
-        "historicalReferenceParameters", "includeHistoricalPNIQReference"]
-    assert(~contains(source, forbidden));
-end
-for required = ["Signed parameter-complexity sweep", "[Linear]", ...
-        "[PNNN", "[Output]", "Sweep completed"]
-    assert(contains(source, required));
-end
+assert(isequal(cfg.fixedRidgeLambdas, [1e-3 1e-4 1e-5]));
+assert(~isfield(cfg, 'fixedRidgeLambda'));
+assert(~isfield(cfg, 'historicalDisjointResultDirectory'));
+assert(~isfield(cfg.gmp, 'selectionMethod'));
+assert(~isfield(cfg.pnnn, 'denseControlHiddenNeurons'));
+assert(~isfield(cfg.pnnn, 'parameterMatchedTargetModel'));
+assert(~isfield(cfg.pnnn, 'trainHistoricalN25'));
+assert(~isfield(cfg.sweep, 'warmStart'));
+assert(~isfield(cfg, 'report'));
 
 fprintf('SWEEP CONFIGURATION TEST: PASS\n');

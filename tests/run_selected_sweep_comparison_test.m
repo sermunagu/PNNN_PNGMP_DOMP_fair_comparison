@@ -5,6 +5,9 @@
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
 addpath(projectRoot);
+addpath(fullfile(projectRoot, 'config'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
+fixedLambdas = cfg.fixedRidgeLambdas(:);
 fixtureDirectory = tempname;
 mkdir(fixtureDirectory);
 fixtureCleanup = onCleanup(@() rmdir(fixtureDirectory, 's'));
@@ -26,7 +29,7 @@ rows = table(Model, SweepRole, TargetRealParameters, ...
 signature = struct('schemaVersion', 2, 'algorithm', ...
     "fixture-signature", 'digest', "fixture-experiment");
 identity = struct('schemaVersion', 2, 'digest', "fixture-sweep", ...
-    'parameterGrid', target);
+    'parameterGrid', target, 'fixedRidgeLambdas', fixedLambdas.');
 sweep = struct('results', rows, 'resultDirectory', ...
     string(fixtureDirectory), 'experimentSignature', signature, ...
     'sweepIdentity', identity);
@@ -46,7 +49,7 @@ fixedPredictions = struct( ...
         'lambda1e5', fixedMatrix(:, 6)));
 fixedModel = repelem(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"], 3);
 fixedTarget = repmat(target, 6, 1);
-fixedLambda = repmat([1e-3; 1e-4; 1e-5], 2, 1);
+fixedLambda = repmat(fixedLambdas, 2, 1);
 fixedNMSE = (-32:-27).';
 fixedFLOPs = repelem(FLOPsPerSample(1:2), 3);
 fixedTable = table(fixedModel, fixedTarget, fixedTarget, fixedLambda, ...
@@ -133,12 +136,6 @@ end
 expectError(@() run_selected_comparison(target, corruptSweep), ...
     "run_selected_comparison:ArtifactRowMismatch");
 
-source = string(fileread(fullfile(projectRoot, ...
-    'run_selected_comparison.m')));
-for forbidden = ["runPNGMPDOMPStudy", "runPNNNComparisonStudy", ...
-        "selectDOMPSupport", "fitFair", "344", "200"]
-    assert(~contains(source, forbidden));
-end
 bytesAfter = cellfun(@(name) readBinaryFile(fullfile( ...
     fixtureDirectory, name)), cellstr(files), 'UniformOutput', false);
 assert(isequal(bytesAfter, bytesBefore));

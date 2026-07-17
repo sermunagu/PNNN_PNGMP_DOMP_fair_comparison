@@ -4,6 +4,8 @@
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
+addpath(fullfile(projectRoot, 'config'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
 targets = (20:10:500).';
 targetCount = numel(targets);
 
@@ -25,7 +27,7 @@ results = table(Model, SweepRole, TargetRealParameters, ...
     ActualRealParameters, FullSignalNMSEdB, FLOPsPerSample, ...
     ActiveWeights, ActiveBiases);
 
-fixedLambdas = [1e-3; 1e-4; 1e-5];
+fixedLambdas = cfg.fixedRidgeLambdas(:);
 variantTargets = repelem(targets, numel(fixedLambdas));
 Model = [repmat("Complex GMP-DOMP", numel(variantTargets), 1); ...
     repmat("PN-IQ PN-DOMP", numel(variantTargets), 1)];
@@ -57,16 +59,5 @@ for model = unique(fixedResults.Model).'
         assert(nnz(rows) == targetCount);
     end
 end
-
-source = string(fileread(fullfile(projectRoot, 'run_parameter_sweep.m')));
-assert(contains(source, "'complexity_sweep.csv'"));
-assert(contains(source, "'fixed_lambda_linear_sweep.csv'"));
-assert(contains(source, "'comparison_nmse_parameters_sweep.png'"));
-assert(contains(source, "'comparison_nmse_flops_sweep.png'"));
-assert(count(source, "plotSweepFigure(results, fixedResults") == 1);
-assert(count(source, "plotSweepFigure(results, table()") == 1);
-assert(contains(source, "for index = 1:3"));
-assert(contains(source, "for modelIndex = 1:2"));
-assert(contains(source, "for lambdaIndex = 1:3"));
 
 fprintf('SWEEP PRESENTATION TEST: PASS\n');

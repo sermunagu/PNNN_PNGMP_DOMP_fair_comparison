@@ -3,7 +3,11 @@ function results = main_sweep_and_comparison()
 % The signed sweep is resumed before prompting for a parameter count.
 % The selected point is compared using only compatible sweep artifacts.
 
-targets = 20:10:500;
+projectRoot = fileparts(mfilename('fullpath'));
+addpath(fullfile(projectRoot, 'config'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
+targets = cfg.sweep.parameterGrid;
+targetText = mat2str(targets);
 sweep = run_parameter_sweep(targets);
 drawnow;
 
@@ -12,11 +16,12 @@ while ~(isscalar(selectedParameters) && isfinite(selectedParameters) && ...
         ismember(selectedParameters, targets))
     userText = input([ ...
         'Review the sweep figures and enter the selected number of ' ...
-        'parameters (20:10:500): '], 's');
+        'parameters from ' targetText ': '], 's');
     selectedParameters = str2double(strtrim(userText));
     if ~(isscalar(selectedParameters) && isfinite(selectedParameters) && ...
             ismember(selectedParameters, targets))
-        fprintf('Invalid parameter budget. Enter a value in 20:10:500.\n');
+        fprintf('Invalid parameter budget. Choose a value from %s.\n', ...
+            targetText);
     end
 end
 
