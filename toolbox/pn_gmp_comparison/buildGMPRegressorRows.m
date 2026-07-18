@@ -4,45 +4,10 @@ function U = buildGMPRegressorRows(x, rows, rManagerGMP, support)
 % the current block GMP baseline without mutating the regressor manager.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% CHECKS AND VERIFICATIONS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 x = x(:);
-if isempty(x) || ~isnumeric(x) || ~isfloat(x) || any(~isfinite(x))
-    error('buildGMPRegressorRows:InvalidInput', ...
-        'x must be a non-empty finite floating-point vector.');
-end
-
-if nargin < 2 || isempty(rows)
-    rows = (1:numel(x)).';
-end
-
-rows = validateIndexVector(rows, numel(x), 'rows');
-
-if nargin < 3 || ~isobject(rManagerGMP) || ~isprop(rManagerGMP, 'regPopulation')
-    error('buildGMPRegressorRows:InvalidManager', ...
-        'rManagerGMP must expose a regPopulation property.');
-end
-
-regPopulation = rManagerGMP.regPopulation;
-nPopulation = numel(regPopulation);
-
-if nPopulation == 0
-    error('buildGMPRegressorRows:EmptyPopulation', ...
-        'rManagerGMP.regPopulation must not be empty.');
-end
-
-if nargin < 4 || isempty(support)
-    support = 1:nPopulation;
-end
-
-support = validateIndexVector(support, nPopulation, 'support').';
-
-if numel(unique(support, 'stable')) ~= numel(support)
-    error('buildGMPRegressorRows:DuplicateSupport', ...
-        'support must not contain duplicate indices.');
-end
+rows = double(rows(:));
+support = double(support(:).');
+regPopulation = rManagerGMP.regPopulation(support);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -50,7 +15,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 regSpecs = prepareRegressorSpecs(regPopulation);
-shifts = collectShifts(regSpecs, support);
+shifts = collectShifts(regSpecs);
 nRows = numel(rows);
 nRegs = numel(support);
 nSignal = numel(x);
@@ -67,7 +32,7 @@ end
 U = complex(zeros(nRows, nRegs));
 
 for k = 1:nRegs
-    spec = regSpecs(support(k));
+    spec = regSpecs(k);
     value = complex(ones(nRows, 1));
 
     for it = 1:numel(spec.Xq)
@@ -84,11 +49,6 @@ for k = 1:nRegs
     end
 
     U(:, k) = value;
-end
-
-if any(~isfinite(U), 'all')
-    error('buildGMPRegressorRows:NonFiniteOutput', ...
-        'The evaluated GMP matrix contains NaN or Inf values.');
 end
 end
 
@@ -130,9 +90,9 @@ for k = 1:numel(q)
 end
 end
 
-function shifts = collectShifts(regSpecs, support)
+function shifts = collectShifts(regSpecs)
 shifts = [];
-for k = support(:).'
+for k = 1:numel(regSpecs)
     shifts = [shifts, regSpecs(k).Xq, regSpecs(k).Xconjq, ...
         regSpecs(k).Xenvq]; %#ok<AGROW>
 end
@@ -146,15 +106,4 @@ end
 
 function idx = wrapIndex(idx, nSignal)
 idx = mod(idx - 1, nSignal) + 1;
-end
-
-function idx = validateIndexVector(idx, upperBound, name)
-if ~isnumeric(idx) || ~isreal(idx) || ~isvector(idx) || isempty(idx) || ...
-        any(~isfinite(idx)) || any(idx ~= floor(idx)) || ...
-        any(idx < 1) || any(idx > upperBound)
-    error('buildGMPRegressorRows:InvalidIndices', ...
-        '%s must contain finite integer indices in [1, %d].', ...
-        name, upperBound);
-end
-idx = double(idx(:));
 end

@@ -32,14 +32,13 @@ for index = 1:numel(population)
         descriptor.QColumnStructurallyZero;
 end
 SourceRegressorIndex = [population; population];
-Component = [repmat("I", numel(population), 1); ...
-    repmat("Q", numel(population), 1)];
-featureMetadata = table(SourceRegressorIndex, Component);
-featureMetadata = featureMetadata(~structuralZero, :);
+IsQ = [false(numel(population), 1); true(numel(population), 1)];
+pnFeatureMap = table(SourceRegressorIndex, IsQ);
+pnFeatureMap = pnFeatureMap(~structuralZero, :);
 
 complexPath = population(1:max(counts));
 pnCandidates = find(~ismember( ...
-    featureMetadata.SourceRegressorIndex, complexPath));
+    pnFeatureMap.SourceRegressorIndex, complexPath));
 pnPath = pnCandidates(1:max(counts));
 complexSupports = cell(numel(targets), 1);
 pnFeatureSupports = cell(numel(targets), 1);
@@ -47,7 +46,7 @@ pnComplexSupports = cell(numel(targets), 1);
 for index = 1:numel(targets)
     complexSupports{index} = complexPath(1:counts(index));
     pnFeatureSupports{index} = pnPath(1:counts(index));
-    pnComplexSupports{index} = unique(featureMetadata.SourceRegressorIndex( ...
+    pnComplexSupports{index} = unique(pnFeatureMap.SourceRegressorIndex( ...
         pnFeatureSupports{index}), 'stable');
 end
 assert(~isequal(complexSupports{end}, pnComplexSupports{end}));
@@ -59,12 +58,8 @@ linear.complexTable = table(TargetRealParameters, ...
     ActualRealParameters, FLOPsPerSample);
 linear.pnTable = table(TargetRealParameters, ...
     ActualRealParameters, FLOPsPerSample);
-linear.supports = struct('complex', {complexSupports}, ...
-    'pnFeatures', {pnFeatureSupports}, 'pnComplex', {pnComplexSupports});
-linear.paths = struct('complexTrain', flipud(complexPath), ...
-    'complexIdentification', complexPath, 'pnTrain', flipud(pnPath), ...
-    'pnIdentification', pnPath);
-linear.featureMetadata = featureMetadata;
+linear.paths = struct('complex', complexPath, 'pn', pnPath);
+linear.pnPathMap = pnFeatureMap(pnPath, :);
 
 fixed = run_fixed_ridge_sweep(x, y, split, cfg, linear);
 assert(height(fixed.table) == 18);
@@ -73,22 +68,19 @@ assert(isequal(sort(unique(string(fixed.table.Model))), ...
 assert(isequal(sort(unique(fixed.table.FixedLambda)), ...
     sort(cfg.fixedRidgeLambdas(:))));
 for model = unique(string(fixed.table.Model)).'
-    for lambda = fixed.fixedLambdas.'
+    for lambda = cfg.fixedRidgeLambdas
         rows = string(fixed.table.Model) == model & ...
             fixed.table.FixedLambda == lambda;
         assert(nnz(rows) == numel(targets));
     end
 end
-assert(isequaln(fixed.supports.complex, complexSupports));
-assert(isequaln(fixed.supports.pnFeatures, pnFeatureSupports));
-assert(isequaln(fixed.supports.pnComplex, pnComplexSupports));
-assert(isequaln(fixed.paths.complexIdentification, complexPath));
-assert(isequaln(fixed.paths.pnIdentification, pnPath));
-assert(fixed.metadata.dompInvocationCount == 0);
-assert(fixed.metadata.pnnnTrainingCount == 0);
-assert(all(structfun(@(value) value == 1, ...
-    fixed.metadata.matrixPassCount)));
 assert(all(isfinite(fixed.table.IdentificationNMSEdB)));
 assert(all(isfinite(fixed.table.FullSignalNMSEdB)));
+
+withPredictions = run_fixed_ridge_sweep(x, y, split, cfg, linear, true);
+assert(all(isfinite(withPredictions.predictions.complexFull), 'all'));
+assert(all(isfinite(withPredictions.predictions.pnFull), 'all'));
+assert(size(withPredictions.predictions.complexFull, 2) == ...
+    numel(targets)*numel(cfg.fixedRidgeLambdas));
 
 fprintf('FIXED-LAMBDA LINEAR SWEEP TEST: PASS\n');

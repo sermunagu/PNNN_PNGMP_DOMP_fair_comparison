@@ -51,18 +51,5 @@ end
 end
 
 function net = assignLearnables(net, learnables)
-try
-    net.Learnables = learnables;
-catch ME
-    if exist("setLearnableParameterValue", "file") ~= 2
-        rethrow(ME);
-    end
-
-    for i = 1:height(learnables)
-        net = setLearnableParameterValue(net, ...
-            char(string(learnables.Layer(i))), ...
-            char(string(learnables.Parameter(i))), ...
-            learnables.Value{i});
-    end
-end
+net.Learnables = learnables;
 end

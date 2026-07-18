@@ -32,27 +32,14 @@ assert(isequal(sweep.pnTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
 assert(all(ismember(sweep.complexTable.SelectedLambda, cfg.lambdaGrid)));
 assert(all(ismember(sweep.pnTable.SelectedLambda, cfg.lambdaGrid)));
-assert(sweep.metadata.retainedFeatures >= max(cfg.sweep.parameterGrid)/2);
-assert(~sweep.metadata.fullSignalUsedForSelection);
-assert(~sweep.metadata.fullSignalUsedForFitting);
-assert(all(struct2array(sweep.metadata.dompInvocationCount) == 1));
-assert(all(struct2array(sweep.metadata.matrixPassCount) == 1));
-expectedBlocks = ceil(numel(split.fullSignalIndices)/cfg.gmp.blockSize);
-assert(sweep.metadata.fullSignalExpectedBlocks == expectedBlocks);
-assert(sweep.metadata.fullSignalRegressorBuildCount.complex == expectedBlocks);
-assert(sweep.metadata.fullSignalRegressorBuildCount.pn == expectedBlocks);
-for supports = {sweep.supports.complex, sweep.supports.pnFeatures}
-    family = supports{1};
-    for index = 2:numel(family)
-        assert(isequal(family{index}(1:numel(family{index-1})), ...
-            family{index-1}));
-    end
-end
-assert(all(isfinite(sweep.predictions.complexIdentification), 'all'));
+assert(numel(sweep.paths.complex) == max(cfg.sweep.parameterGrid)/2);
+assert(numel(sweep.paths.pn) == max(cfg.sweep.parameterGrid)/2);
+assert(numel(unique(sweep.paths.complex)) == numel(sweep.paths.complex));
+assert(numel(unique(sweep.paths.pn)) == numel(sweep.paths.pn));
 assert(all(isfinite(sweep.predictions.complexFull), 'all'));
-assert(all(isfinite(sweep.predictions.pnIdentification), 'all'));
 assert(all(isfinite(sweep.predictions.pnFull), 'all'));
-assert(~isfield(sweep, 'historicalTable'));
-assert(~isfield(sweep, 'comparison344'));
+assert(all(ismember({'SourceRegressorIndex','IsQ'}, ...
+    sweep.pnPathMap.Properties.VariableNames)));
+assert(height(sweep.pnPathMap) == numel(sweep.paths.pn));
 
 fprintf('LINEAR COMPLEXITY SWEEP TEST: PASS\n');

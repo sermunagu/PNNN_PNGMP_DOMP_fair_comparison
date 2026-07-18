@@ -1,4 +1,4 @@
-function [flops, details] = countModelFLOPs(model_counts, convention)
+function flops = countModelFLOPs(model_counts, convention)
 % countModelFLOPs - Convert explicit inference operation counts to FLOPs.
 % Complex operations use the documented 6/2 weights; special operations
 % are reported separately and never assigned an implicit FLOP equivalent.
@@ -66,13 +66,6 @@ for index = 1:numel(numeric_names)
     end
 end
 
-details = struct();
-details.convention = convention;
-details.specialOperationsWeighted = false;
-details.estimatedTotalAvailable = false;
-details.explanation = ...
-    "EstimatedTotalFLOPsPerSample is NaN because no agreed weights " + ...
-    "exist for activation, exp, sqrt, division, or abs.";
 end
 
 function specifications = fromAnalyticalOperationTable(counts)

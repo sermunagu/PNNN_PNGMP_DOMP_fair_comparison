@@ -23,10 +23,6 @@ assert(buildExperimentSignature(x_modified, y, cfg).digest ~= ...
 assert(buildExperimentSignature(y, x, cfg).digest ~= signature.digest);
 
 cfg_changed = cfg;
-cfg_changed.pnnn.actType = 'tanh';
-assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
-    signature.digest);
-cfg_changed = cfg;
 cfg_changed.pnnn.M = cfg.pnnn.M + 1;
 assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
     signature.digest);
@@ -35,7 +31,7 @@ cfg_changed.pnnn.orders = [1 3 5];
 assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
     signature.digest);
 cfg_changed = cfg;
-cfg_changed.pnnn.nnSeeds = cfg.pnnn.nnSeeds + 1;
+cfg_changed.pnnn.nnSeed = cfg.pnnn.nnSeed + 1;
 assert(buildExperimentSignature(x, y, cfg_changed).digest ~= ...
     signature.digest);
 cfg_changed = cfg;

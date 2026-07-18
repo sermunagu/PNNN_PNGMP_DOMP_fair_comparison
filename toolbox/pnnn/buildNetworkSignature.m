@@ -1,19 +1,9 @@
-function signature = buildNetworkSignature(denseFit)
+function networkDigest = buildNetworkSignature(denseFit)
 % buildNetworkSignature - Hash one fitted dense PNNN and its normalization.
 % The digest identifies the immutable dense source shared by every sparse
 % sweep target; it does not replace the experiment/configuration signature.
 
-if ~isstruct(denseFit) || ~isfield(denseFit, 'network') || ...
-        ~isfield(denseFit, 'normalization') || ...
-        ~isa(denseFit.network, 'dlnetwork')
-    error('buildNetworkSignature:InvalidDenseFit', ...
-        'A fitted dlnetwork and its normalization are required.');
-end
 requiredStats = {'muX','sigmaX','muY','sigmaY'};
-if ~all(isfield(denseFit.normalization, requiredStats))
-    error('buildNetworkSignature:InvalidNormalization', ...
-        'The dense normalization is incomplete.');
-end
 
 digest = javaMethod('getInstance', ...
     'java.security.MessageDigest', 'SHA-256');
@@ -33,8 +23,7 @@ for index = 1:numel(requiredStats)
     updateText(digest, name);
     updateNumeric(digest, denseFit.normalization.(name));
 end
-signature = struct('schemaVersion', 1, 'algorithm', "SHA-256", ...
-    'digest', finishDigest(digest));
+networkDigest = finishDigest(digest);
 end
 
 function updateNumeric(digest, value)

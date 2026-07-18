@@ -22,7 +22,8 @@ validationTarget = y(validationRows);
 
 fprintf('[Linear] Computing one Complex GMP DOMP path on internal train...\n');
 
-[trainPath, ~] = selectDOMPSupport(trainU, trainTarget, maximumFeatures, cfg.gmp.dompOptions);
+trainPath = selectDOMPSupport(trainU, trainTarget, maximumFeatures, ...
+    cfg.gmp.dompOptions.columnTolerance);
 trainPath = trainPath(:);
 trainNorms = sqrt(sum(abs(trainU).^2, 1)).';
 
@@ -62,7 +63,9 @@ fprintf('[Linear] Building the Complex GMP identification matrix...\n');
 identificationU = buildGMPRegressorRows(x, identificationRows, manager, population);
 
 fprintf('[Linear] Computing one Complex GMP DOMP path on identification...\n');
-[identificationPath, ~] = selectDOMPSupport(identificationU, identificationTarget, maximumFeatures, cfg.gmp.dompOptions);
+identificationPath = selectDOMPSupport(identificationU, ...
+    identificationTarget, maximumFeatures, ...
+    cfg.gmp.dompOptions.columnTolerance);
 identificationPath = identificationPath(:);
 identificationNorms = sqrt(sum(abs(identificationU).^2, 1)).';
 
@@ -92,47 +95,47 @@ identificationPredictions = identificationU(:, ...
 %% Full-signal prediction
 fprintf('[Linear] Evaluating %d Complex GMP targets on the full signal...\n', numel(targets));
 fullPredictions = complex(zeros(numel(fullSignalRows), numel(targets)));
-fullBuildCount = 0;
 
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullSignalRows));
-    
-    U = buildGMPRegressorRows(x, fullSignalRows(local), manager, identificationPath(1:maximumFeatures));
+    U = buildGMPRegressorRows(x, fullSignalRows(local), manager, ...
+        identificationPath(1:maximumFeatures));
     
     fullPredictions(local, :) = U * coefficients;
-    fullBuildCount = fullBuildCount + 1;
 end
 
-%% Supports, NMSE, parameters, and FLOPs
-schema = cfg.sweep.resultSchema;
-resultTable = table('Size', [0 numel(schema.names)], 'VariableTypes', schema.types, 'VariableNames', schema.names);
-supports = cell(numel(targets), 1);
+%% NMSE, parameters, and FLOPs
+Model = repmat("Complex GMP DOMP sweep", numel(targets), 1);
+TargetRealParameters = targets(:);
+ActualRealParameters = zeros(numel(targets), 1);
+SelectedLambda = selectedLambdas(:);
+InternalValidationNMSEdB = validationNMSE(:);
+IdentificationNMSEdB = zeros(numel(targets), 1);
+FullSignalNMSEdB = zeros(numel(targets), 1);
+FLOPsPerSample = zeros(numel(targets), 1);
+ActiveWeights = targets(:);
+ActiveBiases = zeros(numel(targets), 1);
+WeightSparsityPercent = nan(numel(targets), 1);
+FineTuneEpochs = nan(numel(targets), 1);
 
 for targetIndex = 1:numel(targets)
     support = identificationPath(1:featureCounts(targetIndex));
-    supports{targetIndex} = support;
     operations = countModelOperations(manager.regPopulation, support);
     cost = countModelFLOPs(operations(1, :), getFLOPConvention());
-    values = {"Complex GMP DOMP sweep", "Sweep point", ...
-        targets(targetIndex), double(cost.NumRealParameters), ...
-        "Validation-selected Ridge", selectedLambdas(targetIndex), ...
-        validationNMSE(targetIndex), ...
-        nmseComplexDb(identificationTarget, ...
-        identificationPredictions(:, targetIndex)), ...
-        nmseComplexDb(fullSignalTarget, fullPredictions(:, targetIndex)), ...
-        double(cost.FLOPsPerSample), targets(targetIndex), 0, NaN, ...
-        "Not applicable", NaN, NaN, featureCounts(targetIndex), NaN, ...
-        "Not applicable", NaN, NaN, NaN, "linear_sweep.mat"};
-    resultTable(targetIndex, :) = cell2table(values, 'VariableNames', schema.names);
+    ActualRealParameters(targetIndex) = double(cost.NumRealParameters);
+    IdentificationNMSEdB(targetIndex) = nmseComplexDb( ...
+        identificationTarget, identificationPredictions(:, targetIndex));
+    FullSignalNMSEdB(targetIndex) = nmseComplexDb( ...
+        fullSignalTarget, fullPredictions(:, targetIndex));
+    FLOPsPerSample(targetIndex) = double(cost.FLOPsPerSample);
 end
 
+resultTable = table(Model, TargetRealParameters, ActualRealParameters, ...
+    SelectedLambda, InternalValidationNMSEdB, IdentificationNMSEdB, ...
+    FullSignalNMSEdB, FLOPsPerSample, ActiveWeights, ActiveBiases, ...
+    WeightSparsityPercent, FineTuneEpochs);
+
 model.table = resultTable;
-model.supports = supports;
-model.paths = struct('train', trainPath, 'identification', identificationPath);
-model.lambdas = selectedLambdas;
-model.predictions = struct('identification', identificationPredictions, 'full', fullPredictions);
-model.metadata = struct('dompInternalTrain', 1, ...
-    'dompIdentification', 1, 'matrixInternalTrain', 1, ...
-    'matrixInternalValidation', 1, 'matrixIdentification', 1, ...
-    'matrixFullSignal', 1, 'fullSignalBuildCount', fullBuildCount);
+model.path = identificationPath;
+model.fullPredictions = fullPredictions;
 end

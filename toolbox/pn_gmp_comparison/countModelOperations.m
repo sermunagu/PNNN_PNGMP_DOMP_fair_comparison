@@ -1,5 +1,5 @@
-function [comparison, details] = countModelOperations( ...
-    population, support, iqReduction)
+function comparison = countModelOperations( ...
+    population, support, effectiveFeatureCount)
 % countModelOperations - Count analytical real operations for retained models.
 % Stage counts use explicit literal or reuse-aware schedules; they are not
 % weighted FLOPs, execution-time estimates, or hardware measurements.
@@ -20,8 +20,8 @@ structure_generation = structureGenerationCost( ...
 
 iq_signatures = collectIQSignatures(support_descriptors);
 F_iq = numel(unique(iq_signatures, 'stable'));
-if nargin >= 3 && ~isempty(iqReduction)
-    F_iq = iqReduction.effectiveFeatureCount;
+if nargin >= 3 && ~isempty(effectiveFeatureCount)
+    F_iq = effectiveFeatureCount;
 end
 
 standard_M = standard_generation.M;
@@ -139,26 +139,6 @@ if S == 100 && K == 17 && F_iq == 172 && ( ...
         'Previously validated operation totals changed unexpectedly.');
 end
 
-details = struct();
-details.supportComplex = support;
-details.activeComplexRegressors = S;
-details.phaseNormalizedStructurallyRealCount = K;
-details.phaseNormalizedStructurallyRealIndices = support( ...
-    [support_descriptors.structurallyRealAfterPhaseNormalization].');
-details.standardDependencies = standard_dependencies;
-details.structureAwareDependencies = structure_dependencies;
-details.standardGenerationCost = standard_generation;
-details.structureAwareGenerationCost = structure_generation;
-details.independentIQEffectiveFeatures = F_iq;
-details.assumptions = struct( ...
-    'generalComplexMultiply', '4M+2A', ...
-    'complexByRealMultiply', '2M', ...
-    'complexAccumulation', '2A', ...
-    'complexModulus', '2M+1A+1SQRT', ...
-    'phaseDivision', '2DIV', ...
-    'coefficientScalarBytes', 8, ...
-    'weightedFlops', false, ...
-    'hardwareSpeedupDemonstrated', false);
 end
 
 function descriptors = describePopulation(population)

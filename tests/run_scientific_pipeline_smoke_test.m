@@ -47,9 +47,7 @@ cfg.sweep.parameterGrid = [4 6 8];
 cfg.sweep.candidateBlockSize = 128;
 cfg.gmp.blockSize = 128;
 linear = run_linear_sweep(x, y, split, cfg);
-assert(all(isfinite(linear.predictions.complexIdentification), 'all'));
 assert(all(isfinite(linear.predictions.complexFull), 'all'));
-assert(all(isfinite(linear.predictions.pnIdentification), 'all'));
 assert(all(isfinite(linear.predictions.pnFull), 'all'));
 assert(isequal(linear.complexTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));

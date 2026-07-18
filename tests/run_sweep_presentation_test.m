@@ -12,7 +12,6 @@ targetCount = numel(targets);
 Model = [repmat("Complex GMP DOMP sweep", targetCount, 1); ...
     repmat("Independent PN-IQ PN-DOMP sweep", targetCount, 1); ...
     repmat("Sparse PNNN N12", targetCount, 1)];
-SweepRole = repmat("Sweep point", 3*targetCount, 1);
 TargetRealParameters = repmat(targets, 3, 1);
 ActualRealParameters = TargetRealParameters;
 FullSignalNMSEdB = [-25 - 0.01*targets; ...
@@ -20,12 +19,13 @@ FullSignalNMSEdB = [-25 - 0.01*targets; ...
 FLOPsPerSample = [700 + targets; 500 + targets; 400 + targets];
 ActiveWeights = ActualRealParameters;
 ActiveBiases = zeros(3*targetCount, 1);
+WeightSparsityPercent = nan(3*targetCount, 1);
 pnnnRows = Model == "Sparse PNNN N12";
 ActiveBiases(pnnnRows) = 14;
 ActiveWeights(pnnnRows) = ActualRealParameters(pnnnRows) - 14;
-results = table(Model, SweepRole, TargetRealParameters, ...
+results = table(Model, TargetRealParameters, ...
     ActualRealParameters, FullSignalNMSEdB, FLOPsPerSample, ...
-    ActiveWeights, ActiveBiases);
+    ActiveWeights, ActiveBiases, WeightSparsityPercent);
 
 fixedLambdas = cfg.fixedRidgeLambdas(:);
 variantTargets = repelem(targets, numel(fixedLambdas));
@@ -52,6 +52,7 @@ for target = targets.'
 end
 assert(all(results.ActiveWeights(pnnnRows) + ...
     results.ActiveBiases(pnnnRows) == results.ActualRealParameters(pnnnRows)));
+assert(all(isnan(results.WeightSparsityPercent(~pnnnRows))));
 for model = unique(fixedResults.Model).'
     for lambda = fixedLambdas.'
         rows = fixedResults.Model == model & ...
