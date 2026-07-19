@@ -20,12 +20,19 @@ FLOPsPerSample = [700 + targets; 500 + targets; 400 + targets];
 ActiveWeights = ActualRealParameters;
 ActiveBiases = zeros(3*targetCount, 1);
 WeightSparsityPercent = nan(3*targetCount, 1);
+SelectedLambda = nan(3*targetCount, 1);
+InternalValidationNMSEdB = nan(3*targetCount, 1);
+IdentificationNMSEdB = FullSignalNMSEdB + 0.1;
+FineTuneEpochs = nan(3*targetCount, 1);
+MaxAbsRealParameter = 0.01 + ActualRealParameters/1000;
 pnnnRows = Model == "Sparse PNNN N12";
 ActiveBiases(pnnnRows) = 14;
 ActiveWeights(pnnnRows) = ActualRealParameters(pnnnRows) - 14;
 results = table(Model, TargetRealParameters, ...
-    ActualRealParameters, FullSignalNMSEdB, FLOPsPerSample, ...
-    ActiveWeights, ActiveBiases, WeightSparsityPercent);
+    ActualRealParameters, SelectedLambda, InternalValidationNMSEdB, ...
+    IdentificationNMSEdB, FullSignalNMSEdB, FLOPsPerSample, ...
+    ActiveWeights, ActiveBiases, WeightSparsityPercent, FineTuneEpochs, ...
+    MaxAbsRealParameter);
 
 fixedLambdas = cfg.fixedRidgeLambdas(:);
 variantTargets = repelem(targets, numel(fixedLambdas));
@@ -36,11 +43,17 @@ ActualRealParameters = TargetRealParameters;
 FixedLambda = repmat(repmat(fixedLambdas, targetCount, 1), 2, 1);
 FLOPsPerSample = [repelem(results.FLOPsPerSample(1:targetCount), 3); ...
     repelem(results.FLOPsPerSample(targetCount + (1:targetCount)), 3)];
+IdentificationNMSEdB = -35 - 0.001*TargetRealParameters;
+FullSignalNMSEdB = IdentificationNMSEdB - 0.1;
+MaxAbsRealParameter = 0.02 + ActualRealParameters/900;
 fixedResults = table(Model, TargetRealParameters, ...
-    ActualRealParameters, FixedLambda, FLOPsPerSample);
+    ActualRealParameters, FixedLambda, IdentificationNMSEdB, ...
+    FullSignalNMSEdB, FLOPsPerSample, MaxAbsRealParameter);
 
 assert(height(results) == 147);
 assert(height(fixedResults) == 294);
+assert(width(results) == 13);
+assert(width(fixedResults) == 8);
 assert(isequal(sort(unique(results.Model)), sort([ ...
     "Complex GMP DOMP sweep"; "Independent PN-IQ PN-DOMP sweep"; ...
     "Sparse PNNN N12"])));
@@ -60,5 +73,7 @@ for model = unique(fixedResults.Model).'
         assert(nnz(rows) == targetCount);
     end
 end
+assert(all(results.MaxAbsRealParameter >= 0));
+assert(all(fixedResults.MaxAbsRealParameter >= 0));
 
 fprintf('SWEEP PRESENTATION TEST: PASS\n');

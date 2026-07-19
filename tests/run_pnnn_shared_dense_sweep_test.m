@@ -60,6 +60,8 @@ for index = 1:numel(targetsToFit)
     assert(point.row.ActiveWeights + point.row.ActiveBiases == ...
         point.row.ActualRealParameters);
     assert(point.row.FineTuneEpochs == 0);
+    assert(isfinite(point.row.MaxAbsRealParameter));
+    assert(point.row.MaxAbsRealParameter >= 0);
     assert(point.denseSourceDigest == signatureBefore);
     assert(sum(cellfun(@nnz, point.mask)) == targetsToFit(index));
     assert(all(isfinite(point.fullSignalPrediction)));

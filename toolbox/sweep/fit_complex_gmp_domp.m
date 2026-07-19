@@ -117,6 +117,7 @@ ActiveWeights = targets(:);
 ActiveBiases = zeros(numel(targets), 1);
 WeightSparsityPercent = nan(numel(targets), 1);
 FineTuneEpochs = nan(numel(targets), 1);
+MaxAbsRealParameter = zeros(numel(targets), 1);
 
 for targetIndex = 1:numel(targets)
     support = identificationPath(1:featureCounts(targetIndex));
@@ -128,12 +129,16 @@ for targetIndex = 1:numel(targets)
     FullSignalNMSEdB(targetIndex) = nmseComplexDb( ...
         fullSignalTarget, fullPredictions(:, targetIndex));
     FLOPsPerSample(targetIndex) = double(cost.FLOPsPerSample);
+    activeCoefficients = coefficients(1:featureCounts(targetIndex), ...
+        targetIndex);
+    MaxAbsRealParameter(targetIndex) = max([ ...
+        abs(real(activeCoefficients)); abs(imag(activeCoefficients))]);
 end
 
 resultTable = table(Model, TargetRealParameters, ActualRealParameters, ...
     SelectedLambda, InternalValidationNMSEdB, IdentificationNMSEdB, ...
     FullSignalNMSEdB, FLOPsPerSample, ActiveWeights, ActiveBiases, ...
-    WeightSparsityPercent, FineTuneEpochs);
+    WeightSparsityPercent, FineTuneEpochs, MaxAbsRealParameter);
 
 model.table = resultTable;
 model.path = identificationPath;

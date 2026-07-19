@@ -30,7 +30,7 @@ cfg.fixedRidgeLambdas = [1e-3 1e-4 1e-5];
 cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
-cfg.sweep.schemaVersion = 2;
+cfg.sweep.schemaVersion = 3;
 cfg.sweep.parameterGrid = 20:10:500;
 cfg.sweep.resume = true;
 cfg.sweep.candidateBlockSize = 2048;
@@ -64,5 +64,16 @@ cfg.pruning = struct();
 cfg.pruning.historicalFineTuneEpochs = 20;
 cfg.pruning.fineTuneInitialLearnRate = cfg.training.initialLearnRate;
 cfg.pruning.fineTuneSeedOffset = 100000;
+
+cfg.selection = struct();
+cfg.selection.criterionName = ...
+    "near-optimal minimum-complexity criterion";
+cfg.selection.nmseToleranceDb = 0.20;
+cfg.selection.sensitivityTolerancesDb = [0.10 0.15 0.20 0.25];
+
+cfg.paper = struct();
+cfg.paper.matlab2tikzSource = fullfile(projectRoot, 'third_party', ...
+    'matlab2tikz', 'src');
+cfg.paper.latexmkCommand = 'latexmk';
 
 end

@@ -38,6 +38,10 @@ assert(numel(unique(sweep.paths.complex)) == numel(sweep.paths.complex));
 assert(numel(unique(sweep.paths.pn)) == numel(sweep.paths.pn));
 assert(all(isfinite(sweep.predictions.complexFull), 'all'));
 assert(all(isfinite(sweep.predictions.pnFull), 'all'));
+assert(all(isfinite(sweep.complexTable.MaxAbsRealParameter)));
+assert(all(isfinite(sweep.pnTable.MaxAbsRealParameter)));
+assert(all(sweep.complexTable.MaxAbsRealParameter >= 0));
+assert(all(sweep.pnTable.MaxAbsRealParameter >= 0));
 assert(all(ismember({'SourceRegressorIndex','IsQ'}, ...
     sweep.pnPathMap.Properties.VariableNames)));
 assert(height(sweep.pnPathMap) == numel(sweep.paths.pn));

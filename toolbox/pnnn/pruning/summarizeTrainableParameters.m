@@ -10,11 +10,22 @@ if nargin < 2
 end
 
 counts = struct('totalWeightParams', 0, 'totalBiasParams', 0, ...
-    'activeWeightParams', 0, 'activeBiasParams', 0);
+    'activeWeightParams', 0, 'activeBiasParams', 0, ...
+    'maxAbsRealParameter', 0);
 
 for row = 1:height(learnables)
-    total = numel(learnableToNumeric(learnables.Value{row}));
-    active = nnz(masks{row});
+    data = learnableToNumeric(learnables.Value{row});
+    mask = logical(masks{row});
+    if ~isequal(size(mask), size(data))
+        error('summarizeTrainableParameters:MaskSizeMismatch', ...
+            'Each learnable mask must match its stored parameter array.');
+    end
+    total = numel(data);
+    active = nnz(mask);
+    if active > 0
+        counts.maxAbsRealParameter = max( ...
+            counts.maxAbsRealParameter, max(abs(data(mask))));
+    end
     name = lower(string(learnables.Parameter(row)));
     if name == "weights"
         counts.totalWeightParams = counts.totalWeightParams + total;
@@ -24,6 +35,7 @@ for row = 1:height(learnables)
         counts.activeBiasParams = counts.activeBiasParams + active;
     end
 end
+counts.maxAbsRealParameter = double(counts.maxAbsRealParameter);
 end
 
 function data = learnableToNumeric(value)

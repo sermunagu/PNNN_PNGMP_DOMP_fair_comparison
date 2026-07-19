@@ -15,5 +15,11 @@ assert(cfg.gmp.dompOptions.columnTolerance == 1e-12);
 assert(isequal(cfg.pnnn.orders, [1 3 5 7]));
 assert(cfg.pnnn.sparseBaseHiddenNeurons == 12);
 assert(cfg.pnnn.nnSeed == 42);
+assert(cfg.sweep.schemaVersion == 3);
+assert(cfg.selection.nmseToleranceDb == 0.20);
+assert(isequal(cfg.selection.sensitivityTolerancesDb, ...
+    [0.10 0.15 0.20 0.25]));
+assert(cfg.selection.criterionName == ...
+    "near-optimal minimum-complexity criterion");
 
 fprintf('SWEEP CONFIGURATION TEST: PASS\n');

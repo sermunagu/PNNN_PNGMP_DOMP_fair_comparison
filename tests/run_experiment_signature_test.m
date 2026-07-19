@@ -14,7 +14,7 @@ y = complex(randn(128, 1), randn(128, 1));
 signature = buildExperimentSignature(x, y, cfg);
 signature_repeat = buildExperimentSignature(x, y, cfg);
 assert(signature.digest == signature_repeat.digest);
-assert(signature.schemaVersion == 2);
+assert(signature.schemaVersion == 3);
 
 x_modified = x;
 x_modified(37) = x_modified(37) + eps(x_modified(37));

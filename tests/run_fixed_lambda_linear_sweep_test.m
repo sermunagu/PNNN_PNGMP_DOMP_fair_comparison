@@ -63,6 +63,7 @@ linear.pnPathMap = pnFeatureMap(pnPath, :);
 
 fixed = run_fixed_ridge_sweep(x, y, split, cfg, linear);
 assert(height(fixed.table) == 18);
+assert(width(fixed.table) == 8);
 assert(isequal(sort(unique(string(fixed.table.Model))), ...
     sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"])));
 assert(isequal(sort(unique(fixed.table.FixedLambda)), ...
@@ -76,6 +77,8 @@ for model = unique(string(fixed.table.Model)).'
 end
 assert(all(isfinite(fixed.table.IdentificationNMSEdB)));
 assert(all(isfinite(fixed.table.FullSignalNMSEdB)));
+assert(all(isfinite(fixed.table.MaxAbsRealParameter)));
+assert(all(fixed.table.MaxAbsRealParameter >= 0));
 
 withPredictions = run_fixed_ridge_sweep(x, y, split, cfg, linear, true);
 assert(all(isfinite(withPredictions.predictions.complexFull), 'all'));

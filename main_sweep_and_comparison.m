@@ -1,33 +1,35 @@
-function results = main_sweep_and_comparison()
-% main_sweep_and_comparison - Run the common sweep and select one budget.
-% The signed sweep is resumed before prompting for a parameter count.
-% The selected point is compared using only compatible sweep artifacts.
-
-clc; clear;
+function results = main_sweep_and_comparison(selectedParameters)
+% main_sweep_and_comparison - Run the sweep and select one operating point.
+% With no argument, the quantified near-optimal minimum-complexity criterion
+% is used. An explicit signed-grid budget remains a supported manual override.
 
 projectRoot = fileparts(mfilename('fullpath'));
 addpath(fullfile(projectRoot, 'config'));
 cfg = getFairDOMPComparisonConfig(projectRoot);
 
 targets = cfg.sweep.parameterGrid;
-targetText = mat2str(targets);
-
 sweep = run_parameter_sweep(targets);
 drawnow;
+automaticSelection = sweep.selection;
+fprintf('Automatic selection: %s\n', automaticSelection.summarySentence);
 
-selectedParameters = NaN;
-%selectedParameters = 340;
-
-while ~(isscalar(selectedParameters) && isfinite(selectedParameters) && ismember(selectedParameters, targets))
-    userText = input(['Review the sweep figures and enter the selected number of ' 'parameters from ' targetText ': '], 's');
-    selectedParameters = str2double(strtrim(userText));
-    
-    if ~(isscalar(selectedParameters) && isfinite(selectedParameters) && ismember(selectedParameters, targets))
-        fprintf('Invalid parameter budget. Choose a value from %s.\n', targetText);
+if nargin < 1 || isempty(selectedParameters)
+    selectedParameters = automaticSelection.selectedParameters;
+else
+    selectedParameters = double(selectedParameters);
+    if ~(isscalar(selectedParameters) && isfinite(selectedParameters) && ...
+            ismember(selectedParameters, targets))
+        error('main_sweep_and_comparison:InvalidManualOverride', ...
+            'Manual override must be one signed-grid budget from %s.', ...
+            mat2str(targets));
     end
+    fprintf(['Manual override requested: %d parameters; automatic ' ...
+        'selection remains %d parameters.\n'], selectedParameters, ...
+        automaticSelection.selectedParameters);
 end
 
 fprintf('Selected parameter budget: %d active real parameters.\n', selectedParameters);
 
 results = run_selected_comparison(selectedParameters, sweep);
+results.selection = automaticSelection;
 end

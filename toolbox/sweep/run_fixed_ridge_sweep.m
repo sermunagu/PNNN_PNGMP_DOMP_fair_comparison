@@ -58,6 +58,16 @@ complexIdentificationError = sum(abs( ...
     complexIdentificationPredictions - identificationTarget).^2, 1);
 complexIdentificationNMSE = ...
     10*log10(complexIdentificationError(:)/targetEnergyIdentification);
+complexMaxAbs = zeros(variantCount, 1);
+for targetIndex = 1:numel(targets)
+    count = featureCounts(targetIndex);
+    columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
+    for lambdaIndex = 1:lambdaCount
+        values = complexCoefficients(1:count, columns(lambdaIndex));
+        complexMaxAbs(columns(lambdaIndex)) = max([ ...
+            abs(real(values)); abs(imag(values))]);
+    end
+end
 
 complexFullError = zeros(1, variantCount);
 storedComplexFullPredictions = ...
@@ -169,6 +179,17 @@ pnIdentificationError = sum(abs( ...
     pnIdentificationPredictions - identificationTarget).^2, 1);
 pnIdentificationNMSE = ...
     10*log10(pnIdentificationError(:)/targetEnergyIdentification);
+pnMaxAbs = zeros(variantCount, 1);
+for targetIndex = 1:numel(targets)
+    count = featureCounts(targetIndex);
+    columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
+    for lambdaIndex = 1:lambdaCount
+        column = columns(lambdaIndex);
+        pnMaxAbs(column) = max(abs([ ...
+            pnCoefficientsI(1:count, column); ...
+            pnCoefficientsQ(1:count, column)]));
+    end
+end
 
 pnFullError = zeros(1, variantCount);
 storedPNFullPredictions = ...
@@ -254,8 +275,10 @@ FixedLambda = [variantLambdas; variantLambdas];
 IdentificationNMSEdB = [complexIdentificationNMSE; pnIdentificationNMSE];
 FullSignalNMSEdB = [complexFullNMSE; pnFullNMSE];
 FLOPsPerSample = [complexFLOPs; pnFLOPs];
+MaxAbsRealParameter = [complexMaxAbs; pnMaxAbs];
 fixed.table = table(Model, TargetRealParameters, ActualRealParameters, ...
-    FixedLambda, IdentificationNMSEdB, FullSignalNMSEdB, FLOPsPerSample);
+    FixedLambda, IdentificationNMSEdB, FullSignalNMSEdB, FLOPsPerSample, ...
+    MaxAbsRealParameter);
 if storePredictions
     fixed.predictions = struct( ...
         'complexFull', storedComplexFullPredictions, ...
