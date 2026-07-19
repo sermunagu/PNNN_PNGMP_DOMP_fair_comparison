@@ -1,7 +1,8 @@
 function files = exportPaperFigure(figureHandle, baseFilename, options)
 % exportPaperFigure - Export one figure handle to FIG, PNG, TikZ, and PDF.
-% The PDF is compiled from the same matlab2tikz output through a standalone
-% wrapper. LaTeX intermediates are deleted only after successful compilation.
+% The PDF is compiled with LuaLaTeX from the same matlab2tikz output through
+% a standalone wrapper. LuaLaTeX avoids pdfTeX's fixed main-memory ceiling
+% for dense multi-curve spectra. Intermediates are deleted only after success.
 
 if nargin < 3 || isempty(options)
     options = struct();
@@ -63,7 +64,7 @@ wrapperTex = fullfile(directory, wrapperBase + ".tex");
 writeStandaloneWrapper(wrapperTex, name + ".tikz", options);
 latexmkCommand = char(string(options.latexmkCommand));
 latexmk = resolveLatexmkCommand(latexmkCommand);
-command = sprintf(['%s -pdf -interaction=nonstopmode ' ...
+command = sprintf(['%s -lualatex -interaction=nonstopmode ' ...
     '-halt-on-error -outdir="%s" "%s"'], latexmk.commandPrefix, ...
     directory, wrapperTex);
 [status, commandOutput] = system(command);

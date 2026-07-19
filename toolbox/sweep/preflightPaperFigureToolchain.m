@@ -1,7 +1,8 @@
 function report = preflightPaperFigureToolchain(projectRoot, paperConfig)
 % preflightPaperFigureToolchain - Fail before data loading or training.
-% A standalone pgfplots document is compiled with the same LaTeX packages
-% used by exportPaperFigure so missing dependencies are detected up front.
+% A standalone pgfplots document is compiled with LuaLaTeX and the same
+% packages used by exportPaperFigure so missing dependencies are detected
+% before loading measurements or training.
 
 if nargin < 1 || isempty(projectRoot)
     projectRoot = fileparts(fileparts(fileparts(mfilename('fullpath'))));
@@ -51,7 +52,7 @@ matlab2tikz(tikzFile, 'figurehandle', figureHandle, ...
     'standalone', false, 'showInfo', false);
 clear figureCleanup;
 writePreflightDocument(texFile, 'paper_figure_preflight.tikz');
-command = sprintf(['%s -pdf -interaction=nonstopmode ' ...
+command = sprintf(['%s -lualatex -interaction=nonstopmode ' ...
     '-halt-on-error -outdir="%s" "%s"'], latexmk.commandPrefix, ...
     compileDirectory, texFile);
 [status, compileText] = system(command);

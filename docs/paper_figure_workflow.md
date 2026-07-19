@@ -12,7 +12,7 @@ git submodule update --init --recursive
 
 MATLAB adds `third_party/matlab2tikz/src` to its path. The mandatory
 preflight checks that `matlab2tikz` is callable and compiles a minimal
-standalone `pgfplots` figure with `latexmk` before measurements are loaded or
+standalone `pgfplots` figure with `latexmk` and LuaLaTeX before measurements are loaded or
 training starts. On Windows/MiKTeX, if the `latexmk` launcher cannot find a
 Perl script engine, the preflight and exporter use the Perl distributed with
 MATLAB to invoke MiKTeX's existing `latexmk.pl`; they do not change PATH or
@@ -73,7 +73,7 @@ The standalone PDF wrapper loads `pgfplots`, `tikz`, and `amsmath`, fixes
 `\figureheight`, and is compiled with:
 
 ```text
-latexmk -pdf -interaction=nonstopmode -halt-on-error
+latexmk -lualatex -interaction=nonstopmode -halt-on-error
 ```
 
 Auxiliary wrapper files are removed only after success. A failed compile
