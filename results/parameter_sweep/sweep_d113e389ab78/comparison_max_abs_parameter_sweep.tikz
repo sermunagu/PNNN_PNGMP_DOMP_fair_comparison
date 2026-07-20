@@ -27,6 +27,8 @@ xmajorgrids,
 ymajorgrids,
 yminorgrids,
 legend style={at={(0.5,-0.03)}, anchor=north, legend columns=9, legend cell align=left, align=left},
+clip=true,
+clip mode=individual,
 legend columns=3,
 legend style={at={(0.5,-0.16)},anchor=north},
 every axis plot/.append style={mark repeat=3}

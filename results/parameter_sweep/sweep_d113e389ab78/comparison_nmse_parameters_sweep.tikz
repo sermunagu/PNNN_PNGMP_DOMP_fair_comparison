@@ -3,28 +3,29 @@
 \definecolor{mycolor1}{rgb}{0.00000,0.38431,0.60784}%
 \definecolor{mycolor2}{rgb}{0.90980,0.46667,0.13333}%
 \definecolor{mycolor3}{rgb}{0.00000,0.51765,0.23922}%
-\definecolor{mycolor4}{rgb}{0.72941,0.04706,0.18431}%
-\definecolor{mycolor5}{rgb}{0.12941,0.12941,0.12941}%
+\definecolor{mycolor4}{rgb}{0.12941,0.12941,0.12941}%
 %
 \begin{tikzpicture}
 
 \begin{axis}[%
 width=\figurewidth,
-height=0.811\figureheight,
+height=0.842\figureheight,
 at={(0\figurewidth,0\figureheight)},
 scale only axis,
 xmin=0,
 xmax=500,
-xlabel style={font=\color{mycolor5}},
+xlabel style={font=\color{mycolor4}},
 xlabel={Active real parameters},
 ymin=-45,
 ymax=-30,
-ylabel style={font=\color{mycolor5}},
+ylabel style={font=\color{mycolor4}},
 ylabel={Full-signal NMSE (dB)},
 axis background/.style={fill=white},
 xmajorgrids,
 ymajorgrids,
-legend style={at={(0.5,-0.03)}, anchor=north, legend columns=11, legend cell align=left, align=left},
+legend style={at={(0.5,-0.03)}, anchor=north, legend columns=9, legend cell align=left, align=left},
+clip=true,
+clip mode=individual,
 legend columns=3,
 legend style={at={(0.5,-0.16)},anchor=north},
 every axis plot/.append style={mark repeat=3}
@@ -515,18 +516,5 @@ every axis plot/.append style={mark repeat=3}
 };
 \addlegendentry{$\text{PN-IQ PN-DOMP, }\lambda\text{=1e-05}$}
 
-\addplot [color=mycolor4, dotted, line width=1.1pt, forget plot]
-  table[row sep=crcr]{%
-340	-45\\
-340	-30\\
-};
-\addplot [color=mycolor4, line width=1.2pt, only marks, mark size=3.5pt, mark=*, mark options={solid, fill=mycolor4, mycolor4}]
-  table[row sep=crcr]{%
-340	-39.2429635431325\\
-};
-\addlegendentry{Selected operating point}
-
-\node[fill=white, below left, align=right, inner sep=0, font=\color{mycolor4}]
-at (axis cs:340,-30.5) {Selected: 340 params, 840 FLOPs, -39.24 dB NMSE};
 \end{axis}
 \end{tikzpicture}%

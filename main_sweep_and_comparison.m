@@ -1,7 +1,7 @@
 function results = main_sweep_and_comparison(selectedParameters)
 % main_sweep_and_comparison - Run the sweep and select one operating point.
-% With no argument, the quantified near-optimal minimum-complexity criterion
-% is used. An explicit signed-grid budget remains a supported manual override.
+% With no argument, the joint stabilization minimum-complexity criterion is
+% used. An explicit signed-grid budget remains a supported manual override.
 
 projectRoot = fileparts(mfilename('fullpath'));
 addpath(fullfile(projectRoot, 'config'));

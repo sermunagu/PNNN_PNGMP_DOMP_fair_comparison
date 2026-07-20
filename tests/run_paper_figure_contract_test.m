@@ -46,19 +46,21 @@ fixed = table(Model, ActualRealParameters, FixedLambda, ...
     FullSignalNMSEdB, MaxAbsRealParameter);
 
 selection = selectOperatingPoint(results, struct( ...
-    'nmseToleranceDb', 0.20, ...
-    'sensitivityTolerancesDb', [0.10 0.15 0.20 0.25]));
+    'stabilizationWindowParameters', 100, ...
+    'stabilizationToleranceDb', 1.00, ...
+    'sensitivityWindowsParameters', [100 200], ...
+    'sensitivityTolerancesDb', [0.50 1.00]));
 options = struct('metricVariable', 'FullSignalNMSEdB', ...
     'metricLabel', 'Full-signal NMSE (dB)', 'includeFixed', true, ...
     'fixedLambdas', lambdas, 'isNMSE', true, ...
-    'annotateSelected', true, 'selection', selection);
+    'annotateSelected', false, 'selection', selection);
 sweepFiles = plotSweepPaperFigure(results, fixed, ...
     'ActualRealParameters', 'Active real parameters', ...
     fullfile(outputDirectory, 'nmse_contract'), options);
 assertFourFormats(sweepFiles);
 
 figureHandle = openfig(char(sweepFiles.fig), 'invisible');
-figureCleanup = onCleanup(@() close(figureHandle));
+figureCleanup = onCleanup(@() closeFigureIfValid(figureHandle));
 axesHandle = findPaperAxes(figureHandle, 'Full-signal NMSE (dB)');
 limits = ylim(axesHandle);
 assert(limits(2) == -30);
@@ -66,7 +68,16 @@ assert(limits(1) <= floor(min(fixed.FullSignalNMSEdB)/5)*5);
 assertLineColor(axesHandle, 'Complex GMP-DOMP', style.gmpBlue);
 assertLineColor(axesHandle, 'PN-IQ PN-DOMP', style.pnOrange);
 assertLineColor(axesHandle, 'Sparse PNNN N12', style.pnnnGreen);
-assertLineColor(axesHandle, 'Selected operating point', style.selectedRed);
+selectionMarkers = findall(axesHandle, 'Type', 'line', ...
+    'DisplayName', 'All three models used in selection');
+assert(isscalar(selectionMarkers));
+assert(numel(selectionMarkers.XData) == 3);
+assert(max(abs(selectionMarkers.Color - style.selectedRed)) < 1e-12);
+pnHighlight = findall(axesHandle, 'Type', 'line', ...
+    'DisplayName', 'PN-IQ at selected common budget');
+assert(isscalar(pnHighlight));
+assert(max(abs(pnHighlight.Color - style.selectedRed)) < 1e-12);
+assert(strcmpi(pnHighlight.HandleVisibility, 'off'));
 legendHandle = findobj(figureHandle, 'Type', 'legend');
 assert(isscalar(legendHandle));
 assert(strcmpi(legendHandle.Orientation, 'horizontal'));
@@ -88,7 +99,7 @@ for index = 1:numel(fields)
 end
 
 figureHandle = openfig(char(spectrumFiles.error.fig), 'invisible');
-figureCleanup = onCleanup(@() close(figureHandle));
+figureCleanup = onCleanup(@() closeFigureIfValid(figureHandle));
 axesHandle = findPaperAxes(figureHandle, ...
     'PSD relative to target peak (dB)');
 dataLines = findobj(axesHandle, 'Type', 'line');
@@ -99,7 +110,7 @@ assert(strcmpi(legendHandle.Orientation, 'horizontal'));
 clear figureCleanup;
 
 figureHandle = openfig(char(spectrumFiles.ridgeError.fig), 'invisible');
-figureCleanup = onCleanup(@() close(figureHandle));
+figureCleanup = onCleanup(@() closeFigureIfValid(figureHandle));
 axesHandles = findobj(figureHandle, 'Type', 'axes');
 assert(numel(axesHandles) == 2);
 positions = vertcat(axesHandles.Position);
@@ -125,6 +136,13 @@ for index = 1:numel(axesHandles)
 end
 axesHandle = axesHandles(matches);
 assert(isscalar(axesHandle));
+end
+
+
+function closeFigureIfValid(figureHandle)
+if isgraphics(figureHandle, 'figure')
+    close(figureHandle);
+end
 end
 
 function assertLineColor(axesHandle, displayName, expectedColor)

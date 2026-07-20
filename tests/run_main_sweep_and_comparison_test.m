@@ -44,6 +44,13 @@ assert(manual.selectedParameters == 350);
 assert(manual.selection.selectedParameters == 360);
 assert(isequal(mockSelectedTargets, [360 350]));
 
+selectedSource = fileread(fullfile(projectRoot, ...
+    'run_selected_comparison.m'));
+assert(contains(selectedSource, 'buildCompleteComparisonTable'));
+assert(contains(selectedSource, 'selected_complete_comparison.csv'));
+assert(contains(selectedSource, "'completeComparisonTable'"));
+assert(~contains(selectedSource, 'bestPNNNParameters'));
+
 clear cleanup;
 fprintf('MAIN SWEEP AND COMPARISON TEST: PASS\n');
 

@@ -66,10 +66,10 @@ cfg.pruning.fineTuneInitialLearnRate = cfg.training.initialLearnRate;
 cfg.pruning.fineTuneSeedOffset = 100000;
 
 cfg.selection = struct();
-cfg.selection.criterionName = ...
-    "near-optimal minimum-complexity criterion";
-cfg.selection.nmseToleranceDb = 0.20;
-cfg.selection.sensitivityTolerancesDb = [0.10 0.15 0.20 0.25];
+cfg.selection.stabilizationWindowParameters = 100;
+cfg.selection.stabilizationToleranceDb = 0.20;
+cfg.selection.sensitivityWindowsParameters = [80 100 120];
+cfg.selection.sensitivityTolerancesDb = [0.15 0.20 0.25];
 
 cfg.paper = struct();
 cfg.paper.matlab2tikzSource = fullfile(projectRoot, 'third_party', ...

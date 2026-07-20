@@ -1,18 +1,40 @@
 function selection = selectOperatingPoint(results, selectionConfig)
-% selectOperatingPoint - Quantify and select the sparse PNNN operating point.
-% The admissible set is near-optimal PNNN points that are no worse than the
-% Complex GMP point at the same real-parameter budget. Complexity breaks ties.
+% selectOperatingPoint - Select the first jointly stabilized common budget.
+% A budget is jointly stabilized when none of the three principal families
+% can improve by more than the configured NMSE tolerance within the next
+% configured number of real parameters. The lowest such budget is selected.
 
 if nargin < 2 || isempty(selectionConfig)
     selectionConfig = struct();
 end
-if ~isfield(selectionConfig, 'nmseToleranceDb')
-    selectionConfig.nmseToleranceDb = 0.20;
+if ~isfield(selectionConfig, 'stabilizationWindowParameters')
+    selectionConfig.stabilizationWindowParameters = 100;
+end
+if ~isfield(selectionConfig, 'stabilizationToleranceDb')
+    selectionConfig.stabilizationToleranceDb = 0.20;
+end
+if ~isfield(selectionConfig, 'sensitivityWindowsParameters')
+    selectionConfig.sensitivityWindowsParameters = [80 100 120];
 end
 if ~isfield(selectionConfig, 'sensitivityTolerancesDb')
-    selectionConfig.sensitivityTolerancesDb = [0.10 0.15 0.20 0.25];
+    selectionConfig.sensitivityTolerancesDb = [0.15 0.20 0.25];
 end
-criterionName = "near-optimal minimum-complexity criterion";
+
+windowParameters = double(selectionConfig.stabilizationWindowParameters);
+toleranceDb = double(selectionConfig.stabilizationToleranceDb);
+if ~(isscalar(windowParameters) && isfinite(windowParameters) && ...
+        windowParameters > 0)
+    error('selectOperatingPoint:InvalidWindow', ...
+        'The stabilization window must be one positive finite scalar.');
+end
+if ~(isscalar(toleranceDb) && isfinite(toleranceDb) && toleranceDb >= 0)
+    error('selectOperatingPoint:InvalidTolerance', ...
+        'The stabilization tolerance must be one nonnegative finite scalar.');
+end
+
+criterionName = "joint stabilization minimum-complexity criterion";
+modelNames = ["Complex GMP DOMP sweep", ...
+    "Independent PN-IQ PN-DOMP sweep", "Sparse PNNN N12"];
 required = ["Model", "ActualRealParameters", "FullSignalNMSEdB", ...
     "FLOPsPerSample"];
 if ~istable(results) || ~all(ismember(required, ...
@@ -21,162 +43,170 @@ if ~istable(results) || ~all(ismember(required, ...
         'The canonical results table is missing required variables.');
 end
 
-pnnnMask = string(results.Model) == "Sparse PNNN N12";
-gmpMask = string(results.Model) == "Complex GMP DOMP sweep";
-pnnn = results(pnnnMask, :);
-gmp = results(gmpMask, :);
-if isempty(pnnn) || isempty(gmp)
-    error('selectOperatingPoint:MissingFamily', ...
-        'Both sparse PNNN and Complex GMP sweep rows are required.');
-end
-[~, order] = sortrows([double(pnnn.ActualRealParameters), ...
-    double(pnnn.FLOPsPerSample)], [1 2]);
-pnnn = pnnn(order, :);
-if numel(unique(pnnn.ActualRealParameters)) ~= height(pnnn)
-    error('selectOperatingPoint:DuplicatePNNNBudget', ...
-        'Each PNNN real-parameter budget must occur exactly once.');
-end
-
-gmpNMSE = zeros(height(pnnn), 1);
-for row = 1:height(pnnn)
-    match = gmp.ActualRealParameters == pnnn.ActualRealParameters(row);
-    if nnz(match) ~= 1
-        error('selectOperatingPoint:MissingGMPPair', ...
-            'PNNN budget %g does not have exactly one GMP pair.', ...
-            pnnn.ActualRealParameters(row));
-    end
-    gmpNMSE(row) = gmp.FullSignalNMSEdB(match);
-end
-
-pnnnNMSE = double(pnnn.FullSignalNMSEdB);
-pnnnFLOPs = double(pnnn.FLOPsPerSample);
-pnnnParameters = double(pnnn.ActualRealParameters);
-if any(~isfinite([pnnnNMSE; pnnnFLOPs; pnnnParameters; gmpNMSE]))
+[budgets, nmse, flops] = collectPrincipalFamilies(results, modelNames);
+if any(~isfinite([budgets; nmse(:); flops(:)]))
     error('selectOperatingPoint:NonfiniteData', ...
         'Selection metrics must be finite.');
 end
-bestNMSE = min(pnnnNMSE);
-bestCandidateRows = find(pnnnNMSE == bestNMSE);
-[~, localBest] = sortrows([pnnnFLOPs(bestCandidateRows), ...
-    pnnnParameters(bestCandidateRows)], [1 2]);
-bestRow = bestCandidateRows(localBest(1));
-
-NMSELossFromBestDb = pnnnNMSE - bestNMSE;
-PNNNGainOverGMPDb = gmpNMSE - pnnnNMSE;
-FLOPsSavedVsBest = pnnnFLOPs(bestRow) - pnnnFLOPs;
-FLOPsSavedPercentVsBest = 100*FLOPsSavedVsBest/pnnnFLOPs(bestRow);
-ParametersSavedVsBest = pnnnParameters(bestRow) - pnnnParameters;
-ParametersSavedPercentVsBest = ...
-    100*ParametersSavedVsBest/pnnnParameters(bestRow);
-GainFromPreviousPointDb = nan(height(pnnn), 1);
-ExtraFLOPsFromPreviousPoint = nan(height(pnnn), 1);
-MarginalGainDbPer100AdditionalFLOPs = nan(height(pnnn), 1);
-if height(pnnn) > 1
-    GainFromPreviousPointDb(2:end) = pnnnNMSE(1:end-1) - pnnnNMSE(2:end);
-    ExtraFLOPsFromPreviousPoint(2:end) = diff(pnnnFLOPs);
-    nonzeroExtra = ExtraFLOPsFromPreviousPoint(2:end) ~= 0;
-    marginal = nan(height(pnnn)-1, 1);
-    marginal(nonzeroExtra) = 100*GainFromPreviousPointDb(1 + ...
-        find(nonzeroExtra))./ExtraFLOPsFromPreviousPoint(1 + ...
-        find(nonzeroExtra));
-    MarginalGainDbPer100AdditionalFLOPs(2:end) = marginal;
+if any(diff(flops, 1, 1) < 0, 'all')
+    error('selectOperatingPoint:NonmonotonicFLOPs', ...
+        ['FLOPs must be nondecreasing with parameter budget in each ' ...
+        'principal family.']);
 end
-NearOptimal = NMSELossFromBestDb <= ...
-    double(selectionConfig.nmseToleranceDb) + 10*eps(abs(bestNMSE));
-BeatsGMP = pnnnNMSE <= gmpNMSE + 10*eps(abs(gmpNMSE));
-Admissible = NearOptimal & BeatsGMP;
-selectedRow = chooseMinimumComplexity( ...
-    Admissible, pnnnFLOPs, pnnnParameters);
-Selected = false(height(pnnn), 1);
-Selected(selectedRow) = true;
 
-diagnostics = pnnn;
-diagnostics.NMSELossFromBestDb = NMSELossFromBestDb;
-diagnostics.PNNNGainOverGMPDb = PNNNGainOverGMPDb;
-diagnostics.FLOPsSavedVsBest = FLOPsSavedVsBest;
-diagnostics.FLOPsSavedPercentVsBest = FLOPsSavedPercentVsBest;
-diagnostics.ParametersSavedVsBest = ParametersSavedVsBest;
-diagnostics.ParametersSavedPercentVsBest = ParametersSavedPercentVsBest;
-diagnostics.GainFromPreviousPointDb = GainFromPreviousPointDb;
-diagnostics.ExtraFLOPsFromPreviousPoint = ExtraFLOPsFromPreviousPoint;
-diagnostics.MarginalGainDbPer100AdditionalFLOPs = ...
-    MarginalGainDbPer100AdditionalFLOPs;
-diagnostics.NearOptimal = NearOptimal;
-diagnostics.BeatsGMP = BeatsGMP;
-diagnostics.Admissible = Admissible;
-diagnostics.Selected = Selected;
+[futureGainDb, hasFullWindow] = calculateFutureGain( ...
+    budgets, nmse, windowParameters);
+jointlyStabilized = hasFullWindow & ...
+    all(futureGainDb <= toleranceDb + 1e-12, 2);
+selectedRow = find(jointlyStabilized, 1, 'first');
+if isempty(selectedRow)
+    error('selectOperatingPoint:NoJointlyStabilizedPoint', ...
+        ['No common budget jointly stabilizes all three principal ' ...
+        'families for the configured window and tolerance.']);
+end
+selected = false(numel(budgets), 1);
+selected(selectedRow) = true;
 
-sensitivity = buildSensitivityTable(selectionConfig, pnnnParameters, ...
-    pnnnNMSE, pnnnFLOPs, gmpNMSE, bestNMSE, bestRow);
+WindowUpperParameters = budgets + windowParameters;
+WindowUpperParameters(~hasFullWindow) = NaN;
+ComplexGMPFutureGainDb = futureGainDb(:, 1);
+PNIQFutureGainDb = futureGainDb(:, 2);
+SparsePNNNFutureGainDb = futureGainDb(:, 3);
+WorstFutureGainDb = max(futureGainDb, [], 2);
+WorstFutureGainDb(~hasFullWindow) = NaN;
+ComplexGMPFLOPs = flops(:, 1);
+PNIQFLOPs = flops(:, 2);
+SparsePNNNFLOPs = flops(:, 3);
+diagnostics = table(budgets, WindowUpperParameters, hasFullWindow, ...
+    ComplexGMPFutureGainDb, PNIQFutureGainDb, SparsePNNNFutureGainDb, ...
+    WorstFutureGainDb, jointlyStabilized, selected, ComplexGMPFLOPs, ...
+    PNIQFLOPs, SparsePNNNFLOPs, 'VariableNames', { ...
+    'ActualRealParameters', 'WindowUpperParameters', 'HasFullWindow', ...
+    'ComplexGMPFutureGainDb', 'PNIQFutureGainDb', ...
+    'SparsePNNNFutureGainDb', 'WorstFutureGainDb', ...
+    'JointlyStabilized', 'Selected', 'ComplexGMPFLOPs', ...
+    'PNIQFLOPs', 'SparsePNNNFLOPs'});
+
+sensitivity = buildSensitivityTable(selectionConfig, budgets, nmse);
 summarySentence = compose([ ...
-    'Using a %.2f dB near-optimality tolerance, the lowest-complexity ' ...
-    'PNNN configuration within %.2f dB of the best observed PNNN NMSE ' ...
-    'and outperforming GMP at the same parameter budget was selected ' ...
-    'by the %s. It uses %d active real parameters and %.0f ' ...
-    'FLOPs/sample, achieves %.4f dB NMSE, incurs a %.4f dB loss from ' ...
-    'the best PNNN point, reduces FLOPs by %.2f%% relative to that best ' ...
-    'point, and gains %.4f dB over same-budget Complex GMP-DOMP.'], ...
-    double(selectionConfig.nmseToleranceDb), ...
-    double(selectionConfig.nmseToleranceDb), criterionName, ...
-    pnnnParameters(selectedRow), pnnnFLOPs(selectedRow), ...
-    pnnnNMSE(selectedRow), ...
-    NMSELossFromBestDb(selectedRow), ...
-    FLOPsSavedPercentVsBest(selectedRow), ...
-    PNNNGainOverGMPDb(selectedRow));
+    'Using a %d-parameter forward window and a %.2f dB stabilization ' ...
+    'tolerance, %d active real parameters is the lowest common budget ' ...
+    'for which none of the three principal techniques can improve by ' ...
+    'more than %.2f dB within the next %d parameters. The remaining ' ...
+    'improvements are %.4f dB for Complex GMP-DOMP, %.4f dB for PN-IQ ' ...
+    'PN-DOMP, and %.4f dB for Sparse PNNN N12. Because FLOPs increase ' ...
+    'monotonically with parameter budget in all three sweeps, this is ' ...
+    'also the minimum-FLOP jointly stabilized common configuration.'], ...
+    windowParameters, toleranceDb, budgets(selectedRow), toleranceDb, ...
+    windowParameters, futureGainDb(selectedRow, 1), ...
+    futureGainDb(selectedRow, 2), futureGainDb(selectedRow, 3));
 
 selection = struct( ...
-    'selectedParameters', pnnnParameters(selectedRow), ...
+    'selectedParameters', budgets(selectedRow), ...
     'criterionName', criterionName, ...
-    'nmseToleranceDb', double(selectionConfig.nmseToleranceDb), ...
-    'bestPNNNParameters', pnnnParameters(bestRow), ...
-    'bestPNNNNMSEdB', bestNMSE, ...
-    'selectedPNNNNMSEdB', pnnnNMSE(selectedRow), ...
-    'selectedPNNNFLOPs', pnnnFLOPs(selectedRow), ...
-    'nmseLossFromBestDb', NMSELossFromBestDb(selectedRow), ...
-    'flopsSavedPercentVsBest', ...
-        FLOPsSavedPercentVsBest(selectedRow), ...
-    'pnnnGainOverGMPDb', PNNNGainOverGMPDb(selectedRow), ...
+    'stabilizationWindowParameters', windowParameters, ...
+    'stabilizationToleranceDb', toleranceDb, ...
+    'selectedWindowUpperParameters', budgets(selectedRow) + ...
+        windowParameters, ...
+    'selectedComplexGMPFutureGainDb', futureGainDb(selectedRow, 1), ...
+    'selectedPNIQFutureGainDb', futureGainDb(selectedRow, 2), ...
+    'selectedSparsePNNNFutureGainDb', futureGainDb(selectedRow, 3), ...
+    'selectedWorstFutureGainDb', max(futureGainDb(selectedRow, :)), ...
+    'selectedComplexGMPFLOPs', flops(selectedRow, 1), ...
+    'selectedPNIQFLOPs', flops(selectedRow, 2), ...
+    'selectedSparsePNNNFLOPs', flops(selectedRow, 3), ...
     'diagnosticsTable', diagnostics, ...
     'sensitivityTable', sensitivity, ...
     'summarySentence', string(summarySentence));
 end
 
-function selectedRow = chooseMinimumComplexity(admissible, flops, parameters)
-candidateRows = find(admissible);
-if isempty(candidateRows)
-    error('selectOperatingPoint:NoAdmissiblePoint', ...
-        ['No PNNN point is both near-optimal and no worse than its ' ...
-        'same-budget Complex GMP pair.']);
+function [budgets, nmse, flops] = collectPrincipalFamilies(results, modelNames)
+budgets = [];
+nmse = [];
+flops = [];
+for modelIndex = 1:numel(modelNames)
+    rows = string(results.Model) == modelNames(modelIndex);
+    family = results(rows, :);
+    if isempty(family)
+        error('selectOperatingPoint:MissingFamily', ...
+            'Missing principal family: %s.', modelNames(modelIndex));
+    end
+    [familyBudgets, order] = sort(double(family.ActualRealParameters));
+    if numel(unique(familyBudgets)) ~= numel(familyBudgets)
+        error('selectOperatingPoint:DuplicateBudget', ...
+            'Each family must contain one row per real-parameter budget.');
+    end
+    if modelIndex == 1
+        budgets = familyBudgets;
+        nmse = zeros(numel(budgets), numel(modelNames));
+        flops = zeros(numel(budgets), numel(modelNames));
+    elseif ~isequal(familyBudgets, budgets)
+        error('selectOperatingPoint:BudgetMismatch', ...
+            'The three principal families must share the same budgets.');
+    end
+    nmse(:, modelIndex) = double(family.FullSignalNMSEdB(order));
+    flops(:, modelIndex) = double(family.FLOPsPerSample(order));
 end
-[~, order] = sortrows([flops(candidateRows), parameters(candidateRows)], ...
-    [1 2]);
-selectedRow = candidateRows(order(1));
 end
 
-function sensitivity = buildSensitivityTable(config, parameters, ...
-    nmse, flops, gmpNMSE, bestNMSE, bestRow)
-tolerances = double(config.sensitivityTolerancesDb(:));
-count = numel(tolerances);
-NMSEToleranceDb = tolerances;
-SelectedParameters = zeros(count, 1);
-SelectedPNNNNMSEdB = zeros(count, 1);
-SelectedPNNNFLOPs = zeros(count, 1);
-NMSELossFromBestDb = zeros(count, 1);
-FLOPsSavedPercentVsBest = zeros(count, 1);
-PNNNGainOverGMPDb = zeros(count, 1);
-for index = 1:count
-    admissible = nmse - bestNMSE <= tolerances(index) + ...
-        10*eps(abs(bestNMSE)) & nmse <= gmpNMSE + 10*eps(abs(gmpNMSE));
-    row = chooseMinimumComplexity(admissible, flops, parameters);
-    SelectedParameters(index) = parameters(row);
-    SelectedPNNNNMSEdB(index) = nmse(row);
-    SelectedPNNNFLOPs(index) = flops(row);
-    NMSELossFromBestDb(index) = nmse(row) - bestNMSE;
-    FLOPsSavedPercentVsBest(index) = ...
-        100*(flops(bestRow) - flops(row))/flops(bestRow);
-    PNNNGainOverGMPDb(index) = gmpNMSE(row) - nmse(row);
+function [futureGainDb, hasFullWindow] = calculateFutureGain( ...
+    budgets, nmse, windowParameters)
+rowCount = numel(budgets);
+futureGainDb = nan(rowCount, size(nmse, 2));
+hasFullWindow = budgets + windowParameters <= budgets(end) + 1e-12;
+for row = find(hasFullWindow).'
+    futureRows = budgets >= budgets(row) & ...
+        budgets <= budgets(row) + windowParameters + 1e-12;
+    futureGainDb(row, :) = nmse(row, :) - min(nmse(futureRows, :), [], 1);
 end
-sensitivity = table(NMSEToleranceDb, SelectedParameters, ...
-    SelectedPNNNNMSEdB, SelectedPNNNFLOPs, NMSELossFromBestDb, ...
-    FLOPsSavedPercentVsBest, PNNNGainOverGMPDb);
+end
+
+function sensitivity = buildSensitivityTable(config, budgets, nmse)
+windows = double(config.sensitivityWindowsParameters(:));
+tolerances = double(config.sensitivityTolerancesDb(:));
+rowCount = numel(windows)*numel(tolerances);
+StabilizationWindowParameters = zeros(rowCount, 1);
+StabilizationToleranceDb = zeros(rowCount, 1);
+HasJointlyStabilizedPoint = false(rowCount, 1);
+SelectedParameters = nan(rowCount, 1);
+SelectedComplexGMPFutureGainDb = nan(rowCount, 1);
+SelectedPNIQFutureGainDb = nan(rowCount, 1);
+SelectedSparsePNNNFutureGainDb = nan(rowCount, 1);
+SelectedWorstFutureGainDb = nan(rowCount, 1);
+outputRow = 0;
+for windowIndex = 1:numel(windows)
+    if ~(isfinite(windows(windowIndex)) && windows(windowIndex) > 0)
+        error('selectOperatingPoint:InvalidSensitivityWindow', ...
+            'Sensitivity windows must be positive and finite.');
+    end
+    [gainDb, hasFullWindow] = calculateFutureGain( ...
+        budgets, nmse, windows(windowIndex));
+    for toleranceIndex = 1:numel(tolerances)
+        if ~(isfinite(tolerances(toleranceIndex)) && ...
+                tolerances(toleranceIndex) >= 0)
+            error('selectOperatingPoint:InvalidSensitivityTolerance', ...
+                'Sensitivity tolerances must be nonnegative and finite.');
+        end
+        outputRow = outputRow + 1;
+        StabilizationWindowParameters(outputRow) = windows(windowIndex);
+        StabilizationToleranceDb(outputRow) = tolerances(toleranceIndex);
+        admissible = hasFullWindow & ...
+            all(gainDb <= tolerances(toleranceIndex) + 1e-12, 2);
+        selectedRow = find(admissible, 1, 'first');
+        if isempty(selectedRow)
+            continue;
+        end
+        HasJointlyStabilizedPoint(outputRow) = true;
+        SelectedParameters(outputRow) = budgets(selectedRow);
+        SelectedComplexGMPFutureGainDb(outputRow) = gainDb(selectedRow, 1);
+        SelectedPNIQFutureGainDb(outputRow) = gainDb(selectedRow, 2);
+        SelectedSparsePNNNFutureGainDb(outputRow) = gainDb(selectedRow, 3);
+        SelectedWorstFutureGainDb(outputRow) = max(gainDb(selectedRow, :));
+    end
+end
+sensitivity = table(StabilizationWindowParameters, ...
+    StabilizationToleranceDb, HasJointlyStabilizedPoint, ...
+    SelectedParameters, SelectedComplexGMPFutureGainDb, ...
+    SelectedPNIQFutureGainDb, SelectedSparsePNNNFutureGainDb, ...
+    SelectedWorstFutureGainDb);
 end
