@@ -142,21 +142,14 @@ identificationPath = selectDOMPSupport( ...
     maximumFeatures, cfg.gmp.dompOptions.columnTolerance);
 identificationPath = identificationPath(:);
 
-% Each I/Q feature inherits the degree of its source GMP regressor.
-inputRMS = sqrt(mean(abs(x(identificationRows)).^2));
-outputRMS = sqrt(mean(abs(y(identificationRows)).^2));
-selectedMetadata = pnFeatureMap(identificationPath(1:maximumFeatures), :);
-coefficientScales = zeros(maximumFeatures, 1);
-for featureIndex = 1:maximumFeatures
-    sourceIndex = selectedMetadata.SourceRegressorIndex(featureIndex);
-    regressor = manager.regPopulation(sourceIndex);
-    degree = numel(regressor.X) + numel(regressor.Xconj) + ...
-        numel(regressor.Xenv);
-    coefficientScales(featureIndex) = inputRMS^degree/outputRMS;
-end
+% Unit-peak input gives the same unit-norm features because its global scale
+% cancels when each homogeneous GMP feature is normalized.
+outputPeak = max(abs(y(identificationRows)));
 
 coefficientsI = zeros(maximumFeatures, numel(targets));
 coefficientsQ = zeros(maximumFeatures, numel(targets));
+comparisonI = coefficientsI;
+comparisonQ = coefficientsQ;
 
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
@@ -181,6 +174,8 @@ for targetIndex = 1:numel(targets)
         normalizedI = regularizedGram \ rhsI;
         normalizedQ = regularizedGram \ rhsQ;
     end
+    comparisonI(1:count, targetIndex) = normalizedI / outputPeak;
+    comparisonQ(1:count, targetIndex) = normalizedQ / outputPeak;
     coefficientsI(1:count, targetIndex) = normalizedI ./ featureNorms;
     coefficientsQ(1:count, targetIndex) = normalizedQ ./ featureNorms;
 end
@@ -245,12 +240,9 @@ for targetIndex = 1:numel(targets)
         fullSignalTarget, fullPredictions(:, targetIndex));
     FLOPsPerSample(targetIndex) = double(cost.FLOPsPerSample);
     count = featureCounts(targetIndex);
-    equivalentCoefficientsI = coefficientsI(1:count, targetIndex) .* ...
-        coefficientScales(1:count);
-    equivalentCoefficientsQ = coefficientsQ(1:count, targetIndex) .* ...
-        coefficientScales(1:count);
     MaxAbsRealParameter(targetIndex) = max(abs([ ...
-        equivalentCoefficientsI; equivalentCoefficientsQ]));
+        comparisonI(1:count, targetIndex); ...
+        comparisonQ(1:count, targetIndex)]));
 end
 
 resultTable = table(Model, TargetRealParameters, ActualRealParameters, ...

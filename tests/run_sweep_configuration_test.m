@@ -17,7 +17,7 @@ assert(cfg.pnnn.sparseBaseHiddenNeurons == 12);
 assert(cfg.pnnn.nnSeed == 42);
 assert(cfg.sweep.schemaVersion == 3);
 assert(cfg.sweep.coefficientRangeDefinition == ...
-    "unit_rms_identification_v1");
+    "unit_peak_io_unit_column_norm_v1");
 assert(cfg.selection.stabilizationWindowParameters == 100);
 assert(cfg.selection.stabilizationToleranceDb == 0.20);
 assert(isequal(cfg.selection.sensitivityWindowsParameters, [80 100 120]));

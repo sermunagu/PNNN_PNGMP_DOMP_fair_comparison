@@ -69,18 +69,12 @@ identificationPath = selectDOMPSupport(identificationU, ...
 identificationPath = identificationPath(:);
 identificationNorms = sqrt(sum(abs(identificationU).^2, 1)).';
 
-% Express coefficient range for unit-RMS, DC-removed identification I/O.
-inputRMS = sqrt(mean(abs(x(identificationRows)).^2));
-outputRMS = sqrt(mean(abs(y(identificationRows)).^2));
-coefficientScales = zeros(maximumFeatures, 1);
-for featureIndex = 1:maximumFeatures
-    regressor = manager.regPopulation(identificationPath(featureIndex));
-    degree = numel(regressor.X) + numel(regressor.Xconj) + ...
-        numel(regressor.Xenv);
-    coefficientScales(featureIndex) = inputRMS^degree/outputRMS;
-end
+% Unit-peak input gives the same unit-norm columns because its global scale
+% cancels when each homogeneous GMP column is normalized.
+outputPeak = max(abs(y(identificationRows)));
 
 coefficients = complex(zeros(maximumFeatures, numel(targets)));
+comparisonCoefficients = coefficients;
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     support = identificationPath(1:count);
@@ -96,7 +90,9 @@ for targetIndex = 1:numel(targets)
     else
         normalizedCoefficients = (gram + lambda*eye(count)) \ rhs;
     end
-    
+
+    comparisonCoefficients(1:count, targetIndex) = ...
+        normalizedCoefficients / outputPeak;
     coefficients(1:count, targetIndex) = normalizedCoefficients ./ columnNorms;
 end
 
@@ -140,13 +136,12 @@ for targetIndex = 1:numel(targets)
     FullSignalNMSEdB(targetIndex) = nmseComplexDb( ...
         fullSignalTarget, fullPredictions(:, targetIndex));
     FLOPsPerSample(targetIndex) = double(cost.FLOPsPerSample);
-    activeCoefficients = coefficients(1:featureCounts(targetIndex), ...
+    activeCoefficients = comparisonCoefficients( ...
+        1:featureCounts(targetIndex), ...
         targetIndex);
-    equivalentCoefficients = activeCoefficients .* ...
-        coefficientScales(1:featureCounts(targetIndex));
     MaxAbsRealParameter(targetIndex) = max([ ...
-        abs(real(equivalentCoefficients)); ...
-        abs(imag(equivalentCoefficients))]);
+        abs(real(activeCoefficients)); ...
+        abs(imag(activeCoefficients))]);
 end
 
 resultTable = table(Model, TargetRealParameters, ActualRealParameters, ...

@@ -31,7 +31,7 @@ cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
 cfg.sweep.schemaVersion = 3;
-cfg.sweep.coefficientRangeDefinition = "unit_rms_identification_v1";
+cfg.sweep.coefficientRangeDefinition = "unit_peak_io_unit_column_norm_v1";
 cfg.sweep.parameterGrid = 20:10:500;
 cfg.sweep.resume = true;
 cfg.sweep.candidateBlockSize = 2048;

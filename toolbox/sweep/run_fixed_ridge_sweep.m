@@ -30,24 +30,19 @@ identificationTarget = y(identificationRows);
 fullSignalTarget = y(fullSignalRows);
 targetEnergyIdentification = sum(abs(identificationTarget).^2);
 targetEnergyFull = sum(abs(fullSignalTarget).^2);
-inputRMS = sqrt(mean(abs(x(identificationRows)).^2));
-outputRMS = sqrt(mean(abs(y(identificationRows)).^2));
+outputPeak = max(abs(y(identificationRows)));
 
 %% Complex GMP: normalize, fit all fixed lambdas, and predict
 % The complex column norm is computed once on identification and undone in h.
+% Unit-peak input gives the same unit-norm columns because its global scale
+% cancels when each homogeneous GMP column is normalized.
 fprintf('[Fixed ridge] Building one Complex GMP identification matrix...\n');
 complexSupport = complexPath(1:maximumFeatures);
 identificationU = buildGMPRegressorRows( ...
     x, identificationRows, manager, complexSupport);
 complexColumnNorms = sqrt(sum(abs(identificationU).^2, 1)).';
-complexCoefficientScales = zeros(maximumFeatures, 1);
-for featureIndex = 1:maximumFeatures
-    regressor = manager.regPopulation(complexSupport(featureIndex));
-    degree = numel(regressor.X) + numel(regressor.Xconj) + ...
-        numel(regressor.Xenv);
-    complexCoefficientScales(featureIndex) = inputRMS^degree/outputRMS;
-end
 complexCoefficients = complex(zeros(maximumFeatures, variantCount));
+complexComparisonCoefficients = complexCoefficients;
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
@@ -58,6 +53,8 @@ for targetIndex = 1:numel(targets)
     for lambdaIndex = 1:lambdaCount
         normalizedCoefficients = ...
             (gram + fixedLambdas(lambdaIndex)*eye(count)) \ rhs;
+        complexComparisonCoefficients(1:count, columns(lambdaIndex)) = ...
+            normalizedCoefficients / outputPeak;
         complexCoefficients(1:count, columns(lambdaIndex)) = ...
             normalizedCoefficients ./ columnNorms;
     end
@@ -72,8 +69,8 @@ for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
-        values = complexCoefficients(1:count, columns(lambdaIndex)) .* ...
-            complexCoefficientScales(1:count);
+        values = complexComparisonCoefficients( ...
+            1:count, columns(lambdaIndex));
         complexMaxAbs(columns(lambdaIndex)) = max([ ...
             abs(real(values)); abs(imag(values))]);
     end
@@ -96,14 +93,6 @@ clear identificationU complexCoefficients complexIdentificationPredictions
 fprintf('[Fixed ridge] Building one PN-IQ identification matrix...\n');
 selectedMetadata = linear.pnPathMap(1:maximumFeatures, :);
 pnComplexSupport = unique(selectedMetadata.SourceRegressorIndex, 'stable');
-pnCoefficientScales = zeros(maximumFeatures, 1);
-for featureIndex = 1:maximumFeatures
-    sourceIndex = selectedMetadata.SourceRegressorIndex(featureIndex);
-    regressor = manager.regPopulation(sourceIndex);
-    degree = numel(regressor.X) + numel(regressor.Xconj) + ...
-        numel(regressor.Xenv);
-    pnCoefficientScales(featureIndex) = inputRMS^degree/outputRMS;
-end
 [~, selectedColumns] = ismember( ...
     selectedMetadata.SourceRegressorIndex, pnComplexSupport);
 isQ = selectedMetadata.IsQ;
@@ -172,6 +161,8 @@ rhsI = normalizedFeatures.' * real(normalizedTarget);
 rhsQ = normalizedFeatures.' * imag(normalizedTarget);
 pnCoefficientsI = zeros(maximumFeatures, variantCount);
 pnCoefficientsQ = zeros(maximumFeatures, variantCount);
+pnComparisonI = pnCoefficientsI;
+pnComparisonQ = pnCoefficientsQ;
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
@@ -179,10 +170,16 @@ for targetIndex = 1:numel(targets)
     for lambdaIndex = 1:lambdaCount
         regularizedGram = ...
             prefixGram + fixedLambdas(lambdaIndex)*eye(count);
+        normalizedI = regularizedGram \ rhsI(1:count);
+        normalizedQ = regularizedGram \ rhsQ(1:count);
         pnCoefficientsI(1:count, columns(lambdaIndex)) = ...
-            (regularizedGram \ rhsI(1:count)) ./ featureNorms(1:count);
+            normalizedI ./ featureNorms(1:count);
         pnCoefficientsQ(1:count, columns(lambdaIndex)) = ...
-            (regularizedGram \ rhsQ(1:count)) ./ featureNorms(1:count);
+            normalizedQ ./ featureNorms(1:count);
+        pnComparisonI(1:count, columns(lambdaIndex)) = ...
+            normalizedI / outputPeak;
+        pnComparisonQ(1:count, columns(lambdaIndex)) = ...
+            normalizedQ / outputPeak;
     end
 end
 pnIdentificationNormalized = ...
@@ -200,12 +197,9 @@ for targetIndex = 1:numel(targets)
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
         column = columns(lambdaIndex);
-        equivalentCoefficientsI = pnCoefficientsI(1:count, column) .* ...
-            pnCoefficientScales(1:count);
-        equivalentCoefficientsQ = pnCoefficientsQ(1:count, column) .* ...
-            pnCoefficientScales(1:count);
         pnMaxAbs(column) = max(abs([ ...
-            equivalentCoefficientsI; equivalentCoefficientsQ]));
+            pnComparisonI(1:count, column); ...
+            pnComparisonQ(1:count, column)]));
     end
 end
 

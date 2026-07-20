@@ -40,7 +40,10 @@ files = struct( ...
     'pdf', string(fullfile(directory, name + ".pdf")));
 
 set(figureHandle, 'Color', 'w', 'InvertHardcopy', 'off');
+originalVisible = figureHandle.Visible;
+figureHandle.Visible = 'on';
 savefig(figureHandle, char(files.fig));
+figureHandle.Visible = originalVisible;
 exportgraphics(figureHandle, char(files.png), 'Resolution', 300, ...
     'BackgroundColor', 'white');
 

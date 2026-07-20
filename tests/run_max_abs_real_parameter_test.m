@@ -1,25 +1,22 @@
-% Verify unit-RMS equivalent maxima for linear families and native PNNN.
+% Verify unit-column, unit-peak maxima for linear families and native PNNN.
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
 addpath(fullfile(projectRoot, 'toolbox', 'pnnn', 'pruning'));
 
-complexCoefficients = [3 + 4i; -8 + 2i; 1 - 7i];
-inputRMS = 2;
-outputRMS = 8;
-degrees = [1; 2; 3];
-coefficientScales = inputRMS.^degrees/outputRMS;
-equivalentComplex = complexCoefficients .* coefficientScales;
-complexMaximum = max([abs(real(equivalentComplex)); ...
-    abs(imag(equivalentComplex))]);
-assert(complexMaximum == 7);
-assert(abs(complexMaximum - max(abs(equivalentComplex))) > 0.01);
+normalizedComplex = [3 + 4i; -8 + 2i; 1 - 7i];
+outputPeak = 2;
+comparisonComplex = normalizedComplex / outputPeak;
+complexMaximum = max([abs(real(comparisonComplex)); ...
+    abs(imag(comparisonComplex))]);
+assert(complexMaximum == 4);
+assert(abs(complexMaximum - max(abs(comparisonComplex))) > 0.01);
 
-coefficientsI = [-2; 6; 1];
-coefficientsQ = [4; -9; 3];
-equivalentI = coefficientsI .* coefficientScales;
-equivalentQ = coefficientsQ .* coefficientScales;
-pnMaximum = max(abs([equivalentI; equivalentQ]));
+normalizedI = [-2; 6; 1];
+normalizedQ = [4; -9; 3];
+comparisonI = normalizedI / outputPeak;
+comparisonQ = normalizedQ / outputPeak;
+pnMaximum = max(abs([comparisonI; comparisonQ]));
 assert(pnMaximum == 4.5);
 
 layers = [ ...
@@ -49,11 +46,13 @@ complexSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'fit_complex_gmp_domp.m'));
 pnSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'fit_independent_pniq_domp.m'));
-assert(contains(complexSource, 'inputRMS^degree/outputRMS'));
-assert(contains(complexSource, 'abs(real(equivalentCoefficients))'));
-assert(contains(complexSource, 'abs(imag(equivalentCoefficients))'));
-assert(contains(pnSource, 'selectedMetadata.SourceRegressorIndex'));
-assert(contains(pnSource, 'equivalentCoefficientsI'));
-assert(contains(pnSource, 'equivalentCoefficientsQ'));
+fixedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'run_fixed_ridge_sweep.m'));
+assert(contains(complexSource, 'normalizedCoefficients / outputPeak'));
+assert(contains(complexSource, 'abs(real(activeCoefficients))'));
+assert(contains(complexSource, 'abs(imag(activeCoefficients))'));
+assert(contains(pnSource, 'normalizedI / outputPeak'));
+assert(contains(pnSource, 'normalizedQ / outputPeak'));
+assert(contains(fixedSource, 'normalizedCoefficients / outputPeak'));
 
 fprintf('MAX ABS REAL PARAMETER TEST: PASS\n');

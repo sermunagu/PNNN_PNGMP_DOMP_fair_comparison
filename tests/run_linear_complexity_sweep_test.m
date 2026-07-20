@@ -48,7 +48,14 @@ assert(all(ismember({'SourceRegressorIndex','IsQ'}, ...
     sweep.pnPathMap.Properties.VariableNames)));
 assert(height(sweep.pnPathMap) == numel(sweep.paths.pn));
 
-%% Equivalent coefficients are invariant to global input/output RMS scaling
+%% Coefficient ranges match an explicit unit-peak, unit-column construction
+[explicitComplex, explicitPN] = explicitCoefficientRanges( ...
+    x, y, split, cfg, sweep);
+assert(all(abs(explicitComplex - ...
+    sweep.complexTable.MaxAbsRealParameter) < 1e-9));
+assert(all(abs(explicitPN - sweep.pnTable.MaxAbsRealParameter) < 1e-9));
+
+%% Equivalent coefficients are invariant to global input/output scaling
 inputScale = 1.7;
 outputScale = 0.6;
 scaledSweep = run_linear_sweep(inputScale*x, outputScale*y, split, cfg);
@@ -80,3 +87,64 @@ assert(all(abs(scaledSweep.predictions.pnFull - ...
     outputScale*sweep.predictions.pnFull) < 1e-8, 'all'));
 
 fprintf('LINEAR COMPLEXITY SWEEP TEST: PASS\n');
+
+function [complexRanges, pnRanges] = explicitCoefficientRanges( ...
+    x, y, split, cfg, sweep)
+rows = split.identificationIndices(:);
+xNormalized = x / max(abs(x(rows)));
+yNormalized = y / max(abs(y(rows)));
+manager = GMP_createRegressorManager(xNormalized, yNormalized, cfg.gmp);
+targets = cfg.sweep.parameterGrid(:);
+complexRanges = zeros(numel(targets), 1);
+pnRanges = zeros(numel(targets), 1);
+
+for targetIndex = 1:numel(targets)
+    count = targets(targetIndex)/2;
+    support = sweep.paths.complex(1:count);
+    regressors = buildGMPRegressorRows( ...
+        xNormalized, rows, manager, support);
+    regressors = regressors ./ vecnorm(regressors, 2, 1);
+    coefficients = fitUnitColumns(regressors, yNormalized(rows), ...
+        sweep.complexTable.SelectedLambda(targetIndex));
+    complexRanges(targetIndex) = max([ ...
+        abs(real(coefficients)); abs(imag(coefficients))]);
+
+    metadata = sweep.pnPathMap(1:count, :);
+    complexSupport = unique(metadata.SourceRegressorIndex, 'stable');
+    complexRegressors = buildGMPRegressorRows( ...
+        xNormalized, rows, manager, complexSupport);
+    rotation = complex(ones(numel(rows), 1));
+    nonzero = abs(xNormalized(rows)) ~= 0;
+    rotation(nonzero) = conj(xNormalized(rows(nonzero))) ./ ...
+        abs(xNormalized(rows(nonzero)));
+    phaseNormalized = rotation .* complexRegressors;
+    [~, sourceColumns] = ismember( ...
+        metadata.SourceRegressorIndex, complexSupport);
+    features = zeros(numel(rows), count);
+    for featureIndex = 1:count
+        values = phaseNormalized(:, sourceColumns(featureIndex));
+        if metadata.IsQ(featureIndex)
+            features(:, featureIndex) = imag(values);
+        else
+            features(:, featureIndex) = real(values);
+        end
+    end
+    features = features ./ vecnorm(features, 2, 1);
+    target = rotation .* yNormalized(rows);
+    coefficientsI = fitUnitColumns(features, real(target), ...
+        sweep.pnTable.SelectedLambda(targetIndex));
+    coefficientsQ = fitUnitColumns(features, imag(target), ...
+        sweep.pnTable.SelectedLambda(targetIndex));
+    pnRanges(targetIndex) = max(abs([coefficientsI; coefficientsQ]));
+end
+end
+
+function coefficients = fitUnitColumns(regressors, target, lambda)
+if lambda == 0
+    tolerance = max(size(regressors))*eps(norm(regressors, 2));
+    coefficients = lsqminnorm(regressors, target, tolerance);
+else
+    coefficients = (regressors'*regressors + ...
+        lambda*eye(size(regressors, 2))) \ (regressors'*target);
+end
+end
