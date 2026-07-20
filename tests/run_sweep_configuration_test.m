@@ -16,10 +16,16 @@ assert(isequal(cfg.pnnn.orders, [1 3 5 7]));
 assert(cfg.pnnn.sparseBaseHiddenNeurons == 12);
 assert(cfg.pnnn.nnSeed == 42);
 assert(cfg.sweep.schemaVersion == 3);
+assert(cfg.sweep.coefficientRangeDefinition == ...
+    "unit_rms_identification_v1");
 assert(cfg.selection.stabilizationWindowParameters == 100);
 assert(cfg.selection.stabilizationToleranceDb == 0.20);
 assert(isequal(cfg.selection.sensitivityWindowsParameters, [80 100 120]));
 assert(isequal(cfg.selection.sensitivityTolerancesDb, [0.15 0.20 0.25]));
 assert(~isfield(cfg.selection, 'criterionName'));
+
+runnerSource = fileread(fullfile(projectRoot, 'run_parameter_sweep.m'));
+assert(contains(runnerSource, 'hasLinearCoefficientDefinition'));
+assert(contains(runnerSource, 'hasFixedCoefficientDefinition'));
 
 fprintf('SWEEP CONFIGURATION TEST: PASS\n');

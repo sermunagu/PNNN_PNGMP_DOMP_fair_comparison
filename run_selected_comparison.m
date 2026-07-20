@@ -215,6 +215,13 @@ completeTableFile = fullfile(selectedDirectory, ...
 writetable(completeComparisonTable, completeTableFile);
 results.completeComparisonTableFile = string(completeTableFile);
 exportOptions = struct('latexmkCommand', cfg.paper.latexmkCommand);
+[timeDomainFigureFiles, timeDomainWindow] = ...
+    exportSelectedTimeDomainFigures(targetFullSignal, complexPrediction, ...
+    pnPrediction, selectedDirectory, exportOptions);
+results.timeDomainFigureFiles = timeDomainFigureFiles;
+results.timeDomainRealFigure = timeDomainFigureFiles.real.png;
+results.timeDomainImaginaryFigure = timeDomainFigureFiles.imaginary.png;
+results.timeDomainWindow = timeDomainWindow;
 figureFiles = exportSelectedSpectrumFigures(spectrum, selectedDirectory, ...
     fixedLambdas, exportOptions);
 results.spectrumFigureFiles = figureFiles;
@@ -302,4 +309,113 @@ for model = models.'
         rows = [rows; value(match,:)]; %#ok<AGROW>
     end
 end
+end
+
+function [files, window] = exportSelectedTimeDomainFigures( ...
+    target, complexPrediction, pnPrediction, directory, exportOptions)
+% Export deterministic central time-domain views for the two linear models.
+
+target = target(:);
+complexPrediction = complexPrediction(:);
+pnPrediction = pnPrediction(:);
+sampleCount = numel(target);
+if numel(complexPrediction) ~= sampleCount || ...
+        numel(pnPrediction) ~= sampleCount
+    error('run_selected_comparison:TimeDomainLengthMismatch', ...
+        'The measured and linear-model signals must have equal lengths.');
+end
+
+windowLength = min(1000, sampleCount);
+firstSample = floor((sampleCount - windowLength)/2) + 1;
+lastSample = firstSample + windowLength - 1;
+indices = (firstSample:lastSample).';
+signals = [target(indices), complexPrediction(indices), pnPrediction(indices)];
+
+window = struct('firstAlignedSample', firstSample, ...
+    'lastAlignedSample', lastSample, 'sampleCount', windowLength);
+files = struct();
+files.real = exportOneTimeDomainFigure(indices, signals, 'real', ...
+    fullfile(directory, 'selected_time_domain_real'), exportOptions);
+files.imaginary = exportOneTimeDomainFigure(indices, signals, 'imaginary', ...
+    fullfile(directory, 'selected_time_domain_imaginary'), exportOptions);
+end
+
+function files = exportOneTimeDomainFigure(sampleIndices, signals, component, ...
+    baseFilename, exportOptions)
+style = getIEEEPaperStyle();
+figureHandle = figure('Visible', 'off', 'Color', 'w', ...
+    'Units', 'inches', 'Position', [1 1 7.16 4.6]);
+cleanup = onCleanup(@() close(figureHandle));
+layout = tiledlayout(figureHandle, 1, 2, ...
+    'TileSpacing', 'compact', 'Padding', 'compact');
+layout.OuterPosition = [0 0.22 1 0.74];
+
+leftAxes = nexttile(layout);
+legendLines = plotTimeDomainPanel(leftAxes, sampleIndices, abs(signals), ...
+    style);
+title(leftAxes, '(a) Magnitude', 'Interpreter', 'none', ...
+    'FontSize', style.fontSize, 'FontWeight', 'normal');
+ylabel(leftAxes, 'Magnitude');
+
+rightAxes = nexttile(layout);
+if component == "real"
+    componentValues = real(signals);
+    componentTitle = '(b) Real part';
+    componentLabel = 'Real part';
+else
+    componentValues = imag(signals);
+    componentTitle = '(b) Imaginary part';
+    componentLabel = 'Imaginary part';
+end
+plotTimeDomainPanel(rightAxes, sampleIndices, componentValues, style);
+title(rightAxes, componentTitle, 'Interpreter', 'none', ...
+    'FontSize', style.fontSize, 'FontWeight', 'normal');
+ylabel(rightAxes, componentLabel);
+
+labels = ["Measured output", "Complex GMP", "PN-IQ"];
+legendHandle = legend(leftAxes, legendLines, labels, ...
+    'Orientation', 'horizontal', 'NumColumns', 3, ...
+    'Interpreter', 'none', 'FontName', style.fontName, ...
+    'FontSize', style.fontSize - 1);
+legendHandle.Units = 'normalized';
+legendHandle.Position = [0.10 0.03 0.80 0.10];
+legendHandle.Units = 'pixels';
+axesHandles = findobj(figureHandle, 'Type', 'axes');
+for axesIndex = 1:numel(axesHandles)
+    axesHandles(axesIndex).Units = 'pixels';
+end
+
+markerStep = max(1, floor(numel(sampleIndices)/14));
+exportOptions.tikzExtraAxisOptions = { ...
+    'legend columns=3', ...
+    'legend style={at={(1.1,-0.22)},anchor=north}', ...
+    sprintf('every axis plot/.append style={mark repeat=%d}', markerStep)};
+exportOptions.figureHeight = '4.6in';
+files = exportPaperFigure(figureHandle, baseFilename, exportOptions);
+clear cleanup;
+end
+
+function lines = plotTimeDomainPanel(axesHandle, sampleIndices, values, style)
+hold(axesHandle, 'on');
+markerIndices = unique([1:max(1, floor(numel(sampleIndices)/14)): ...
+    numel(sampleIndices), numel(sampleIndices)]);
+lines = gobjects(3, 1);
+lines(1) = plot(axesHandle, sampleIndices, values(:, 1), ...
+    'Color', style.targetGray, 'LineStyle', '-', ...
+    'LineWidth', style.targetLineWidth);
+for familyIndex = 1:2
+    lines(familyIndex + 1) = plot(axesHandle, sampleIndices, ...
+        values(:, familyIndex + 1), ...
+        'Color', style.mainColors(familyIndex, :), ...
+        'LineStyle', style.mainLineStyles{familyIndex}, ...
+        'Marker', style.mainMarkers{familyIndex}, ...
+        'MarkerIndices', markerIndices, ...
+        'MarkerSize', style.markerSize - 1, ...
+        'LineWidth', style.mainLineWidth);
+end
+grid(axesHandle, 'on');
+box(axesHandle, 'on');
+xlabel(axesHandle, 'Aligned full-signal sample');
+set(axesHandle, 'FontName', style.fontName, ...
+    'FontSize', style.fontSize, 'LineWidth', style.axisLineWidth);
 end

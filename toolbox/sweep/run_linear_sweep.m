@@ -19,8 +19,8 @@ pnModel = fit_independent_pniq_domp(x, y, split, cfg, manager, population);
 sweep.complexTable = complexModel.table;
 sweep.pnTable = pnModel.table;
 sweep.paths = struct('complex', complexModel.path, 'pn', pnModel.path);
-sweep.predictions = struct( ...
-    'complexFull', complexModel.fullPredictions, ...
-    'pnFull', pnModel.fullPredictions);
+sweep.predictions = struct('complexFull', complexModel.fullPredictions, 'pnFull', pnModel.fullPredictions);
 sweep.pnPathMap = pnModel.pnPathMap;
+sweep.coefficientRangeDefinition = ...
+    string(cfg.sweep.coefficientRangeDefinition);
 end

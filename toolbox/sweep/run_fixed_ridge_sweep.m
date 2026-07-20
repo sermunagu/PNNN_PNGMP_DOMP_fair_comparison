@@ -30,6 +30,8 @@ identificationTarget = y(identificationRows);
 fullSignalTarget = y(fullSignalRows);
 targetEnergyIdentification = sum(abs(identificationTarget).^2);
 targetEnergyFull = sum(abs(fullSignalTarget).^2);
+inputRMS = sqrt(mean(abs(x(identificationRows)).^2));
+outputRMS = sqrt(mean(abs(y(identificationRows)).^2));
 
 %% Complex GMP: normalize, fit all fixed lambdas, and predict
 % The complex column norm is computed once on identification and undone in h.
@@ -38,6 +40,13 @@ complexSupport = complexPath(1:maximumFeatures);
 identificationU = buildGMPRegressorRows( ...
     x, identificationRows, manager, complexSupport);
 complexColumnNorms = sqrt(sum(abs(identificationU).^2, 1)).';
+complexCoefficientScales = zeros(maximumFeatures, 1);
+for featureIndex = 1:maximumFeatures
+    regressor = manager.regPopulation(complexSupport(featureIndex));
+    degree = numel(regressor.X) + numel(regressor.Xconj) + ...
+        numel(regressor.Xenv);
+    complexCoefficientScales(featureIndex) = inputRMS^degree/outputRMS;
+end
 complexCoefficients = complex(zeros(maximumFeatures, variantCount));
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
@@ -63,23 +72,21 @@ for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
-        values = complexCoefficients(1:count, columns(lambdaIndex));
+        values = complexCoefficients(1:count, columns(lambdaIndex)) .* ...
+            complexCoefficientScales(1:count);
         complexMaxAbs(columns(lambdaIndex)) = max([ ...
             abs(real(values)); abs(imag(values))]);
     end
 end
 
 complexFullError = zeros(1, variantCount);
-storedComplexFullPredictions = ...
-    complex(zeros(numel(fullSignalRows), numel(storedColumns)));
+storedComplexFullPredictions = complex(zeros(numel(fullSignalRows), numel(storedColumns)));
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullSignalRows));
-    U = buildGMPRegressorRows( ...
-        x, fullSignalRows(local), manager, complexSupport);
+    U = buildGMPRegressorRows(x, fullSignalRows(local), manager, complexSupport);
     prediction = U * complexCoefficients;
     storedComplexFullPredictions(local, :) = prediction(:, storedColumns);
-    complexFullError = complexFullError + ...
-        sum(abs(prediction - fullSignalTarget(local)).^2, 1);
+    complexFullError = complexFullError + sum(abs(prediction - fullSignalTarget(local)).^2, 1);
 end
 complexFullNMSE = 10*log10(complexFullError(:)/targetEnergyFull);
 clear identificationU complexCoefficients complexIdentificationPredictions
@@ -89,6 +96,14 @@ clear identificationU complexCoefficients complexIdentificationPredictions
 fprintf('[Fixed ridge] Building one PN-IQ identification matrix...\n');
 selectedMetadata = linear.pnPathMap(1:maximumFeatures, :);
 pnComplexSupport = unique(selectedMetadata.SourceRegressorIndex, 'stable');
+pnCoefficientScales = zeros(maximumFeatures, 1);
+for featureIndex = 1:maximumFeatures
+    sourceIndex = selectedMetadata.SourceRegressorIndex(featureIndex);
+    regressor = manager.regPopulation(sourceIndex);
+    degree = numel(regressor.X) + numel(regressor.Xconj) + ...
+        numel(regressor.Xenv);
+    pnCoefficientScales(featureIndex) = inputRMS^degree/outputRMS;
+end
 [~, selectedColumns] = ismember( ...
     selectedMetadata.SourceRegressorIndex, pnComplexSupport);
 isQ = selectedMetadata.IsQ;
@@ -185,9 +200,12 @@ for targetIndex = 1:numel(targets)
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
         column = columns(lambdaIndex);
+        equivalentCoefficientsI = pnCoefficientsI(1:count, column) .* ...
+            pnCoefficientScales(1:count);
+        equivalentCoefficientsQ = pnCoefficientsQ(1:count, column) .* ...
+            pnCoefficientScales(1:count);
         pnMaxAbs(column) = max(abs([ ...
-            pnCoefficientsI(1:count, column); ...
-            pnCoefficientsQ(1:count, column)]));
+            equivalentCoefficientsI; equivalentCoefficientsQ]));
     end
 end
 
@@ -279,6 +297,9 @@ MaxAbsRealParameter = [complexMaxAbs; pnMaxAbs];
 fixed.table = table(Model, TargetRealParameters, ActualRealParameters, ...
     FixedLambda, IdentificationNMSEdB, FullSignalNMSEdB, FLOPsPerSample, ...
     MaxAbsRealParameter);
+fixed.table.Properties.UserData = struct( ...
+    'coefficientRangeDefinition', ...
+    string(cfg.sweep.coefficientRangeDefinition));
 if storePredictions
     fixed.predictions = struct( ...
         'complexFull', storedComplexFullPredictions, ...

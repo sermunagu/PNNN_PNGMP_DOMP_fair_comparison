@@ -49,6 +49,13 @@ selectedSource = fileread(fullfile(projectRoot, ...
 assert(contains(selectedSource, 'buildCompleteComparisonTable'));
 assert(contains(selectedSource, 'selected_complete_comparison.csv'));
 assert(contains(selectedSource, "'completeComparisonTable'"));
+assert(contains(selectedSource, 'selected_time_domain_real'));
+assert(contains(selectedSource, 'selected_time_domain_imaginary'));
+assert(contains(selectedSource, 'timeDomainFigureFiles'));
+assert(contains(selectedSource, ...
+    'exportSelectedTimeDomainFigures(targetFullSignal, complexPrediction'));
+assert(contains(selectedSource, ...
+    'pnPrediction, selectedDirectory, exportOptions'));
 assert(~contains(selectedSource, 'bestPNNNParameters'));
 
 clear cleanup;

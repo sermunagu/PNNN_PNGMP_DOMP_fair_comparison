@@ -6,8 +6,7 @@ function result = run_parameter_sweep(parameterGrid, resultsRoot)
 %% Configure the experiment
 projectRoot = fileparts(mfilename('fullpath'));
 addpath(fullfile(projectRoot, 'config'));
-for folder = ["complexity","domp","metrics","pn_gmp_comparison", ...
-        "pnnn","pnnn/pruning","splits","sweep"]
+for folder = ["complexity","domp","metrics","pn_gmp_comparison", "pnnn","pnnn/pruning","splits","sweep"]
     addpath(fullfile(projectRoot, 'toolbox', folder));
 end
 
@@ -54,64 +53,73 @@ fprintf('Result directory: %s\n', resultDirectory);
 
 %% Complex GMP and PN-IQ: select paths, fit prefixes, and predict
 linearFile = fullfile(resultDirectory, 'linear_sweep.mat');
+linearNeedsRebuild = ~isfile(linearFile);
+linearWasRebuilt = false;
 
-if ~isfile(linearFile)
-    fprintf('[Linear] Building designs, DOMP paths, fits, and predictions...\n');
-    
-    linear = run_linear_sweep(x, y, split, cfg);
-    checkpointArtifact = struct('sweepIdentity', sweepIdentity, ...
-        'payload', linear);
-    
-    save(linearFile, 'checkpointArtifact', '-v7.3');
-    fprintf('[Linear] Completed.\n');
-
-else
+if ~linearNeedsRebuild
     saved = load(linearFile, 'checkpointArtifact');
     checkpointArtifact = saved.checkpointArtifact;
-    
+
     if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', ...
-            'The linear checkpoint belongs to another experiment.');
+        error('run_parameter_sweep:ExperimentMismatch', 'The linear checkpoint belongs to another experiment.');
     end
     linear = checkpointArtifact.payload;
-    
-    if any(string(linear.complexTable.Model) ~= ...
-            "Complex GMP DOMP sweep") || ...
-            any(string(linear.pnTable.Model) ~= ...
-            "Independent PN-IQ PN-DOMP sweep")
-        error('run_parameter_sweep:FamilyMismatch', 'The linear checkpoint mixes model families.');
+
+    if ~hasLinearCoefficientDefinition(linear, ...
+            cfg.sweep.coefficientRangeDefinition)
+        linearNeedsRebuild = true;
+        fprintf(['[Linear] Checkpoint coefficient-range definition is ' ...
+            'missing or stale; rebuilding linear models only.\n']);
+    else
+        if any(string(linear.complexTable.Model) ~= "Complex GMP DOMP sweep") || ...
+                any(string(linear.pnTable.Model) ~= "Independent PN-IQ PN-DOMP sweep")
+            error('run_parameter_sweep:FamilyMismatch', 'The linear checkpoint mixes model families.');
+        end
+        fprintf('[Linear] Reused matrices, paths, fits, and predictions.\n');
     end
-    fprintf('[Linear] Reused matrices, paths, fits, and predictions.\n');
+end
+
+if linearNeedsRebuild
+    fprintf('[Linear] Building designs, DOMP paths, fits, and predictions...\n');
+    linear = run_linear_sweep(x, y, split, cfg);
+    checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', linear);
+    save(linearFile, 'checkpointArtifact', '-v7.3');
+    linearWasRebuilt = true;
+    fprintf('[Linear] Completed.\n');
 end
 
 %% Fixed Ridge: refit both linear families on the stored supports
 fixedFile = fullfile(resultDirectory, 'fixed_lambda_linear_sweep.mat');
+fixedNeedsRebuild = linearWasRebuilt || ~isfile(fixedFile);
 
-if ~isfile(fixedFile)
-    fixedLinear = run_fixed_ridge_sweep(x, y, split, cfg, linear);
-    fixedResults = fixedLinear.table;
-    checkpointArtifact = struct('sweepIdentity', sweepIdentity, ...
-        'payload', fixedResults);
-    save(fixedFile, 'checkpointArtifact', '-v7.3');
-    fprintf('[Fixed ridge] Completed.\n');
-
-else
+if ~fixedNeedsRebuild
     saved = load(fixedFile, 'checkpointArtifact');
     checkpointArtifact = saved.checkpointArtifact;
-    
+
     if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', ...
-            'The fixed-ridge checkpoint belongs to another experiment.');
+        error('run_parameter_sweep:ExperimentMismatch', 'The fixed-ridge checkpoint belongs to another experiment.');
     end
     fixedResults = checkpointArtifact.payload;
-    
-    if ~isequal(sort(unique(string(fixedResults.Model))), ...
-            sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"]))
-        error('run_parameter_sweep:FamilyMismatch', ...
-            'The fixed-ridge checkpoint mixes model families.');
+
+    if ~hasFixedCoefficientDefinition(fixedResults, ...
+            cfg.sweep.coefficientRangeDefinition)
+        fixedNeedsRebuild = true;
+        fprintf(['[Fixed ridge] Checkpoint coefficient-range definition is ' ...
+            'missing or stale; rebuilding fixed Ridge only.\n']);
+    else
+        if ~isequal(sort(unique(string(fixedResults.Model))), sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"]))
+            error('run_parameter_sweep:FamilyMismatch', 'The fixed-ridge checkpoint mixes model families.');
+        end
+        fprintf('[Fixed ridge] Reused supplementary checkpoint.\n');
     end
-    
-    fprintf('[Fixed ridge] Reused supplementary checkpoint.\n');
+end
+
+if fixedNeedsRebuild
+    fixedLinear = run_fixed_ridge_sweep(x, y, split, cfg, linear);
+    fixedResults = fixedLinear.table;
+    checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', fixedResults);
+    save(fixedFile, 'checkpointArtifact', '-v7.3');
+    fprintf('[Fixed ridge] Completed.\n');
 end
 
 %% Sparse PNNN: prepare or reuse one immutable dense N12 source
@@ -119,12 +127,10 @@ denseFile = fullfile(resultDirectory, 'sweep_dense_source.mat');
 
 if ~isfile(denseFile)
     fprintf('[PNNN] Selecting epochs and fitting one dense N12 source...\n');
-    [denseSource, features, neuralTargets, phaseRotation] = ...
-        prepare_pnnn_dense_source( ...
+    [denseSource, features, neuralTargets, phaseRotation] = prepare_pnnn_dense_source( ...
             x, y, split, cfg, cfg.reducedRealParameterTarget);
 
-    checkpointArtifact = struct('sweepIdentity', sweepIdentity, ...
-        'payload', denseSource);
+    checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', denseSource);
     save(denseFile, 'checkpointArtifact', '-v7.3');
     fprintf('[PNNN] Dense source completed.\n');
 
@@ -133,13 +139,11 @@ else
     checkpointArtifact = saved.checkpointArtifact;
     
     if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', ...
-            'The dense PNNN checkpoint belongs to another experiment.');
+        error('run_parameter_sweep:ExperimentMismatch', 'The dense PNNN checkpoint belongs to another experiment.');
     end
     
     denseSource = checkpointArtifact.payload;
-    [features, neuralTargets, phaseRotation] = buildPhaseNormDataset( ...
-        x, y, cfg.pnnn.M, cfg.pnnn.orders, cfg.pnnn.featMode);
+    [features, neuralTargets, phaseRotation] = buildPhaseNormDataset(x, y, cfg.pnnn.M, cfg.pnnn.orders, cfg.pnnn.featMode);
     features = features.';
     neuralTargets = neuralTargets.';
     phaseRotation = phaseRotation(:);
@@ -160,10 +164,8 @@ for index = 1:numel(targets)
     filename = fullfile(resultDirectory, artifactName);
     
     if ~isfile(filename)
-        point = fit_sparse_pnnn_target(denseSource, target, features, ...
-            neuralTargets, phaseRotation, y, split, cfg);
-        checkpointArtifact = struct('sweepIdentity', sweepIdentity, ...
-            'payload', point);
+        point = fit_sparse_pnnn_target(denseSource, target, features, neuralTargets, phaseRotation, y, split, cfg);
+        checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', point);
         save(filename, 'checkpointArtifact', '-v7.3');
         fprintf('[PNNN %d/%d] Completed.\n', index, numel(targets));
     
@@ -172,21 +174,17 @@ for index = 1:numel(targets)
         checkpointArtifact = saved.checkpointArtifact;
         
         if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-            error('run_parameter_sweep:ExperimentMismatch', ...
-                'The sparse PNNN checkpoint belongs to another experiment.');
+            error('run_parameter_sweep:ExperimentMismatch', 'The sparse PNNN checkpoint belongs to another experiment.');
         end
         
         if ~ismember(target, checkpointArtifact.sweepIdentity.parameterGrid)
-            error('run_parameter_sweep:UnsignedTarget', ...
-                'The requested target is not part of the signed grid.');
+            error('run_parameter_sweep:UnsignedTarget', 'The requested target is not part of the signed grid.');
         end
         
         point = checkpointArtifact.payload;
         
-        if point.row.TargetRealParameters ~= target || ...
-                string(point.row.Model) ~= "Sparse PNNN N12"
-            error('run_parameter_sweep:FamilyMismatch', ...
-                'The sparse checkpoint belongs to another target or family.');
+        if point.row.TargetRealParameters ~= target || string(point.row.Model) ~= "Sparse PNNN N12"
+            error('run_parameter_sweep:FamilyMismatch', 'The sparse checkpoint belongs to another target or family.');
         end
         
         fprintf('[PNNN %d/%d] Reused checkpoint.\n', index, numel(targets));
@@ -244,12 +242,16 @@ end
 %% Select the first jointly stabilized minimum-complexity point
 selection = selectOperatingPoint(results, cfg.selection);
 coefficientMetadata = struct( ...
-    'description', "Maximum absolute active real scalar in the model's " + ...
-        "native stored parameterization.", ...
-    'warning', "The metric compares stored numerical dynamic range for " + ...
-        "implementation and quantization. The parameters belong to " + ...
-        "different model parameterizations, so their magnitudes must not " + ...
-        "be interpreted as identical physical gains.");
+    'definition', string(cfg.sweep.coefficientRangeDefinition), ...
+    'description', "Maximum absolute active real scalar in normalized " + ...
+        "input/output parameterization. Linear-family coefficients are " + ...
+        "expressed for unit-RMS DC-removed identification input and output; " + ...
+        "PNNN parameters remain in their z-score-normalized parameterization.", ...
+    'warning', "The metric compares numerical dynamic range for " + ...
+        "implementation and quantization. Linear families use unit-RMS " + ...
+        "identification input/output normalization, whereas PNNN uses its " + ...
+        "z-score parameterization; magnitudes must not be interpreted as " + ...
+        "identical physical gains.");
 warning('run_parameter_sweep:ParameterizationWarning', '%s', ...
     coefficientMetadata.warning);
 fprintf('%s\n', selection.summarySentence);
@@ -287,7 +289,7 @@ figureFiles.nmseFLOPs = plotSweepPaperFigure(results, table(), ...
     nmseOptions);
 fprintf('[Output] Writing coefficient-range figure...\n');
 rangeOptions = struct('metricVariable', 'MaxAbsRealParameter', ...
-    'metricLabel', 'Maximum absolute stored real parameter', ...
+    'metricLabel', 'Maximum absolute real parameter (normalized I/O)', ...
     'includeFixed', true, 'fixedLambdas', cfg.fixedRidgeLambdas, ...
     'useLogWhenPositive', true, 'annotateSelected', false, ...
     'exportOptions', exportOptions);
@@ -424,5 +426,24 @@ end
 function deleteIfPresent(filename)
 if isfile(filename)
     delete(filename);
+end
+end
+
+function matches = hasLinearCoefficientDefinition(payload, expected)
+matches = isstruct(payload) && ...
+    isfield(payload, 'coefficientRangeDefinition');
+if matches
+    definition = string(payload.coefficientRangeDefinition);
+    matches = isscalar(definition) && definition == string(expected);
+end
+end
+
+function matches = hasFixedCoefficientDefinition(value, expected)
+matches = istable(value) && isstruct(value.Properties.UserData) && ...
+    isfield(value.Properties.UserData, 'coefficientRangeDefinition');
+if matches
+    definition = string( ...
+        value.Properties.UserData.coefficientRangeDefinition);
+    matches = isscalar(definition) && definition == string(expected);
 end
 end

@@ -1,19 +1,26 @@
-% Verify native stored-scalar maxima for complex, PN-IQ, and masked PNNN.
+% Verify unit-RMS equivalent maxima for linear families and native PNNN.
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
 addpath(fullfile(projectRoot, 'toolbox', 'pnnn', 'pruning'));
 
 complexCoefficients = [3 + 4i; -8 + 2i; 1 - 7i];
-complexMaximum = max([abs(real(complexCoefficients)); ...
-    abs(imag(complexCoefficients))]);
-assert(complexMaximum == 8);
-assert(abs(complexMaximum - max(abs(complexCoefficients))) > 0.1);
+inputRMS = 2;
+outputRMS = 8;
+degrees = [1; 2; 3];
+coefficientScales = inputRMS.^degrees/outputRMS;
+equivalentComplex = complexCoefficients .* coefficientScales;
+complexMaximum = max([abs(real(equivalentComplex)); ...
+    abs(imag(equivalentComplex))]);
+assert(complexMaximum == 7);
+assert(abs(complexMaximum - max(abs(equivalentComplex))) > 0.01);
 
 coefficientsI = [-2; 6; 1];
 coefficientsQ = [4; -9; 3];
-pnMaximum = max(abs([coefficientsI; coefficientsQ]));
-assert(pnMaximum == 9);
+equivalentI = coefficientsI .* coefficientScales;
+equivalentQ = coefficientsQ .* coefficientScales;
+pnMaximum = max(abs([equivalentI; equivalentQ]));
+assert(pnMaximum == 4.5);
 
 layers = [ ...
     featureInputLayer(2, 'Normalization', 'none', 'Name', 'input')
@@ -42,9 +49,11 @@ complexSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'fit_complex_gmp_domp.m'));
 pnSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'fit_independent_pniq_domp.m'));
-assert(contains(complexSource, 'abs(real(activeCoefficients))'));
-assert(contains(complexSource, 'abs(imag(activeCoefficients))'));
-assert(contains(pnSource, 'coefficientsI(1:count, targetIndex)'));
-assert(contains(pnSource, 'coefficientsQ(1:count, targetIndex)'));
+assert(contains(complexSource, 'inputRMS^degree/outputRMS'));
+assert(contains(complexSource, 'abs(real(equivalentCoefficients))'));
+assert(contains(complexSource, 'abs(imag(equivalentCoefficients))'));
+assert(contains(pnSource, 'selectedMetadata.SourceRegressorIndex'));
+assert(contains(pnSource, 'equivalentCoefficientsI'));
+assert(contains(pnSource, 'equivalentCoefficientsQ'));
 
 fprintf('MAX ABS REAL PARAMETER TEST: PASS\n');
