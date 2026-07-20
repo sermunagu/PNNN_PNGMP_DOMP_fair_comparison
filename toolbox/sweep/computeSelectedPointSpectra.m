@@ -26,9 +26,9 @@ end
 errors = target - predictions;
 fixedErrors = target - fixedPredictions;
 signals = [target, predictions, fixedPredictions, errors, fixedErrors];
-windowLength = min(4096, numel(target));
-overlapLength = floor(windowLength/2);
-nfft = max(4096, 2^nextpow2(windowLength));
+windowLength = min(2048, numel(target));
+overlapLength = floor(0.75*windowLength);
+nfft = 16384;
 window = hann(windowLength, 'periodic');
 [psdLinear, frequencyHz] = pwelch(signals, window, overlapLength, ...
     nfft, sampleRateHz, 'centered', 'psd');

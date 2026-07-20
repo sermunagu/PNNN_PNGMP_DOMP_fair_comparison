@@ -7,7 +7,7 @@ projectRoot = fileparts(fileparts(mfilename('fullpath')));
 addpath(fullfile(projectRoot, 'toolbox', 'sweep'));
 
 rng(817, 'twister');
-n = 1024;
+n = 4096;
 sampleRateHz = 614.4e6;
 time = (0:n-1).'/sampleRateHz;
 target = exp(1j*2*pi*30e6*time) + ...
@@ -31,9 +31,9 @@ assert(all(isfinite(spectrum.fixedOutputPSDdB), 'all'));
 assert(all(isfinite(spectrum.errorPSDdB), 'all'));
 assert(all(isfinite(spectrum.fixedErrorPSDdB), 'all'));
 assert(abs(max(spectrum.outputPSDdB(:, 1))) <= 1e-12);
-assert(spectrum.config.windowLength == n);
-assert(spectrum.config.overlapLength == n/2);
-assert(spectrum.config.nfft == 4096);
+assert(spectrum.config.windowLength == 2048);
+assert(spectrum.config.overlapLength == 1536);
+assert(spectrum.config.nfft == 16384);
 assert(spectrum.config.normalizationReference == ...
     "Maximum target full-signal PSD");
 
