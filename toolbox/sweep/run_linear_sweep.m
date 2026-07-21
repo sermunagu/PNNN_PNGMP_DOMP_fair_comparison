@@ -1,7 +1,7 @@
 function sweep = run_linear_sweep(x, y, split, cfg)
 % run_linear_sweep - Coordinate the two linear model sweeps.
-% Complex GMP and independent PN-IQ share one GMP population and split;
-% each model owns its DOMP paths, fits, predictions, metrics, and costs.
+% Complex GMP and independent PN-IQ share one GMP population; each model
+% owns one identification DOMP path, its prefix fits, predictions, and costs.
 
 x = x(:);
 y = y(:);
@@ -23,4 +23,10 @@ sweep.predictions = struct('complexFull', complexModel.fullPredictions, 'pnFull'
 sweep.pnPathMap = pnModel.pnPathMap;
 sweep.coefficientRangeDefinition = ...
     string(cfg.sweep.coefficientRangeDefinition);
+sweep.linearIdentificationScope = ...
+    string(cfg.sweep.linearIdentificationScope);
+sweep.linearPrincipalLambda = double(cfg.sweep.linearPrincipalLambda);
+sweep.linearLambdaSelection = string(cfg.sweep.linearLambdaSelection);
+sweep.fixedRidgeSupportPolicy = ...
+    string(cfg.sweep.fixedRidgeSupportPolicy);
 end

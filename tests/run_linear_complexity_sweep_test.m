@@ -1,6 +1,5 @@
-% Test nested Complex GMP and genuine PN-DOMP paths on a small fixture.
-% The fixture verifies exact prefixes and validation-only lambda selection.
-% Counters prove that matrices and maximum paths are shared across targets.
+% Test one identification DOMP path and lambda-zero prefix fits per family.
+% The fixture deliberately omits internal split fields from the linear API.
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
@@ -20,8 +19,6 @@ cfg = getFairDOMPComparisonConfig(projectRoot);
 cfg.sweep.parameterGrid = [4 6 8];
 cfg.sweep.candidateBlockSize = 128;
 cfg.gmp.blockSize = 128;
-split.internalTrainIndices = (1:320).';
-split.internalValidationIndices = (321:400).';
 split.identificationIndices = (1:480).';
 split.fullSignalIndices = (1:n).';
 
@@ -32,8 +29,10 @@ assert(isequal(sweep.complexTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
 assert(isequal(sweep.pnTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
-assert(all(ismember(sweep.complexTable.SelectedLambda, cfg.lambdaGrid)));
-assert(all(ismember(sweep.pnTable.SelectedLambda, cfg.lambdaGrid)));
+assert(all(sweep.complexTable.SelectedLambda == 0));
+assert(all(sweep.pnTable.SelectedLambda == 0));
+assert(all(isnan(sweep.complexTable.InternalValidationNMSEdB)));
+assert(all(isnan(sweep.pnTable.InternalValidationNMSEdB)));
 assert(numel(sweep.paths.complex) == max(cfg.sweep.parameterGrid)/2);
 assert(numel(sweep.paths.pn) == max(cfg.sweep.parameterGrid)/2);
 assert(numel(unique(sweep.paths.complex)) == numel(sweep.paths.complex));
@@ -47,6 +46,34 @@ assert(all(sweep.pnTable.MaxAbsRealParameter >= 0));
 assert(all(ismember({'SourceRegressorIndex','IsQ'}, ...
     sweep.pnPathMap.Properties.VariableNames)));
 assert(height(sweep.pnPathMap) == numel(sweep.paths.pn));
+complexPrefixes = cell(numel(cfg.sweep.parameterGrid), 1);
+pnPrefixes = cell(numel(cfg.sweep.parameterGrid), 1);
+for targetIndex = 1:numel(cfg.sweep.parameterGrid)
+    count = cfg.sweep.parameterGrid(targetIndex)/2;
+    complexPrefixes{targetIndex} = sweep.paths.complex(1:count);
+    pnPrefixes{targetIndex} = sweep.paths.pn(1:count);
+end
+for targetIndex = 2:numel(cfg.sweep.parameterGrid)
+    previousCount = numel(complexPrefixes{targetIndex - 1});
+    assert(isequal(complexPrefixes{targetIndex - 1}, ...
+        complexPrefixes{targetIndex}(1:previousCount)));
+    assert(isequal(pnPrefixes{targetIndex - 1}, ...
+        pnPrefixes{targetIndex}(1:previousCount)));
+end
+
+%% Source contract: one DOMP call, no internal split or lambda-grid access
+complexSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'fit_complex_gmp_domp.m'));
+pnSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'fit_independent_pniq_domp.m'));
+for source = string({complexSource, pnSource})
+    sourceText = char(source);
+    assert(isscalar(strfind(sourceText, 'selectDOMPSupport')));
+    assert(~contains(source, 'internalTrainIndices'));
+    assert(~contains(source, 'internalValidationIndices'));
+    assert(~contains(source, 'cfg.lambdaGrid'));
+    assert(contains(source, 'lsqminnorm'));
+end
 
 %% Coefficient ranges match an explicit unit-peak, unit-column construction
 [explicitComplex, explicitPN] = explicitCoefficientRanges( ...
@@ -69,8 +96,7 @@ assert(isequal(scaledSweep.complexTable(:, invariantColumns), ...
     sweep.complexTable(:, invariantColumns)));
 assert(isequal(scaledSweep.pnTable(:, invariantColumns), ...
     sweep.pnTable(:, invariantColumns)));
-nmseColumns = {'InternalValidationNMSEdB','IdentificationNMSEdB', ...
-    'FullSignalNMSEdB'};
+nmseColumns = {'IdentificationNMSEdB','FullSignalNMSEdB'};
 complexNMSE = sweep.complexTable{:, nmseColumns};
 scaledComplexNMSE = scaledSweep.complexTable{:, nmseColumns};
 assert(all(abs(scaledComplexNMSE - complexNMSE) < 1e-8 | ...
@@ -104,8 +130,7 @@ for targetIndex = 1:numel(targets)
     regressors = buildGMPRegressorRows( ...
         xNormalized, rows, manager, support);
     regressors = regressors ./ vecnorm(regressors, 2, 1);
-    coefficients = fitUnitColumns(regressors, yNormalized(rows), ...
-        sweep.complexTable.SelectedLambda(targetIndex));
+    coefficients = fitUnitColumns(regressors, yNormalized(rows));
     complexRanges(targetIndex) = max([ ...
         abs(real(coefficients)); abs(imag(coefficients))]);
 
@@ -131,20 +156,13 @@ for targetIndex = 1:numel(targets)
     end
     features = features ./ vecnorm(features, 2, 1);
     target = rotation .* yNormalized(rows);
-    coefficientsI = fitUnitColumns(features, real(target), ...
-        sweep.pnTable.SelectedLambda(targetIndex));
-    coefficientsQ = fitUnitColumns(features, imag(target), ...
-        sweep.pnTable.SelectedLambda(targetIndex));
+    coefficientsI = fitUnitColumns(features, real(target));
+    coefficientsQ = fitUnitColumns(features, imag(target));
     pnRanges(targetIndex) = max(abs([coefficientsI; coefficientsQ]));
 end
 end
 
-function coefficients = fitUnitColumns(regressors, target, lambda)
-if lambda == 0
-    tolerance = max(size(regressors))*eps(norm(regressors, 2));
-    coefficients = lsqminnorm(regressors, target, tolerance);
-else
-    coefficients = (regressors'*regressors + ...
-        lambda*eye(size(regressors, 2))) \ (regressors'*target);
-end
+function coefficients = fitUnitColumns(regressors, target)
+tolerance = max(size(regressors))*eps(norm(regressors, 2));
+coefficients = lsqminnorm(regressors, target, tolerance);
 end

@@ -125,6 +125,7 @@ if cfg.pnnn.removeDC
 end
 split = buildCommonComparisonSplit(x, y, cfg);
 fullSignalIndices = double(split.fullSignalIndices(:));
+modelInput = x(fullSignalIndices);
 targetFullSignal = y(fullSignalIndices);
 sampleRateHz = resolveMeasurementSampleRate(measurement);
 
@@ -222,6 +223,10 @@ results.timeDomainFigureFiles = timeDomainFigureFiles;
 results.timeDomainRealFigure = timeDomainFigureFiles.real.png;
 results.timeDomainImaginaryFigure = timeDomainFigureFiles.imaginary.png;
 results.timeDomainWindow = timeDomainWindow;
+ampmFigureFiles = exportSelectedAMPMFigure(modelInput, targetFullSignal, ...
+    complexPrediction, pnPrediction, selectedDirectory, exportOptions);
+results.ampmFigureFiles = ampmFigureFiles;
+results.ampmFigure = ampmFigureFiles.png;
 figureFiles = exportSelectedSpectrumFigures(spectrum, selectedDirectory, ...
     fixedLambdas, exportOptions);
 results.spectrumFigureFiles = figureFiles;
@@ -235,6 +240,47 @@ disp(completeComparisonTable);
 fprintf('Complete tutor table: %s\n', completeTableFile);
 fprintf('Reused linear, fixed-ridge, dense N12, and sparse point checkpoints: YES\n');
 fprintf('Selected-point figures: %s\n', selectedDirectory);
+end
+
+function files = exportSelectedAMPMFigure(modelInput, target, ...
+    complexPrediction, pnPrediction, directory, exportOptions)
+% Export the full-signal AM/PM point clouds for the two linear models.
+
+normalizedInputAmplitude = abs(modelInput) / max(abs(modelInput));
+targetAMPM = 180/pi * fase_pmpi(angle(target) - angle(modelInput));
+complexAMPM = 180/pi * fase_pmpi( ...
+    angle(complexPrediction) - angle(modelInput));
+pnAMPM = 180/pi * fase_pmpi(angle(pnPrediction) - angle(modelInput));
+
+style = getIEEEPaperStyle();
+figureHandle = figure('Visible', 'off', 'Color', 'w', ...
+    'Units', 'inches', 'Position', [1 1 7.0 4.2]);
+cleanup = onCleanup(@() close(figureHandle));
+axesHandle = axes(figureHandle);
+plot(axesHandle, normalizedInputAmplitude, targetAMPM, '.', ...
+    'Color', 'k', 'MarkerSize', 6);
+hold(axesHandle, 'on');
+plot(axesHandle, normalizedInputAmplitude, complexAMPM, '.', ...
+    'Color', [0 0.45 0.74], 'MarkerSize', 6);
+plot(axesHandle, normalizedInputAmplitude, pnAMPM, '.', ...
+    'Color', [0.85 0.33 0.10], 'MarkerSize', 6);
+ylabel(axesHandle, 'Phase Shift (deg)');
+xlabel(axesHandle, 'Normalized Input Amplitude');
+legend(axesHandle, 'Measured target', 'Complex GMP', 'PN-IQ-GMP', ...
+    'Location', 'best', 'FontName', style.fontName, ...
+    'FontSize', style.fontSize - 1);
+grid(axesHandle, 'on');
+box(axesHandle, 'on');
+set(axesHandle, 'FontName', style.fontName, ...
+    'FontSize', style.fontSize, 'LineWidth', style.axisLineWidth);
+exportOptions.figureHeight = '4.2in';
+files = exportPaperFigure(figureHandle, ...
+    fullfile(directory, 'selected_ampm'), exportOptions);
+clear cleanup;
+end
+
+function phase = fase_pmpi(phase)
+phase = mod(phase + pi, 2*pi) - pi;
 end
 
 function complete = buildCompleteComparisonTable(mainRows, fixedRows)
@@ -251,7 +297,11 @@ for family = familyOrder
         mainIndex = 3;
     end
     principal = mainRows(mainIndex, :);
-    principalRow = table(family, "Principal / selected lambda", false, ...
+    variant = "Principal / lambda=0";
+    if family == "Sparse PNNN N12"
+        variant = "Principal";
+    end
+    principalRow = table(family, variant, false, ...
         double(principal.SelectedLambda), ...
         double(principal.TargetRealParameters), ...
         double(principal.ActualRealParameters), ...

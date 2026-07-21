@@ -65,7 +65,7 @@ La configuración usa:
 - 10 bins de amplitud;
 - eliminación de DC activa.
 
-La identificación **no es un muestreo aleatorio del 10 %**. `sel_indices` toma un bloque contiguo de aproximadamente el 10 % que contiene el máximo de \(|y|\). Ese bloque se divide después en train/validation equilibrando amplitud: se ordenan las muestras de identificación por \(|y|\), se forman bins y se selecciona aleatoriamente dentro de cada bin.
+La identificación **no es un muestreo aleatorio del 10 %**. `sel_indices` toma un bloque contiguo de aproximadamente el 10 % que contiene el máximo de \(|y|\). El split train/validation equilibrado en amplitud se conserva exclusivamente para seleccionar el entrenamiento y fine-tuning de la PNNN; los modelos lineales usan toda la identificación.
 
 La señal completa son todas las muestras. Por tanto, incluye la identificación y no constituye un holdout independiente.
 
@@ -143,15 +143,15 @@ Cuando \(X\) es real y \(y\) complejo —caso PN-IQ— la correlación es comple
 
 ## 7. Complex GMP-DOMP
 
-### 7.1 Selección interna
+### 7.1 Ruta de identificación
 
-Se construyen matrices complejas GMP en train y validation. Se calcula **una única ruta DOMP máxima de 250 regresores complejos**, correspondiente a 500 parámetros reales. Cada presupuesto usa un prefijo anidado:
+Se construye una matriz compleja GMP sobre toda la identificación. Se calcula **una única ruta DOMP máxima de 250 regresores complejos**, correspondiente a 500 parámetros reales. Cada presupuesto usa un prefijo anidado:
 
 \[
 K=P/2.
 \]
 
-### 7.2 Selección de lambda
+### 7.2 Ajuste principal sin regularización
 
 Para cada prefijo, se normalizan columnas:
 
@@ -166,30 +166,19 @@ Para \(\lambda=0\):
 \widetilde h=\widetilde U^\dagger y
 \]
 
-mediante `lsqminnorm`. Para \(\lambda>0\):
-
-\[
-\widetilde h_\lambda
-=(\widetilde U^H\widetilde U+\lambda I)^{-1}\widetilde U^H y.
-\]
+mediante `lsqminnorm` y una tolerancia de rango robusta.
 
 Los coeficientes físicos son:
 
 \[
-h_\lambda=D^{-1}\widetilde h_\lambda.
+h=D^{-1}\widetilde h.
 \]
 
-Se prueba la rejilla:
+La solución principal usa siempre \(\lambda=0\). `cfg.lambdaGrid` se conserva solo para experimentos auxiliares y no participa en el pipeline lineal canónico.
 
-\[
-\lambda\in\{0,10^{-6},10^{-5},10^{-4},10^{-3},10^{-2}\},
-\]
+### 7.3 Evaluación
 
-y se escoge por NMSE complejo en validation.
-
-### 7.3 Refit final
-
-La ruta DOMP se vuelve a calcular sobre **toda la identificación**. La lambda elegida internamente se mantiene. Cada prefijo se ajusta en identificación y se evalúa sobre identificación y señal completa. La señal completa se procesa por bloques de 8192 muestras.
+Cada prefijo se ajusta una sola vez sobre identificación y se evalúa sobre identificación y señal completa. La señal completa se procesa por bloques de 8192 muestras.
 
 ### 7.4 Parámetros
 
@@ -265,7 +254,7 @@ Sobre el mismo soporte \(\mathcal S\):
 \hat z_Q=F_{\mathcal S}c_Q.
 \]
 
-Las dos salidas usan la misma lambda, seleccionada conjuntamente por el NMSE complejo después de reconstruir la señal:
+Las dos salidas comparten soporte, se ajustan independientemente mediante `lsqminnorm` y usan siempre \(\lambda=0\) en la solución principal:
 
 \[
 \hat z=F_{\mathcal S}c_I+jF_{\mathcal S}c_Q,
@@ -550,7 +539,7 @@ La mejora WL es solo 0.00674 dB. Esto indica que añadir \(U^*\) con coeficiente
 La identidad del sweep incluye:
 
 - firma de la señal y configuración;
-- rejillas de parámetros y lambdas;
+- rejilla de parámetros, lambdas Ridge fijas y protocolo lineal;
 - población GMP;
 - opciones DOMP;
 - configuración PNNN;
@@ -588,8 +577,8 @@ clear; clc; close all force;
 
 ## 20. Respuestas que debes dominar
 
-- DOMP se aplica primero en train interno para obtener una ruta y escoger lambda por validation.
-- Después DOMP se vuelve a ejecutar en toda identificación para el soporte final.
+- Cada familia lineal ejecuta DOMP una sola vez sobre toda identificación.
+- Cada presupuesto usa un prefijo de esa ruta y se ajusta con \(\lambda=0\).
 - DOMP no se aplica a coeficientes: se aplica a columnas candidatas del diccionario.
 - GMP usa un diccionario complejo y objetivo complejo.
 - PN-IQ usa un diccionario real I/Q y objetivo complejo rotado.

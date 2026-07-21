@@ -81,7 +81,7 @@ La configuración principal fija:
 \item train interno: 85\% de identificación;
 \item 10 bins internos de amplitud;
 \item \(Q_p^{\max}=Q_n^{\max}=50\), \(P_{\max}=13\);
-\item rejilla \(\lambda=\{0,10^{-6},10^{-5},10^{-4},10^{-3},10^{-2}\}\);
+\item rejilla auxiliar \(\lambda=\{0,10^{-6},10^{-5},10^{-4},10^{-3},10^{-2}\}\), no usada por el sweep lineal canónico;
 \item presupuestos \(P=20,30,\ldots,500\);
 \item PNNN: \(M=13\), órdenes \(\{1,3,5,7\}\), modo full y \(H=12\);
 \item punto de selección: ventana de 100 parámetros y tolerancia de
@@ -131,7 +131,9 @@ muestra aleatoria de todo el registro.
 
 Sea \(\mathcal I\) la identificación. Se ordena \(\mathcal I\) por
 \(|y[n]|\), se divide en diez bins y se asigna dentro de cada bin el 85\% a
-train y el resto a validation usando una semilla fija.
+train y el resto a validation usando una semilla fija. Este split se usa solo
+para seleccionar entrenamiento y fine-tuning de la PNNN; los modelos lineales
+usan toda \(\mathcal I\).
 
 \subsection{Dominio de evaluación}
 
@@ -274,9 +276,9 @@ Fuente: \code{toolbox/domp/selectDOMPSupport.m}.
 
 \section{Complex GMP-DOMP}
 
-\subsection{Ruta interna}
+\subsection{Ruta de identificación}
 
-Se construyen \(U_{\mathrm{tr}}\) y \(U_{\mathrm{val}}\). DOMP obtiene una ruta
+Se construye \(U\) sobre toda la identificación. DOMP obtiene una única ruta
 máxima de 250 regresores complejos. Para \(P\) parámetros reales:
 
 \[
@@ -314,13 +316,14 @@ Los coeficientes en la matriz física son:
 h_\lambda=D^{-1}\widetilde h_\lambda.
 \]
 
-La lambda se elige por mínimo NMSE complejo en validation.
+La solución principal usa siempre \(\lambda=0\) y se calcula mediante
+\code{lsqminnorm} con tolerancia de rango robusta. La rejilla
+\code{cfg.lambdaGrid} queda reservada a experimentos auxiliares.
 
-\subsection{Refit final}
+\subsection{Evaluación}
 
-La ruta se vuelve a seleccionar desde cero sobre toda identificación. Se
-mantiene la lambda elegida. Se ajustan todos los prefijos y se evalúan en
-identificación y señal completa.
+La única ruta se selecciona sobre toda identificación. Todos sus prefijos se
+ajustan con \(\lambda=0\) y se evalúan en identificación y señal completa.
 
 \subsection{Parámetros}
 
@@ -401,8 +404,8 @@ La predicción rotada y la restauración son:
 \hat y[n]=r^*[n]\hat z[n].
 \]
 
-La lambda es común a los dos ajustes y se selecciona minimizando el NMSE
-complejo tras restaurar la fase.
+El soporte es común a los dos ajustes. Ambos se resuelven independientemente
+mediante \code{lsqminnorm} y usan \(\lambda=0\) en la solución principal.
 
 \subsection{Libertad adicional}
 
@@ -851,7 +854,7 @@ La identidad SHA-256 del sweep incorpora:
 
 \begin{itemize}[leftmargin=*]
 \item firma de experimento;
-\item rejillas de parámetros y lambdas;
+\item rejilla de parámetros, lambdas Ridge fijas y protocolo lineal;
 \item especificación de población GMP;
 \item tolerancia DOMP;
 \item configuración PNNN;
@@ -917,8 +920,8 @@ Sobre columnas candidatas. En GMP, columnas complejas. En PN-IQ, columnas
 reales I/Q. Nunca se aplica sobre los coeficientes ya ajustados.
 
 \subsection*{¿Cuándo se ejecuta DOMP?}
-Una vez en train interno para la ruta usada al seleccionar lambda y otra vez
-en toda identificación para el soporte final.
+Una sola vez por familia lineal sobre toda identificación. Cada presupuesto
+usa un prefijo de esa ruta.
 
 \subsection*{¿Comparten soporte I y Q?}
 Sí. Las dos salidas usan el mismo conjunto de características reales; sus
@@ -987,7 +990,7 @@ Probe WL & \code{run\_widely\_linear\_gmp\_probe.m}\\
 \item[Sparse PNNN N12] Benchmark neural de 12 neuronas ocultas.
 \item[Full-signal NMSE] NMSE sobre todo el registro, incluyendo identificación.
 \item[Identification NMSE] NMSE sobre el bloque del 10\%.
-\item[Internal validation] Subconjunto de identificación usado solo para selección.
+\item[Internal validation] Subconjunto de identificación usado solo por la PNNN.
 \end{description}
 
 \end{document}

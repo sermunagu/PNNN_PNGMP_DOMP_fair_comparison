@@ -64,6 +64,14 @@ linear.pnPathMap = pnFeatureMap(pnPath, :);
 fixed = run_fixed_ridge_sweep(x, y, split, cfg, linear);
 assert(fixed.table.Properties.UserData.coefficientRangeDefinition == ...
     cfg.sweep.coefficientRangeDefinition);
+assert(fixed.table.Properties.UserData.linearIdentificationScope == ...
+    cfg.sweep.linearIdentificationScope);
+assert(fixed.table.Properties.UserData.linearPrincipalLambda == 0);
+assert(fixed.table.Properties.UserData.linearLambdaSelection == "none");
+assert(fixed.table.Properties.UserData.fixedRidgeSupportPolicy == ...
+    cfg.sweep.fixedRidgeSupportPolicy);
+assert(isequal(fixed.paths, linear.paths));
+assert(isequal(fixed.pnPathMap, linear.pnPathMap));
 assert(height(fixed.table) == 18);
 assert(width(fixed.table) == 8);
 assert(isequal(sort(unique(string(fixed.table.Model))), ...
@@ -76,6 +84,12 @@ for model = unique(string(fixed.table.Model)).'
             fixed.table.FixedLambda == lambda;
         assert(nnz(rows) == numel(targets));
     end
+    for target = targets.'
+        rows = string(fixed.table.Model) == model & ...
+            fixed.table.TargetRealParameters == target;
+        assert(isscalar(unique(fixed.table.ActualRealParameters(rows))));
+        assert(isscalar(unique(fixed.table.FLOPsPerSample(rows))));
+    end
 end
 assert(all(isfinite(fixed.table.IdentificationNMSEdB)));
 assert(all(isfinite(fixed.table.FullSignalNMSEdB)));
@@ -87,6 +101,9 @@ assert(all(isfinite(withPredictions.predictions.complexFull), 'all'));
 assert(all(isfinite(withPredictions.predictions.pnFull), 'all'));
 assert(size(withPredictions.predictions.complexFull, 2) == ...
     numel(targets)*numel(cfg.fixedRidgeLambdas));
+fixedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'run_fixed_ridge_sweep.m'));
+assert(~contains(fixedSource, 'selectDOMPSupport'));
 
 %% Fixed Ridge ranges match explicit unit-peak, unit-column fits
 [explicitComplex, explicitPN] = explicitFixedRanges( ...

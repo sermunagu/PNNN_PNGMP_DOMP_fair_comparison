@@ -25,13 +25,19 @@ cfg.gmp.Pmax = 13;
 cfg.gmp.maxPopulation = 100;
 cfg.gmp.blockSize = 8192;
 cfg.gmp.dompOptions = struct('columnTolerance', 1e-12);
+% Retained for auxiliary experiments; the canonical linear sweep ignores it.
 cfg.lambdaGrid = [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2];
 cfg.fixedRidgeLambdas = [1e-3 1e-4 1e-5];
 cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
-cfg.sweep.schemaVersion = 3;
+cfg.sweep.schemaVersion = 4;
 cfg.sweep.coefficientRangeDefinition = "unit_peak_io_unit_column_norm_v1";
+cfg.sweep.linearIdentificationScope = "complete identification subset";
+cfg.sweep.linearPrincipalLambda = 0;
+cfg.sweep.linearLambdaSelection = "none";
+cfg.sweep.fixedRidgeSupportPolicy = ...
+    "reuse principal identification DOMP path";
 cfg.sweep.parameterGrid = 20:10:500;
 cfg.sweep.resume = true;
 cfg.sweep.candidateBlockSize = 2048;
