@@ -1,11 +1,12 @@
-function counts = summarizeTrainableParameters(net, masks)
-% summarizeTrainableParameters - Count total and active PNNN weights/biases.
+function counts = summarizeTrainableParameters(network, masks)
+% summarizeTrainableParameters - Count total and active PNNN parameters.
 
-learnables = net.Learnables;
+learnables = network.Learnables;
 if nargin < 2
     masks = cell(height(learnables), 1);
     for row = 1:height(learnables)
-        masks{row} = true(size(learnableToNumeric(learnables.Value{row})));
+        masks{row} = true(size(learnableToNumeric( ...
+            learnables.Value{row})));
     end
 end
 
@@ -18,7 +19,7 @@ for row = 1:height(learnables)
     mask = logical(masks{row});
     if ~isequal(size(mask), size(data))
         error('summarizeTrainableParameters:MaskSizeMismatch', ...
-            'Each learnable mask must match its stored parameter array.');
+            'Each learnable mask must match its parameter array.');
     end
     total = numel(data);
     active = nnz(mask);

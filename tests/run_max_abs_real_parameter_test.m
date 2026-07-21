@@ -2,7 +2,7 @@
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
-addpath(fullfile(projectRoot, 'toolbox', 'pnnn', 'pruning'));
+addpath(fullfile(projectRoot, 'toolbox', 'pnnn'));
 
 normalizedComplex = [3 + 4i; -8 + 2i; 1 - 7i];
 outputPeak = 2;

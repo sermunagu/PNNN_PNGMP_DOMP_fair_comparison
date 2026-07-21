@@ -513,9 +513,8 @@ t[n]=
 Por ello, el modo full contiene una entrada estructuralmente cero y una
 duplicación con el término de envolvente de orden uno del tap actual.
 
-Fuentes:
-\code{toolbox/pnnn/buildPhaseNormInput.m} y
-\code{buildPhaseNormDataset.m}.
+Fuente:
+\code{toolbox/pnnn/buildPhaseNormDataset.m}.
 
 \section{Arquitectura y entrenamiento PNNN}
 
@@ -563,11 +562,8 @@ Tras seleccionar la época, se reinicia la red con la misma semilla y se
 entrena desde cero sobre toda identificación. Las estadísticas z-score se
 recalculan en identificación.
 
-Fuentes:
-\code{fitFairPNNNDenseValidation.m},
-\code{refitFairPNNNDense.m},
-\code{scalePNNNTrainingBudget.m} y
-\code{buildFairPNNNLayers.m}.
+Fuente:
+\code{prepare\_pnnn\_dense\_source.m}.
 
 \section{Pruning PNNN}
 
@@ -606,9 +602,7 @@ Las máscaras, antes de fine-tuning, son prefijos por magnitud de una misma
 fuente; las redes finales se optimizan de forma independiente.
 
 Fuentes:
-\code{createMagnitudePruningMasks.m},
-\code{fineTunePrunedNetwork.m},
-\code{refitFairPNNNSparse.m} y
+\code{pruneAndFineTunePNNN.m} y
 \code{fit\_sparse\_pnnn\_target.m}.
 
 \section{Predicción PNNN}
@@ -963,14 +957,10 @@ DOMP & \code{toolbox/domp/selectDOMPSupport.m}\\
 Complex GMP & \code{toolbox/sweep/fit\_complex\_gmp\_domp.m}\\
 PN-IQ & \code{toolbox/sweep/fit\_independent\_pniq\_domp.m}\\
 Ridge & \code{toolbox/sweep/run\_fixed\_ridge\_sweep.m}\\
-Features PNNN & \code{buildPhaseNormInput.m}, \code{buildPhaseNormDataset.m}\\
-Arquitectura & \code{buildFairPNNNLayers.m}\\
-Normalización & \code{computePNNNNormalization.m}\\
-Dense validation & \code{fitFairPNNNDenseValidation.m}\\
-Dense refit & \code{refitFairPNNNDense.m}\\
-Máscaras & \code{createMagnitudePruningMasks.m}\\
-Fine-tuning & \code{fineTunePrunedNetwork.m}\\
-Sparse refit & \code{refitFairPNNNSparse.m}\\
+Features PNNN & \code{buildPhaseNormDataset.m}\\
+Fuente densa y normalización & \code{prepare\_pnnn\_dense\_source.m}\\
+Máscaras y fine-tuning & \code{pruneAndFineTunePNNN.m}\\
+Sparse refit & \code{fit\_sparse\_pnnn\_target.m}\\
 Predicción & \code{predictPhaseNorm.m}\\
 NMSE & \code{nmseComplexDb.m}\\
 Complejidad & \code{countModelOperations.m}, \code{countModelFLOPs.m}\\
