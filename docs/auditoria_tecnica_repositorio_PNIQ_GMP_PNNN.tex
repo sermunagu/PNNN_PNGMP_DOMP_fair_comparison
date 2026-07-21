@@ -1,0 +1,993 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{margin=1.8cm}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,longtable,array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\usepackage{siunitx}
+
+\definecolor{codegray}{gray}{0.96}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codegray},
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  showstringspaces=false
+}
+
+\newcommand{\repo}{\texttt{PNNN\_PNGMP\_DOMP\_fair\_comparison}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+
+\title{Especificación matemática y auditoría de implementación\\
+del pipeline Complex GMP--PN-IQ-GMP--Sparse PNNN}
+\author{Documento interno previo a la redacción del paper}
+\date{Commit \texttt{675687dc9b5a4b5c603a533f8b39ef5a53413eac}}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Objetivo y alcance}
+
+Este documento describe, en orden de ejecución y con correspondencia entre
+código y matemáticas, el pipeline científico canónico del repositorio \repo.
+Su finalidad es que los autores puedan justificar cada decisión durante la
+redacción y la defensa del trabajo.
+
+La auditoría cubre el código propio invocado por
+\code{main\_sweep\_and\_comparison.m}, la generación de resultados, el
+experimento widely-linear auxiliar y las pruebas directamente relacionadas.
+El submódulo externo \code{third\_party/matlab2tikz} se trata como dependencia
+y no se audita línea por línea. Los ficheros MAT binarios se consideran
+artefactos de entrada o checkpoint; se auditan sus contratos de uso.
+
+\section{Arquitectura del repositorio}
+
+El punto de entrada es \code{main\_sweep\_and\_comparison.m}. La ejecución
+canónica se organiza en:
+
+\begin{enumerate}[leftmargin=*]
+\item configuración central en \code{config/getFairDOMPComparisonConfig.m};
+\item carga, preprocesado y split común;
+\item barrido Complex GMP y PN-IQ-GMP;
+\item referencias Fixed Ridge;
+\item entrenamiento denso y pruning PNNN;
+\item selección del punto operativo;
+\item evaluación detallada y exportación de figuras.
+\end{enumerate}
+
+El código externo de matlab2tikz se incorpora mediante submódulo. Los MAT se
+gestionan mediante Git LFS.
+
+\section{Configuración canónica}
+
+La configuración principal fija:
+
+\begin{itemize}[leftmargin=*]
+\item mapeo local \code{xy\_forward};
+\item identificación: 10\% de la señal;
+\item train interno: 85\% de identificación;
+\item 10 bins internos de amplitud;
+\item \(Q_p^{\max}=Q_n^{\max}=50\), \(P_{\max}=13\);
+\item rejilla \(\lambda=\{0,10^{-6},10^{-5},10^{-4},10^{-3},10^{-2}\}\);
+\item presupuestos \(P=20,30,\ldots,500\);
+\item PNNN: \(M=13\), órdenes \(\{1,3,5,7\}\), modo full y \(H=12\);
+\item punto de selección: ventana de 100 parámetros y tolerancia de
+\(0.20\,\mathrm{dB}\).
+\end{itemize}
+
+Fuente: \code{config/getFairDOMPComparisonConfig.m}.
+
+\section{Entrada, mapeo y eliminación de DC}
+
+El fichero de medida aporta dos señales complejas \(x\) e \(y\). Con
+\code{xy\_forward}:
+
+\[
+x_{\mathrm{in}}=x,\qquad y_{\mathrm{out}}=y.
+\]
+
+El comentario del código indica que son variables locales del bloque modelado;
+el nombre no debe reinterpretarse automáticamente como dirección física del PA.
+
+Antes de construir el split se elimina la media de toda la señal:
+
+\[
+x\leftarrow x-\frac{1}{N}\sum_n x[n],\qquad
+y\leftarrow y-\frac{1}{N}\sum_n y[n].
+\]
+
+Fuentes:
+\code{toolbox/pn\_gmp\_comparison/selectXYByMapping.m} y
+\code{run\_parameter\_sweep.m}.
+
+\section{Identificación, train interno, validation y señal completa}
+
+\subsection{Selector de identificación}
+
+La función \code{sel\_indices} localiza:
+
+\[
+n_{\max}=\arg\max_n |y[n]|
+\]
+
+y escoge un bloque contiguo de longitud aproximada \(0.1N\) alineado con
+segmentos de ese tamaño y que contiene el máximo. La identificación no es una
+muestra aleatoria de todo el registro.
+
+\subsection{Split interno equilibrado en amplitud}
+
+Sea \(\mathcal I\) la identificación. Se ordena \(\mathcal I\) por
+\(|y[n]|\), se divide en diez bins y se asigna dentro de cada bin el 85\% a
+train y el resto a validation usando una semilla fija.
+
+\subsection{Dominio de evaluación}
+
+\[
+\mathcal F=\{1,\ldots,N\}.
+\]
+
+Como \(\mathcal I\subset\mathcal F\), la señal completa no es un holdout
+independiente. Debe llamarse full-signal evaluation, no independent test.
+
+Fuente: \code{toolbox/splits/buildCommonComparisonSplit.m}.
+
+\section{Población GMP}
+
+\subsection{Representación genérica del objeto Regressor}
+
+Cada columna se representa mediante tres multisets de retardos:
+
+\[
+\mathcal X_k,\qquad \mathcal X_k^*,\qquad \mathcal E_k.
+\]
+
+La columna es:
+
+\[
+u_k[n]
+=
+\prod_{q\in\mathcal X_k}x[n-q]
+\prod_{q\in\mathcal X_k^*}x^*[n-q]
+\prod_{q\in\mathcal E_k}|x[n-q]|.
+\]
+
+Las repeticiones de un mismo retardo implementan potencias. El método
+\code{deriveEnvelopeTerms} convierte pares \(x[n-q]x^*[n-q]\) en
+\(|x[n-q]|^2\).
+
+\subsection{Familias GMP inicializadas}
+
+Con \(P_{\mathrm{GMP}}=13\), \(L=10\) y \(M=2\):
+
+\[
+u^{(a)}_{k,\ell}[n]
+=x[n-\ell]|x[n-\ell]|^k,
+\quad
+k=0,\ldots,12,\ \ell=0,\ldots,10,
+\]
+
+\[
+u^{(b)}_{k,\ell,m}[n]
+=x[n-\ell]|x[n-\ell-m]|^k,
+\quad
+k=1,\ldots,12,\ m=1,2,
+\]
+
+\[
+u^{(c)}_{k,\ell,m}[n]
+=x[n-\ell]|x[n-\ell+m]|^k.
+\]
+
+El código incluye todos los grados totales del 1 al 13. Después se añaden
+provisionalmente \(x[n]\), \(x^*[n]\) y \(|x[n]|\) y se eliminan duplicados.
+El tamaño esperado es 673 columnas: 671 GMP canónicas y dos auxiliares no
+duplicados.
+
+\subsection{Indexado}
+
+La construcción usada por el sweep aplica extensión periódica:
+
+\[
+x[n-q]=x[((n-q-1)\bmod N)+1].
+\]
+
+Fuente:
+\code{toolbox/pn\_gmp\_comparison/regressorManager.m},
+\code{Regressor.m},
+\code{modelsConfig.m} y
+\code{buildGMPRegressorRows.m}.
+
+\section{Selección DOMP}
+
+\subsection{Entrada y salida}
+
+\code{selectDOMPSupport(X,y,K,\tau)} recibe una matriz candidata \(X\), un
+objetivo real o complejo \(y\), el máximo de componentes y una tolerancia de
+columna.
+
+\subsection{Recurrencia}
+
+Inicialmente:
+
+\[
+Z_0=X,\qquad r_0=y,\qquad\mathcal S_0=\varnothing.
+\]
+
+En la iteración \(t\), para las columnas elegibles:
+
+\[
+\bar z_j=\frac{z_j}{\|z_j\|_2},
+\qquad
+s_j=\|\bar z_j^H r_{t-1}\|_2.
+\]
+
+Se selecciona:
+
+\[
+j_t=\arg\max_j s_j.
+\]
+
+Con \(q=\bar z_{j_t}\), se actualiza:
+
+\[
+Z_t=Z_{t-1}-q(q^H Z_{t-1}).
+\]
+
+Después se ignora la matriz ortogonalizada para el ajuste y se resuelve sobre
+las columnas originales:
+
+\[
+\hat c_t
+=\arg\min_c\|y-X_{\mathcal S_t}c\|_2^2,
+\qquad
+r_t=y-X_{\mathcal S_t}\hat c_t.
+\]
+
+El solver usa QR cuando el rango se considera completo y
+\code{lsqminnorm} en caso contrario.
+
+\subsection{Aclaraciones esenciales}
+
+\begin{itemize}[leftmargin=*]
+\item DOMP selecciona \emph{columnas}, no ``coeficientes''.
+\item Ridge no participa en la selección del soporte.
+\item Complex GMP y PN-IQ tienen rutas DOMP distintas.
+\item Cada ruta máxima se calcula una vez y los presupuestos usan prefijos.
+\item En PN-IQ, \(X\) es real y \(y\) complejo; el módulo de la correlación
+combina ambas componentes de salida.
+\end{itemize}
+
+Fuente: \code{toolbox/domp/selectDOMPSupport.m}.
+
+\section{Complex GMP-DOMP}
+
+\subsection{Ruta interna}
+
+Se construyen \(U_{\mathrm{tr}}\) y \(U_{\mathrm{val}}\). DOMP obtiene una ruta
+máxima de 250 regresores complejos. Para \(P\) parámetros reales:
+
+\[
+K=P/2,\qquad
+\mathcal S_P=\{s_1,\ldots,s_K\}.
+\]
+
+\subsection{Normalización y lambda}
+
+Sea:
+
+\[
+D=\mathrm{diag}(\|u_1\|_2,\ldots,\|u_K\|_2),
+\qquad
+\widetilde U=UD^{-1}.
+\]
+
+Para \(\lambda=0\):
+
+\[
+\widetilde h_0=\widetilde U^\dagger y.
+\]
+
+Para \(\lambda>0\):
+
+\[
+\widetilde h_\lambda
+=(\widetilde U^H\widetilde U+\lambda I)^{-1}
+\widetilde U^H y.
+\]
+
+Los coeficientes en la matriz física son:
+
+\[
+h_\lambda=D^{-1}\widetilde h_\lambda.
+\]
+
+La lambda se elige por mínimo NMSE complejo en validation.
+
+\subsection{Refit final}
+
+La ruta se vuelve a seleccionar desde cero sobre toda identificación. Se
+mantiene la lambda elegida. Se ajustan todos los prefijos y se evalúan en
+identificación y señal completa.
+
+\subsection{Parámetros}
+
+\[
+P_{\mathrm{GMP}}=2K.
+\]
+
+Fuente: \code{toolbox/sweep/fit\_complex\_gmp\_domp.m}.
+
+\section{Modelo PN-IQ-GMP propuesto}
+
+\subsection{Normalización de fase}
+
+\[
+r[n]=
+\begin{cases}
+\dfrac{x^*[n]}{|x[n]|},&|x[n]|\neq0,\\[4pt]
+1,&|x[n]|=0.
+\end{cases}
+\]
+
+El objetivo y cada regresor se expresan en el marco de fase de la entrada:
+
+\[
+z[n]=r[n]y[n],
+\qquad
+\widetilde u_j[n]=r[n]u_j[n].
+\]
+
+\subsection{Diccionario I/Q}
+
+\[
+f_{j,I}[n]=\Re\{\widetilde u_j[n]\},
+\qquad
+f_{j,Q}[n]=\Im\{\widetilde u_j[n]\}.
+\]
+
+Para términos canónicos con portador \(x[n]\), \(f_{j,Q}=0\) y la columna se
+elimina. Los auxiliares se rotan directamente. El resultado es una matriz real
+\(F\).
+
+\subsection{Selección}
+
+DOMP se aplica a \(F_{\mathrm{tr}}\in\R^{N_{\mathrm{tr}}\times J}\) y al
+objetivo complejo \(z_{\mathrm{tr}}\in\C^{N_{\mathrm{tr}}}\). Para un
+presupuesto \(P\):
+
+\[
+M=P/2.
+\]
+
+El soporte contiene \(M\) características reales, no \(M\) regresores
+complejos.
+
+\subsection{Ajuste independiente}
+
+Sobre el mismo soporte:
+
+\[
+\widetilde c_I
+=\arg\min_c
+\|\Re\{z\}-\widetilde F_{\mathcal S}c\|_2^2
++\lambda\|c\|_2^2,
+\]
+
+\[
+\widetilde c_Q
+=\arg\min_c
+\|\Im\{z\}-\widetilde F_{\mathcal S}c\|_2^2
++\lambda\|c\|_2^2.
+\]
+
+La predicción rotada y la restauración son:
+
+\[
+\hat z=F_{\mathcal S}c_I+jF_{\mathcal S}c_Q,
+\qquad
+\hat y[n]=r^*[n]\hat z[n].
+\]
+
+La lambda es común a los dos ajustes y se selecciona minimizando el NMSE
+complejo tras restaurar la fase.
+
+\subsection{Libertad adicional}
+
+Para una columna compleja:
+
+\[
+\widetilde u=a+jb.
+\]
+
+Un coeficiente complejo convencional impone:
+
+\[
+h\widetilde u=h\,a+(jh)\,b.
+\]
+
+Es decir, si se interpreta mediante dos características reales, sus
+coeficientes complejos están ligados:
+
+\[
+g_b=jg_a.
+\]
+
+PN-IQ permite:
+
+\[
+\hat z=g_a a+g_b b,
+\qquad
+g_a,g_b\in\C,
+\]
+
+sin esa restricción, y puede seleccionar \(a\) y \(b\) por separado.
+
+\subsection{Contabilidad}
+
+Cada característica seleccionada tiene un coeficiente para I y otro para Q:
+
+\[
+P_{\mathrm{PN-IQ}}=2M.
+\]
+
+El nombre recomendado es \textbf{PN-IQ-GMP}. DOMP es el método de selección,
+no una variante ``PN-DOMP''.
+
+Fuente: \code{toolbox/sweep/fit\_independent\_pniq\_domp.m} y
+\code{factorizeGMPRegressor.m}.
+
+\section{Fixed Ridge}
+
+Las variantes fijas conservan las rutas DOMP principales y repiten el ajuste
+con:
+
+\[
+\lambda\in\{10^{-3},10^{-4},10^{-5}\}.
+\]
+
+No vuelven a seleccionar soporte. Por contrato, parámetros y FLOPs son los
+mismos que en la fila principal correspondiente. Solo cambian coeficientes,
+NMSE y rango numérico.
+
+Fuente: \code{toolbox/sweep/run\_fixed\_ridge\_sweep.m}.
+
+\section{Dataset PNNN}
+
+\subsection{Características}
+
+Con \(M=13\), se toman:
+
+\[
+x_n=[x[n],x[n-1],\ldots,x[n-13]]
+\]
+
+con extensión periódica. El vector full es:
+
+\[
+\phi[n]=
+\begin{bmatrix}
+\Re\{r[n]x_n\}\\
+\Im\{r[n]x_n\}\\
+|x_n|^1\\
+|x_n|^3\\
+|x_n|^5\\
+|x_n|^7
+\end{bmatrix}
+\in\R^{84}.
+\]
+
+El objetivo es:
+
+\[
+t[n]=
+\begin{bmatrix}
+\Re\{r[n]y[n]\}\\
+\Im\{r[n]y[n]\}
+\end{bmatrix}.
+\]
+
+\subsection{Redundancias explícitas}
+
+\[
+\Im\{r[n]x[n]\}=0,
+\qquad
+\Re\{r[n]x[n]\}=|x[n]|.
+\]
+
+Por ello, el modo full contiene una entrada estructuralmente cero y una
+duplicación con el término de envolvente de orden uno del tap actual.
+
+Fuentes:
+\code{toolbox/pnnn/buildPhaseNormInput.m} y
+\code{buildPhaseNormDataset.m}.
+
+\section{Arquitectura y entrenamiento PNNN}
+
+\subsection{Normalización}
+
+\[
+\bar\phi_d=\frac{\phi_d-\mu_{X,d}}{\sigma_{X,d}},
+\qquad
+\bar t_q=\frac{t_q-\mu_{Y,q}}{\sigma_{Y,q}}.
+\]
+
+Los \(\sigma=0\) se sustituyen por uno.
+
+\subsection{Red}
+
+\[
+h=\sigma(W_1\bar\phi+b_1),
+\qquad
+\bar{\hat t}=W_2h+b_2,
+\]
+
+con \(D=84\), \(H=12\) y salida 2. La activación oculta es sigmoide y la
+salida es lineal.
+
+\[
+P_{\mathrm{dense}}
+=DH+H+2H+2
+=H(D+3)+2
+=1046.
+\]
+
+\subsection{Selección de épocas}
+
+La red densa de selección se entrena con train interno y validation. Se
+conserva la red de menor validation loss y se convierte la iteración óptima en
+épocas.
+
+El número máximo de épocas, el periodo de caída y la paciencia se escalan para
+conservar aproximadamente el número histórico de actualizaciones definido por
+70\% de la señal y 150 épocas.
+
+\subsection{Refit}
+
+Tras seleccionar la época, se reinicia la red con la misma semilla y se
+entrena desde cero sobre toda identificación. Las estadísticas z-score se
+recalculan en identificación.
+
+Fuentes:
+\code{fitFairPNNNDenseValidation.m},
+\code{refitFairPNNNDense.m},
+\code{scalePNNNTrainingBudget.m} y
+\code{buildFairPNNNLayers.m}.
+
+\section{Pruning PNNN}
+
+\subsection{Máscara}
+
+Se ordenan globalmente por magnitud todos los pesos de \(W_1\) y \(W_2\). Los
+sesgos quedan siempre activos. Si el objetivo es \(P\):
+
+\[
+P_{\mathrm{bias}}=12+2=14,
+\qquad
+P_{\mathrm{weights}}=P-14.
+\]
+
+\subsection{Selección de fine-tuning}
+
+La duración de fine-tuning se selecciona una sola vez podando la red interna
+al presupuesto 200. Esa duración se transfiere a todos los puntos finales.
+
+\subsection{Refit sparse}
+
+Cada presupuesto:
+
+\begin{enumerate}[leftmargin=*]
+\item parte de la misma red densa final inmutable;
+\item construye su máscara por magnitud;
+\item aplica máscara a parámetros;
+\item aplica máscara a gradientes;
+\item actualiza con Adam;
+\item reaplica la máscara tras cada actualización;
+\item verifica que los pesos podados siguen en cero;
+\item fine-tunea durante la duración común sobre toda identificación.
+\end{enumerate}
+
+Las máscaras, antes de fine-tuning, son prefijos por magnitud de una misma
+fuente; las redes finales se optimizan de forma independiente.
+
+Fuentes:
+\code{createMagnitudePruningMasks.m},
+\code{fineTunePrunedNetwork.m},
+\code{refitFairPNNNSparse.m} y
+\code{fit\_sparse\_pnnn\_target.m}.
+
+\section{Predicción PNNN}
+
+La salida normalizada se desnormaliza:
+
+\[
+\hat t=\bar{\hat t}\odot\sigma_Y+\mu_Y.
+\]
+
+Se reconstruye:
+
+\[
+\hat z=\hat t_I+j\hat t_Q,
+\qquad
+\hat y[n]=r^*[n]\hat z[n].
+\]
+
+Fuente: \code{toolbox/pnnn/predictPhaseNorm.m}.
+
+\section{Métrica NMSE}
+
+Todos los modelos usan:
+
+\[
+\mathrm{NMSE}_{\mathrm{dB}}
+=10\log_{10}
+\left(
+\frac{\sum_n|y[n]-\hat y[n]|^2}
+{\sum_n|y[n]|^2}
+\right).
+\]
+
+Fuente: \code{toolbox/metrics/nmseComplexDb.m}.
+
+\section{Complejidad}
+
+\subsection{Convención}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Operación & FLOPs\\
+\midrule
+Suma real & 1\\
+Multiplicación real & 1\\
+MAC real & 2\\
+Suma compleja & 2\\
+Multiplicación compleja & 6\\
+MAC complejo & 8\\
+Suma de bias real & 1\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Raíces, divisiones, valores absolutos y activaciones se reportan como
+operaciones especiales sin peso FLOP.
+
+\subsection{Lineales}
+
+\code{countModelOperations} separa generación de características,
+multiplicaciones por coeficientes, acumulación, normalización y restauración de
+fase. PN-IQ usa un schedule structure-aware que reutiliza magnitudes y
+portadores rotados.
+
+\subsection{PNNN}
+
+El coste denso incluye construcción de 84 características, dos capas, biases,
+12 sigmoides y restauración. El coste sparse sustituye el número de pesos
+densos por pesos activos, pero mantiene todo el coste de generación de
+características.
+
+El valor principal sparse presupone que una implementación omite exactamente
+los pesos cero. El \code{predict} MATLAB actual no constituye esa
+implementación sparse.
+
+Fuentes:
+\code{countModelOperations.m},
+\code{countModelFLOPs.m},
+\code{getFLOPConvention.m},
+\code{countPNNNFLOPs.m} y
+\code{countSparsePNNNFLOPs.m}.
+
+\section{Rango de coeficientes}
+
+\subsection{Construcción lineal equivalente}
+
+En identificación se conceptualiza:
+
+\[
+x_u=\frac{x}{\max_{n\in\mathcal I}|x[n]|},
+\qquad
+y_u=\frac{y}{\max_{n\in\mathcal I}|y[n]|}.
+\]
+
+Cada columna se normaliza:
+
+\[
+\bar u_k=\frac{u_k(x_u)}{\|u_k(x_u)\|_2}.
+\]
+
+Se ajustan los coeficientes en esa base. Para GMP:
+
+\[
+C_{\max}^{\mathrm{GMP}}
+=\max_k\big(
+|\Re\{\bar h_k\}|,
+|\Im\{\bar h_k\}|
+\big).
+\]
+
+Para PN-IQ:
+
+\[
+C_{\max}^{\mathrm{PN-IQ}}
+=\max_k\big(
+|\bar c_{I,k}|,
+|\bar c_{Q,k}|
+\big).
+\]
+
+La normalización de entrada es implícita en el código principal, porque el
+factor global de una columna homogénea cancela al dividir por su norma. La
+prueba lineal reconstruye la versión explícita y verifica igualdad.
+
+\subsection{PNNN}
+
+La PNNN reporta:
+
+\[
+C_{\max}^{\mathrm{PNNN}}
+=\max_{\theta_i\ \mathrm{activo}}|\theta_i|
+\]
+
+en la parametrización z-score, incluyendo biases. No es la misma
+parametrización que la de los modelos lineales.
+
+\section{Selección del punto operativo}
+
+Para cada presupuesto \(P\) y familia \(m\):
+
+\[
+G_m(P)=
+\mathrm{NMSE}_m(P)
+-
+\min_{P\le q\le P+100}
+\mathrm{NMSE}_m(q).
+\]
+
+Se selecciona el menor \(P\) con ventana completa para el que:
+
+\[
+G_m(P)\le0.20\,\mathrm{dB}
+\quad\forall m.
+\]
+
+El resultado es \(P=340\).
+
+Fuente: \code{toolbox/sweep/selectOperatingPoint.m}.
+
+\section{Espectros y figuras temporales}
+
+\subsection{Welch}
+
+\[
+e_m[n]=y[n]-\hat y_m[n].
+\]
+
+Todas las señales y errores se procesan conjuntamente con:
+
+\begin{itemize}[leftmargin=*]
+\item Hann periódica, 2048 muestras;
+\item 75\% de solapamiento;
+\item \(N_{\mathrm{FFT}}=16384\);
+\item espectro bilateral centrado;
+\item referencia: máximo de PSD de la salida medida;
+\item suelo numérico: \(-150\,\mathrm{dB}\).
+\end{itemize}
+
+\subsection{Tiempo}
+
+Se seleccionan las 1000 muestras centrales. Se exportan dos figuras:
+
+\begin{enumerate}[leftmargin=*]
+\item magnitud + parte real;
+\item magnitud + parte imaginaria.
+\end{enumerate}
+
+La superposición visual significa que los residuos son pequeños frente a la
+señal, no que los NMSE sean iguales.
+
+Fuentes:
+\code{computeSelectedPointSpectra.m} y
+\code{run\_selected\_comparison.m}.
+
+\section{Widely-linear GMP auxiliar}
+
+El probe construye:
+
+\[
+U_{\mathrm{WL}}=[U,\ U^*]
+\]
+
+y selecciona 170 átomos con DOMP para conservar 340 parámetros reales. No
+forma parte del sweep canónico y fija actualmente el directorio de resultados.
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Modelo & NMSE full-signal & Mejora vs. GMP\\
+\midrule
+Complex GMP & -38.85998 & 0\\
+WL-GMP & -38.86672 & 0.00674\\
+PN-IQ & -42.74017 & 3.88019\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+El resultado muestra que concatenar \(U^*\) no reproduce la ganancia de
+PN-IQ.
+
+\section{Resultados auditados en 340 parámetros}
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Familia & NMSE full-signal & FLOPs/muestra & Máx. escalar\\
+\midrule
+Complex GMP-DOMP & -38.85998 & 1807 & \(6.34896\times10^6\)\\
+PN-IQ-GMP + DOMP & -42.74017 & 1095 & \(4.59256\times10^6\)\\
+Sparse PNNN N12 & -39.24296 & 840 & 2.17243\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+PN-IQ mejora \(3.88019\,\mathrm{dB}\) respecto a GMP. Las referencias Ridge
+reducen el rango numérico lineal a aproximadamente \(86\)--\(132\), con
+pérdida de NMSE.
+
+\section{Checkpoints y reproducibilidad}
+
+La identidad SHA-256 del sweep incorpora:
+
+\begin{itemize}[leftmargin=*]
+\item firma de experimento;
+\item rejillas de parámetros y lambdas;
+\item especificación de población GMP;
+\item tolerancia DOMP;
+\item configuración PNNN;
+\item entrenamiento y pruning.
+\end{itemize}
+
+Los checkpoints lineal, Ridge, denso y sparse se rechazan si la identidad no
+coincide. La red densa se firma además con sus learnables y estadísticas de
+normalización.
+
+\section{Hallazgos y acciones}
+
+\subsection{Crítico: \code{clear} dentro del main}
+
+El main actual comienza con:
+
+\begin{lstlisting}[language=Matlab]
+clear; clc; close all force;
+\end{lstlisting}
+
+\code{clear} elimina las variables del workspace de la función y puede borrar
+el argumento \code{selectedParameters}. Debe quedar, como máximo:
+
+\begin{lstlisting}[language=Matlab]
+clc;
+close all force;
+\end{lstlisting}
+
+o no ejecutar ninguna limpieza dentro de la función.
+
+\subsection{Nombre del método}
+
+Sustituir:
+
+\begin{itemize}[leftmargin=*]
+\item ``PN-DOMP'';
+\item ``PN-IQ PN-DOMP''.
+\end{itemize}
+
+por:
+
+\begin{itemize}[leftmargin=*]
+\item modelo: \textbf{PN-IQ-GMP};
+\item identificación: \textbf{DOMP-based sparse support selection};
+\item leyenda compacta: \textbf{PN-IQ-GMP}.
+\end{itemize}
+
+\subsection{Limitaciones que deben declararse}
+
+\begin{enumerate}[leftmargin=*]
+\item full-signal incluye identificación;
+\item PNNN y lineales no comparten parametrización para \(C_{\max}\);
+\item PNNN sparse FLOPs presupone kernel sparse;
+\item los espacios candidatos difieren;
+\item la PNNN full contiene una entrada cero y una duplicada;
+\item WL probe tiene path de resultados hardcoded.
+\end{enumerate}
+
+\section{Preguntas de defensa y respuestas}
+
+\subsection*{¿Sobre qué se aplica DOMP?}
+Sobre columnas candidatas. En GMP, columnas complejas. En PN-IQ, columnas
+reales I/Q. Nunca se aplica sobre los coeficientes ya ajustados.
+
+\subsection*{¿Cuándo se ejecuta DOMP?}
+Una vez en train interno para la ruta usada al seleccionar lambda y otra vez
+en toda identificación para el soporte final.
+
+\subsection*{¿Comparten soporte I y Q?}
+Sí. Las dos salidas usan el mismo conjunto de características reales; sus
+coeficientes se estiman por separado.
+
+\subsection*{¿La PNNN usa DOMP?}
+No. Se entrena densa y se poda globalmente por magnitud.
+
+\subsection*{¿Los modelos sparse PNNN forman una trayectoria iterativa?}
+No. Todos parten de una misma fuente densa final y se fine-tunean
+independientemente.
+
+\subsection*{¿Por qué PN-IQ es más flexible?}
+Porque elimina la restricción \(g_b=jg_a\) entre los pesos de las componentes
+real e imaginaria de un regressor rotado y permite seleccionarlas por separado.
+
+\subsection*{¿Es independiente el NMSE full-signal?}
+No. Incluye identificación.
+
+\subsection*{¿Los FLOPs son tiempo de ejecución?}
+No. Son cuentas analíticas de sumas y multiplicaciones bajo una convención
+fija; las operaciones especiales quedan separadas.
+
+\appendix
+\section{Mapa código--concepto}
+
+\begin{longtable}{p{0.38\textwidth}p{0.55\textwidth}}
+\toprule
+Concepto & Implementación\\
+\midrule
+Configuración & \code{config/getFairDOMPComparisonConfig.m}\\
+Entrada canónica & \code{main\_sweep\_and\_comparison.m}\\
+Pipeline & \code{run\_parameter\_sweep.m}\\
+Split & \code{toolbox/splits/buildCommonComparisonSplit.m}\\
+Selector 10\% & \code{toolbox/pn\_gmp\_comparison/sel\_indices.m}\\
+Población GMP & \code{GMP\_createRegressorManager.m}, \code{regressorManager.m}\\
+Evaluación GMP & \code{buildGMPRegressorRows.m}\\
+DOMP & \code{toolbox/domp/selectDOMPSupport.m}\\
+Complex GMP & \code{toolbox/sweep/fit\_complex\_gmp\_domp.m}\\
+PN-IQ & \code{toolbox/sweep/fit\_independent\_pniq\_domp.m}\\
+Ridge & \code{toolbox/sweep/run\_fixed\_ridge\_sweep.m}\\
+Features PNNN & \code{buildPhaseNormInput.m}, \code{buildPhaseNormDataset.m}\\
+Arquitectura & \code{buildFairPNNNLayers.m}\\
+Normalización & \code{computePNNNNormalization.m}\\
+Dense validation & \code{fitFairPNNNDenseValidation.m}\\
+Dense refit & \code{refitFairPNNNDense.m}\\
+Máscaras & \code{createMagnitudePruningMasks.m}\\
+Fine-tuning & \code{fineTunePrunedNetwork.m}\\
+Sparse refit & \code{refitFairPNNNSparse.m}\\
+Predicción & \code{predictPhaseNorm.m}\\
+NMSE & \code{nmseComplexDb.m}\\
+Complejidad & \code{countModelOperations.m}, \code{countModelFLOPs.m}\\
+Selección 340 & \code{selectOperatingPoint.m}\\
+Espectro & \code{computeSelectedPointSpectra.m}\\
+Exportación & \code{exportPaperFigure.m}\\
+Probe WL & \code{run\_widely\_linear\_gmp\_probe.m}\\
+\bottomrule
+\end{longtable}
+
+\section{Glosario de nombres recomendado}
+
+\begin{description}[leftmargin=4cm,style=nextline]
+\item[Complex GMP-DOMP] Baseline complejo con soporte seleccionado mediante DOMP.
+\item[PN-IQ-GMP] Modelo propuesto.
+\item[DOMP-selected PN-IQ-GMP] Forma descriptiva completa.
+\item[Sparse PNNN N12] Benchmark neural de 12 neuronas ocultas.
+\item[Full-signal NMSE] NMSE sobre todo el registro, incluyendo identificación.
+\item[Identification NMSE] NMSE sobre el bloque del 10\%.
+\item[Internal validation] Subconjunto de identificación usado solo para selección.
+\end{description}
+
+\end{document}

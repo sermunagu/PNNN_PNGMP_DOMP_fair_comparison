@@ -3,8 +3,6 @@ function results = main_sweep_and_comparison(selectedParameters)
 % With no argument, the joint stabilization minimum-complexity criterion is
 % used. An explicit signed-grid budget remains a supported manual override.
 
-clear; clc; close all force; 
-
 projectRoot = fileparts(mfilename('fullpath'));
 addpath(fullfile(projectRoot, 'config'));
 cfg = getFairDOMPComparisonConfig(projectRoot);
