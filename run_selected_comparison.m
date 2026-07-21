@@ -227,6 +227,11 @@ ampmFigureFiles = exportSelectedAMPMFigure(modelInput, targetFullSignal, ...
     complexPrediction, pnPrediction, selectedDirectory, exportOptions);
 results.ampmFigureFiles = ampmFigureFiles;
 results.ampmFigure = ampmFigureFiles.png;
+phaseErrorFigureFiles = exportSelectedPhaseErrorFigure(modelInput, ...
+    targetFullSignal, complexPrediction, pnPrediction, selectedDirectory, ...
+    exportOptions);
+results.phaseErrorFigureFiles = phaseErrorFigureFiles;
+results.phaseErrorFigure = phaseErrorFigureFiles.png;
 figureFiles = exportSelectedSpectrumFigures(spectrum, selectedDirectory, ...
     fixedLambdas, exportOptions);
 results.spectrumFigureFiles = figureFiles;
@@ -244,30 +249,35 @@ end
 
 function files = exportSelectedAMPMFigure(modelInput, target, ...
     complexPrediction, pnPrediction, directory, exportOptions)
-% Export the full-signal AM/PM point clouds for the two linear models.
+% Export the measured and modeled full-signal AM/PM point clouds.
 
 normalizedInputAmplitude = abs(modelInput) / max(abs(modelInput));
 targetAMPM = 180/pi * fase_pmpi(angle(target) - angle(modelInput));
 complexAMPM = 180/pi * fase_pmpi( ...
     angle(complexPrediction) - angle(modelInput));
 pnAMPM = 180/pi * fase_pmpi(angle(pnPrediction) - angle(modelInput));
+plotIndices = selectDeterministicPlotIndices(numel(modelInput), 5000);
 
 style = getIEEEPaperStyle();
 figureHandle = figure('Visible', 'off', 'Color', 'w', ...
     'Units', 'inches', 'Position', [1 1 7.0 4.2]);
 cleanup = onCleanup(@() close(figureHandle));
 axesHandle = axes(figureHandle);
-plot(axesHandle, normalizedInputAmplitude, targetAMPM, '.', ...
-    'Color', 'k', 'MarkerSize', 6);
+plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
+    targetAMPM(plotIndices), '.', 'Color', 'k', 'MarkerSize', 4);
 hold(axesHandle, 'on');
-plot(axesHandle, normalizedInputAmplitude, complexAMPM, '.', ...
-    'Color', [0 0.45 0.74], 'MarkerSize', 6);
-plot(axesHandle, normalizedInputAmplitude, pnAMPM, '.', ...
-    'Color', [0.85 0.33 0.10], 'MarkerSize', 6);
+plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
+    complexAMPM(plotIndices), '.', 'Color', [0 0.45 0.74], ...
+    'MarkerSize', 4);
+plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
+    pnAMPM(plotIndices), '.', 'Color', [0.85 0.33 0.10], ...
+    'MarkerSize', 4);
 ylabel(axesHandle, 'Phase Shift (deg)');
 xlabel(axesHandle, 'Normalized Input Amplitude');
+title(axesHandle, 'Measured and Modeled AM/PM Characteristics', ...
+    'Interpreter', 'none', 'FontWeight', 'normal');
 legend(axesHandle, 'Measured target', 'Complex GMP', 'PN-IQ-GMP', ...
-    'Location', 'best', 'FontName', style.fontName, ...
+    'Location', 'northeast', 'FontName', style.fontName, ...
     'FontSize', style.fontSize - 1);
 grid(axesHandle, 'on');
 box(axesHandle, 'on');
@@ -277,6 +287,52 @@ exportOptions.figureHeight = '4.2in';
 files = exportPaperFigure(figureHandle, ...
     fullfile(directory, 'selected_ampm'), exportOptions);
 clear cleanup;
+end
+
+function files = exportSelectedPhaseErrorFigure(modelInput, target, ...
+    complexPrediction, pnPrediction, directory, exportOptions)
+% Export direct target-minus-prediction phase errors versus input amplitude.
+
+normalizedInputAmplitude = abs(modelInput) / max(abs(modelInput));
+complexPhaseError = 180/pi * fase_pmpi( ...
+    angle(target) - angle(complexPrediction));
+pnPhaseError = 180/pi * fase_pmpi(angle(target) - angle(pnPrediction));
+plotIndices = selectDeterministicPlotIndices(numel(modelInput), 5000);
+
+style = getIEEEPaperStyle();
+figureHandle = figure('Visible', 'off', 'Color', 'w', ...
+    'Units', 'inches', 'Position', [1 1 7.0 4.2]);
+cleanup = onCleanup(@() close(figureHandle));
+axesHandle = axes(figureHandle);
+plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
+    complexPhaseError(plotIndices), '.', ...
+    'Color', [0 0.45 0.74], 'MarkerSize', 4);
+hold(axesHandle, 'on');
+plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
+    pnPhaseError(plotIndices), '.', ...
+    'Color', [0.85 0.33 0.10], 'MarkerSize', 4);
+ylabel(axesHandle, 'Phase error, target - prediction (deg)')
+xlabel(axesHandle, 'Normalized Input Amplitude');
+title(axesHandle, 'Model Phase Error Characteristics', ...
+    'Interpreter', 'none', 'FontWeight', 'normal');
+legend(axesHandle, 'Complex GMP', 'PN-IQ-GMP', ...
+    'Location', 'northeast', 'FontName', style.fontName, ...
+    'FontSize', style.fontSize - 1);
+grid(axesHandle, 'on');
+box(axesHandle, 'on');
+set(axesHandle, 'FontName', style.fontName, ...
+    'FontSize', style.fontSize, 'LineWidth', style.axisLineWidth);
+exportOptions.figureHeight = '4.2in';
+files = exportPaperFigure(figureHandle, ...
+    fullfile(directory, 'selected_phase_error'), exportOptions);
+clear cleanup;
+end
+
+function indices = selectDeterministicPlotIndices(sampleCount, maximumPoints)
+% Keep TikZ exports bounded without changing any computed result.
+
+plotCount = min(sampleCount, maximumPoints);
+indices = unique(round(linspace(1, sampleCount, plotCount))).';
 end
 
 function phase = fase_pmpi(phase)
