@@ -17,12 +17,12 @@ El repositorio implementa tres familias con presupuestos **exactos de parámetro
 
 1. **Complex GMP-DOMP:** para un presupuesto \(P\), selecciona \(P/2\) regresores complejos y ajusta \(P/2\) coeficientes complejos.
 2. **PN-IQ-GMP con selección DOMP:** para \(P\), selecciona \(P/2\) características reales de un diccionario I/Q normalizado en fase y ajusta dos vectores reales de \(P/2\) coeficientes, uno por salida I y otro por salida Q.
-3. **Sparse PNNN N12:** poda una red de una capa oculta con 12 neuronas hasta exactamente \(P\) escalares activos, protegiendo siempre los 14 sesgos.
+3. **PNNN:** poda una red de una capa oculta con 12 neuronas hasta exactamente \(P\) escalares activos, protegiendo siempre los 14 sesgos.
 
 La implementación principal es científicamente coherente y contiene controles fuertes de reproducibilidad. Los puntos que deben cerrarse antes del paper son:
 
 - quitar `clear` del interior de `main_sweep_and_comparison`, porque elimina variables del workspace de la función y puede romper el argumento manual;
-- abandonar el nombre **PN-DOMP**: DOMP no está normalizado en fase; DOMP se aplica al diccionario PN-IQ;
+- usar **PN-IQ-GMP**: DOMP no está normalizado en fase; DOMP se aplica al diccionario PN-IQ;
 - no llamar “test independiente” a la evaluación sobre la señal completa, porque incluye las muestras de identificación;
 - dejar explícito que los FLOPs de la PNNN dispersa suponen un kernel que omite pesos cero;
 - no interpretar cuantitativamente la curva de máximo coeficiente de PNNN frente a las lineales, porque usan parametrizaciones distintas;
@@ -234,7 +234,7 @@ DOMP se aplica a:
 - matriz candidata **real** \(F\);
 - objetivo complejo rotado \(z\).
 
-No existe un algoritmo distinto llamado PN-DOMP. Es DOMP estándar aplicado al diccionario PN-IQ.
+DOMP sigue siendo el algoritmo estándar y se aplica al diccionario PN-IQ-GMP.
 
 Se construye una ruta máxima de 250 características reales. Para un presupuesto \(P\):
 
@@ -498,8 +498,8 @@ El primer punto es 340 parámetros:
 | Familia | NMSE señal completa | FLOPs/muestra | Máx. parámetro |
 |---|---:|---:|---:|
 | Complex GMP-DOMP | -38.85998 dB | 1807 | 6.34896e6 |
-| PN-IQ-GMP, DOMP | -42.74017 dB | 1095 | 4.59256e6 |
-| Sparse PNNN N12 | -39.24296 dB | 840 | 2.17243 |
+| PN-IQ-GMP | -42.74017 dB | 1095 | 4.59256e6 |
+| PNNN | -39.24296 dB | 840 | 2.17243 |
 
 PN-IQ mejora 3.88019 dB frente a GMP y reduce FLOPs.
 
@@ -561,7 +561,7 @@ clear; clc; close all force;
 
 ### Alto
 
-1. **Nombre PN-DOMP:** incorrecto conceptualmente. Usar `PN-IQ-GMP` y “DOMP-based support selection”.
+1. **Nombre del modelo I/Q:** usar `PN-IQ-GMP` y “DOMP-based support selection”.
 2. **Full signal no independiente:** nunca denominarlo test independiente.
 3. **FLOPs sparse ideales:** declararlo explícitamente.
 4. **Máximo coeficiente PNNN:** parametrización distinta.
@@ -571,7 +571,7 @@ clear; clc; close all force;
 
 1. El modo PNNN `full` contiene una característica cero y una duplicada.
 2. `run_widely_linear_gmp_probe` fija directamente el directorio `sweep_d113e389ab78`; es frágil si cambia la identidad.
-3. El nombre de la tabla y las leyendas siguen usando `PN-IQ PN-DOMP`.
+3. La tabla y las leyendas usan ahora el nombre canónico `PN-IQ-GMP`.
 4. El título “Max. abs. real coefficient” sería más preciso como “maximum absolute active real scalar component”.
 5. `exportPaperFigure` restaura `Visible` después de `savefig`, pero no mediante `onCleanup`; un error durante `savefig` puede dejar la figura visible.
 
@@ -587,6 +587,6 @@ clear; clc; close all force;
 - La PNNN no usa DOMP.
 - La PNNN se poda globalmente por magnitud, protege sesgos y parte siempre de la misma red densa.
 - Los 340 parámetros incluyen todos los pesos y sesgos activos.
-- El full-signal NMSE incluye identificación.
+- El NMSE de validación sobre la señal completa incluye identificación.
 - Los FLOPs PNNN son ideales bajo un kernel sparse.
 - El máximo coeficiente lineal sí sigue la normalización solicitada; la PNNN no está en la misma parametrización.

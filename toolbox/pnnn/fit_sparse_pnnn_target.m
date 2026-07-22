@@ -23,7 +23,9 @@ fineTuneOptions = struct( ...
     'FineTuneEpochs', denseSource.fineTuneEpochs, ...
     'Config', denseSource.runtimeConfig);
 
+t = tic;
 sparseFit = pruneAndFineTunePNNN(denseSource.denseFit, features, neuralTargets, fineTuneOptions);
+fprintf('Fine-tuning: %.1f s\n', toc(t));
 
 if buildNetworkSignature(denseSource.denseFit) ~= referenceDigest
     error('fit_sparse_pnnn_target:DenseSourceChanged', ...
@@ -48,7 +50,7 @@ counts = sparseFit.counts;
 identificationNMSEdB = nmseComplexDb( y(identificationRows), identificationPrediction);
 fullSignalNMSEdB = nmseComplexDb(y(fullSignalRows), fullSignalPrediction);
 
-flops = countSparsePNNNFLOPs("Sparse PNNN N12", ...
+flops = countSparsePNNNFLOPs(cfg.names.pnnn, ...
     size(features, 2), cfg.pnnn.sparseBaseHiddenNeurons, ...
     cfg.pnnn.M, cfg.pnnn.orders, counts.activeWeightParams, ...
     counts.activeBiasParams);
@@ -58,10 +60,9 @@ weightSparsityPercent = 100 * ...
     denseCounts.totalWeightParams;
 
 %% 5. Build the unchanged public result row and checkpoint point
-Model = "Sparse PNNN N12";
+Model = cfg.names.pnnn;
 TargetRealParameters = target;
-ActualRealParameters = double( ...
-    counts.activeWeightParams + counts.activeBiasParams);
+ActualRealParameters = double(counts.activeWeightParams + counts.activeBiasParams);
 SelectedLambda = NaN;
 InternalValidationNMSEdB = NaN;
 IdentificationNMSEdB = double(identificationNMSEdB);

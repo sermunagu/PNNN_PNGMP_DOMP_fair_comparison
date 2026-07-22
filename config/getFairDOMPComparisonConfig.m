@@ -8,6 +8,11 @@ end
 projectRoot = char(string(projectRoot));
 
 cfg = struct();
+cfg.names = struct( ...
+    'complexGMPDOMP', "Complex GMP-DOMP", ...
+    'pniqGMP', "PN-IQ-GMP", ...
+    'pnnn', "PNNN", ...
+    'measuredOutput', "Measured output");
 cfg.measurementFile = fullfile(projectRoot, 'measurements', ...
     'experiment20260429T134032_forward_xy.mat');
 cfg.mappingMode = 'xy_forward';
@@ -31,7 +36,7 @@ cfg.fixedRidgeLambdas = [1e-3 1e-4 1e-5];
 cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
-cfg.sweep.schemaVersion = 4;
+cfg.sweep.schemaVersion = 5;
 cfg.sweep.coefficientRangeDefinition = "unit_peak_io_unit_column_norm_v1";
 cfg.sweep.linearIdentificationScope = "complete identification subset";
 cfg.sweep.linearPrincipalLambda = 0;
@@ -77,10 +82,12 @@ cfg.selection.stabilizationWindowParameters = 100;
 cfg.selection.stabilizationToleranceDb = 0.20;
 cfg.selection.sensitivityWindowsParameters = [80 100 120];
 cfg.selection.sensitivityTolerancesDb = [0.15 0.20 0.25];
+cfg.selection.names = cfg.names;
 
 cfg.paper = struct();
 cfg.paper.matlab2tikzSource = fullfile(projectRoot, 'third_party', ...
     'matlab2tikz', 'src');
 cfg.paper.latexmkCommand = 'latexmk';
+cfg.paper.validationNMSELabel = "Validation NMSE (dB)";
 
 end

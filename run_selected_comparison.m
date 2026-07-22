@@ -23,8 +23,7 @@ if ~ismember(selectedParameters, identity.parameterGrid)
     error('run_selected_comparison:UnsignedTarget', ...
         'The requested target is not part of the signed grid.');
 end
-modelNames = ["Complex GMP DOMP sweep"; ...
-    "Independent PN-IQ PN-DOMP sweep"; "Sparse PNNN N12"];
+modelNames = [cfg.names.complexGMPDOMP; cfg.names.pniqGMP; cfg.names.pnnn];
 selectedRows = sweep.results([],:);
 for model = modelNames.'
     row = string(sweep.results.Model) == model & ...
@@ -75,7 +74,7 @@ stored = load(fullfile(directory, ...
 artifact = stored.checkpointArtifact;
 if ~isequaln(artifact.sweepIdentity, identity)
     error('run_selected_comparison:ExperimentMismatch', ...
-        'The sparse PNNN checkpoint belongs to another experiment.');
+        'The PNNN point checkpoint belongs to another experiment.');
 end
 pnnn = artifact.payload;
 
@@ -87,27 +86,27 @@ if ~isequaln(summaryPayload.results, sweep.results) || ...
 end
 if ~isfield(summaryPayload, 'selection')
     error('run_selected_comparison:MissingSelection', ...
-        'The schema-v3 sweep summary must contain automatic selection data.');
+        'The schema-v5 sweep summary must contain automatic selection data.');
 end
 automaticSelection = summaryPayload.selection;
 
 complexIndex = find(linear.complexTable.TargetRealParameters == ...
         selectedParameters);
-pnIndex = find(linear.pnTable.TargetRealParameters == selectedParameters);
-if numel(complexIndex) ~= 1 || numel(pnIndex) ~= 1 || ...
+pniqIndex = find(linear.pniqTable.TargetRealParameters == selectedParameters);
+if numel(complexIndex) ~= 1 || numel(pniqIndex) ~= 1 || ...
         pnnn.row.TargetRealParameters ~= selectedParameters || ...
         pnnn.denseSourceDigest ~= denseSource.digest
     error('run_selected_comparison:ArtifactMismatch', ...
         'The selected linear or PNNN checkpoint is incompatible.');
 end
 if ~isequaln(linear.complexTable(complexIndex, :), selectedRows(1, :)) || ...
-        ~isequaln(linear.pnTable(pnIndex, :), selectedRows(2, :)) || ...
+        ~isequaln(linear.pniqTable(pniqIndex, :), selectedRows(2, :)) || ...
         ~isequaln(pnnn.row, selectedRows(3, :))
     error('run_selected_comparison:ArtifactRowMismatch', ...
         'Artifact rows must equal the corresponding signed summary rows.');
 end
 complexPrediction = linear.predictions.complexFull(:, complexIndex);
-pnPrediction = linear.predictions.pnFull(:, pnIndex);
+pniqPrediction = linear.predictions.pniqFull(:, pniqIndex);
 pnnnPrediction = pnnn.fullSignalPrediction(:);
 
 %% Recover the signed measurement and aligned full-signal target
@@ -140,17 +139,17 @@ end
 fixedSweep = artifact.payload;
 selectedLinear = struct( ...
     'complexTable', linear.complexTable(complexIndex, :), ...
-    'pnTable', linear.pnTable(pnIndex, :), ...
+    'pniqTable', linear.pniqTable(pniqIndex, :), ...
     'paths', linear.paths, ...
-    'pnPathMap', linear.pnPathMap);
+    'pniqPathMap', linear.pniqPathMap);
 selectedConfig = cfg;
 selectedConfig.sweep.parameterGrid = selectedParameters;
 evaluated = run_fixed_ridge_sweep( ...
     x, y, split, selectedConfig, selectedLinear, true);
 fixedTable = orderFixedRows( ...
-    fixedSweep, selectedParameters, fixedLambdas);
+    fixedSweep, selectedParameters, fixedLambdas, cfg.names);
 evaluatedRows = orderFixedRows( ...
-    evaluated.table, selectedParameters, fixedLambdas);
+    evaluated.table, selectedParameters, fixedLambdas, cfg.names);
 if any(evaluatedRows.ActualRealParameters ~= ...
         fixedTable.ActualRealParameters) || ...
         any(evaluatedRows.FLOPsPerSample ~= fixedTable.FLOPsPerSample) || ...
@@ -173,16 +172,14 @@ if any(fixedTable.ActualRealParameters ~= expectedFixedParameters) || ...
         'Fixed Ridge must retain the selected supports, parameters, and FLOPs.');
 end
 fixedPredictionMatrix = [evaluated.predictions.complexFull, ...
-    evaluated.predictions.pnFull];
+    evaluated.predictions.pniqFull];
 
 %% Build the public three-row comparison
 comparisonTable = selectedRows;
-comparisonTable.Model = ["Complex GMP-DOMP"; "PN-IQ PN-DOMP"; ...
-    "Sparse PNNN N12"];
 supportCount = selectedParameters/2;
-pnFeatures = linear.paths.pn(1:supportCount);
+pniqFeatures = linear.paths.pniq(1:supportCount);
 completeComparisonTable = buildCompleteComparisonTable( ...
-    comparisonTable, fixedTable);
+    comparisonTable, fixedTable, cfg.names);
 results = struct('selectedParameters', selectedParameters, ...
     'automaticSelectedParameters', automaticSelection.selectedParameters, ...
     'operatingPointSelection', automaticSelection, ...
@@ -196,14 +193,14 @@ results = struct('selectedParameters', selectedParameters, ...
     'completeComparisonTable', completeComparisonTable, ...
     'linearSupports', struct( ...
         'complex', linear.paths.complex(1:supportCount), ...
-        'pnFeatures', pnFeatures, ...
-        'pnComplex', unique(linear.pnPathMap.SourceRegressorIndex( ...
+        'pniqFeatures', pniqFeatures, ...
+        'pniqComplex', unique(linear.pniqPathMap.SourceRegressorIndex( ...
             1:supportCount), 'stable')), ...
     'sampleRateHz', sampleRateHz, ...
     'evaluationProtocol', sweep.evaluationProtocol);
 
 %% Compute one shared Welch spectrum and export four paper figures
-mainPredictions = [complexPrediction, pnPrediction, pnnnPrediction];
+mainPredictions = [complexPrediction, pniqPrediction, pnnnPrediction];
 spectrum = computeSelectedPointSpectra(targetFullSignal, mainPredictions, ...
     sampleRateHz, fixedPredictionMatrix);
 selectedDirectory = fullfile(directory, ...
@@ -218,22 +215,23 @@ results.completeComparisonTableFile = string(completeTableFile);
 exportOptions = struct('latexmkCommand', cfg.paper.latexmkCommand);
 [timeDomainFigureFiles, timeDomainWindow] = ...
     exportSelectedTimeDomainFigures(targetFullSignal, complexPrediction, ...
-    pnPrediction, selectedDirectory, exportOptions);
+    pniqPrediction, selectedDirectory, cfg.names, exportOptions);
 results.timeDomainFigureFiles = timeDomainFigureFiles;
 results.timeDomainRealFigure = timeDomainFigureFiles.real.png;
 results.timeDomainImaginaryFigure = timeDomainFigureFiles.imaginary.png;
 results.timeDomainWindow = timeDomainWindow;
 ampmFigureFiles = exportSelectedAMPMFigure(modelInput, targetFullSignal, ...
-    complexPrediction, pnPrediction, selectedDirectory, exportOptions);
+    complexPrediction, pniqPrediction, selectedDirectory, cfg.names, ...
+    exportOptions);
 results.ampmFigureFiles = ampmFigureFiles;
 results.ampmFigure = ampmFigureFiles.png;
 phaseErrorFigureFiles = exportSelectedPhaseErrorFigure(modelInput, ...
-    targetFullSignal, complexPrediction, pnPrediction, selectedDirectory, ...
-    exportOptions);
+    targetFullSignal, complexPrediction, pniqPrediction, selectedDirectory, ...
+    cfg.names, exportOptions);
 results.phaseErrorFigureFiles = phaseErrorFigureFiles;
 results.phaseErrorFigure = phaseErrorFigureFiles.png;
 figureFiles = exportSelectedSpectrumFigures(spectrum, selectedDirectory, ...
-    fixedLambdas, exportOptions);
+    fixedLambdas, cfg.names, exportOptions);
 results.spectrumFigureFiles = figureFiles;
 results.outputSpectrumFigure = figureFiles.output.png;
 results.errorSpectrumFigure = figureFiles.error.png;
@@ -243,19 +241,19 @@ results.spectrumConfig = spectrum.config;
 fprintf('\n=== Complete tutor comparison (principal and fixed Ridge) ===\n');
 disp(completeComparisonTable);
 fprintf('Complete tutor table: %s\n', completeTableFile);
-fprintf('Reused linear, fixed-ridge, dense N12, and sparse point checkpoints: YES\n');
+fprintf('Reused linear, fixed-ridge, dense-source, and PNNN point checkpoints: YES\n');
 fprintf('Selected-point figures: %s\n', selectedDirectory);
 end
 
 function files = exportSelectedAMPMFigure(modelInput, target, ...
-    complexPrediction, pnPrediction, directory, exportOptions)
+    complexPrediction, pniqPrediction, directory, names, exportOptions)
 % Export the measured and modeled full-signal AM/PM point clouds.
 
 normalizedInputAmplitude = abs(modelInput) / max(abs(modelInput));
 targetAMPM = 180/pi * fase_pmpi(angle(target) - angle(modelInput));
 complexAMPM = 180/pi * fase_pmpi( ...
     angle(complexPrediction) - angle(modelInput));
-pnAMPM = 180/pi * fase_pmpi(angle(pnPrediction) - angle(modelInput));
+pniqAMPM = 180/pi * fase_pmpi(angle(pniqPrediction) - angle(modelInput));
 plotIndices = selectDeterministicPlotIndices(numel(modelInput), 5000);
 
 style = getIEEEPaperStyle();
@@ -270,13 +268,14 @@ plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
     complexAMPM(plotIndices), '.', 'Color', [0 0.45 0.74], ...
     'MarkerSize', 4);
 plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
-    pnAMPM(plotIndices), '.', 'Color', [0.85 0.33 0.10], ...
+    pniqAMPM(plotIndices), '.', 'Color', [0.85 0.33 0.10], ...
     'MarkerSize', 4);
 ylabel(axesHandle, 'Phase Shift (deg)');
 xlabel(axesHandle, 'Normalized Input Amplitude');
 title(axesHandle, 'Measured and Modeled AM/PM Characteristics', ...
     'Interpreter', 'none', 'FontWeight', 'normal');
-legend(axesHandle, 'Measured target', 'Complex GMP', 'PN-IQ-GMP', ...
+legend(axesHandle, names.measuredOutput, names.complexGMPDOMP, ...
+    names.pniqGMP, ...
     'Location', 'northeast', 'FontName', style.fontName, ...
     'FontSize', style.fontSize - 1);
 grid(axesHandle, 'on');
@@ -290,13 +289,14 @@ clear cleanup;
 end
 
 function files = exportSelectedPhaseErrorFigure(modelInput, target, ...
-    complexPrediction, pnPrediction, directory, exportOptions)
+    complexPrediction, pniqPrediction, directory, names, exportOptions)
 % Export direct target-minus-prediction phase errors versus input amplitude.
 
 normalizedInputAmplitude = abs(modelInput) / max(abs(modelInput));
 complexPhaseError = 180/pi * fase_pmpi( ...
     angle(target) - angle(complexPrediction));
-pnPhaseError = 180/pi * fase_pmpi(angle(target) - angle(pnPrediction));
+pniqPhaseError = 180/pi * fase_pmpi( ...
+    angle(target) - angle(pniqPrediction));
 plotIndices = selectDeterministicPlotIndices(numel(modelInput), 5000);
 
 style = getIEEEPaperStyle();
@@ -309,13 +309,13 @@ plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
     'Color', [0 0.45 0.74], 'MarkerSize', 4);
 hold(axesHandle, 'on');
 plot(axesHandle, normalizedInputAmplitude(plotIndices), ...
-    pnPhaseError(plotIndices), '.', ...
+    pniqPhaseError(plotIndices), '.', ...
     'Color', [0.85 0.33 0.10], 'MarkerSize', 4);
 ylabel(axesHandle, 'Phase error, target - prediction (deg)')
 xlabel(axesHandle, 'Normalized Input Amplitude');
 title(axesHandle, 'Model Phase Error Characteristics', ...
     'Interpreter', 'none', 'FontWeight', 'normal');
-legend(axesHandle, 'Complex GMP', 'PN-IQ-GMP', ...
+legend(axesHandle, names.complexGMPDOMP, names.pniqGMP, ...
     'Location', 'northeast', 'FontName', style.fontName, ...
     'FontSize', style.fontSize - 1);
 grid(axesHandle, 'on');
@@ -339,22 +339,22 @@ function phase = fase_pmpi(phase)
 phase = mod(phase + pi, 2*pi) - pi;
 end
 
-function complete = buildCompleteComparisonTable(mainRows, fixedRows)
+function complete = buildCompleteComparisonTable(mainRows, fixedRows, names)
 % Combine the three principal rows and six fixed-Ridge references.
 
-familyOrder = ["Complex GMP-DOMP", "PN-IQ PN-DOMP", "Sparse PNNN N12"];
+familyOrder = [names.complexGMPDOMP, names.pniqGMP, names.pnnn];
 complete = table();
 for family = familyOrder
-    if family == "Complex GMP-DOMP"
+    if family == names.complexGMPDOMP
         mainIndex = 1;
-    elseif family == "PN-IQ PN-DOMP"
+    elseif family == names.pniqGMP
         mainIndex = 2;
     else
         mainIndex = 3;
     end
     principal = mainRows(mainIndex, :);
     variant = "Principal / lambda=0";
-    if family == "Sparse PNNN N12"
+    if family == names.pnnn
         variant = "Principal";
     end
     principalRow = table(family, variant, false, ...
@@ -381,7 +381,7 @@ for family = familyOrder
     else
         complete = [complete; principalRow]; %#ok<AGROW>
     end
-    if family == "Sparse PNNN N12"
+    if family == names.pnnn
         continue;
     end
     familyFixed = fixedRows(string(fixedRows.Model) == family, :);
@@ -401,8 +401,8 @@ for family = familyOrder
 end
 end
 
-function rows = orderFixedRows(value, target, fixedLambdas)
-models = ["Complex GMP-DOMP"; "PN-IQ PN-DOMP"];
+function rows = orderFixedRows(value, target, fixedLambdas, names)
+models = [names.complexGMPDOMP; names.pniqGMP];
 rows = value([],:);
 for model = models.'
     for lambda = fixedLambdas.'
@@ -418,15 +418,15 @@ end
 end
 
 function [files, window] = exportSelectedTimeDomainFigures( ...
-    target, complexPrediction, pnPrediction, directory, exportOptions)
+    target, complexPrediction, pniqPrediction, directory, names, exportOptions)
 % Export deterministic central time-domain views for the two linear models.
 
 target = target(:);
 complexPrediction = complexPrediction(:);
-pnPrediction = pnPrediction(:);
+pniqPrediction = pniqPrediction(:);
 sampleCount = numel(target);
 if numel(complexPrediction) ~= sampleCount || ...
-        numel(pnPrediction) ~= sampleCount
+        numel(pniqPrediction) ~= sampleCount
     error('run_selected_comparison:TimeDomainLengthMismatch', ...
         'The measured and linear-model signals must have equal lengths.');
 end
@@ -435,19 +435,21 @@ windowLength = min(1000, sampleCount);
 firstSample = floor((sampleCount - windowLength)/2) + 1;
 lastSample = firstSample + windowLength - 1;
 indices = (firstSample:lastSample).';
-signals = [target(indices), complexPrediction(indices), pnPrediction(indices)];
+signals = [target(indices), complexPrediction(indices), ...
+    pniqPrediction(indices)];
 
 window = struct('firstAlignedSample', firstSample, ...
     'lastAlignedSample', lastSample, 'sampleCount', windowLength);
 files = struct();
 files.real = exportOneTimeDomainFigure(indices, signals, 'real', ...
-    fullfile(directory, 'selected_time_domain_real'), exportOptions);
+    fullfile(directory, 'selected_time_domain_real'), names, exportOptions);
 files.imaginary = exportOneTimeDomainFigure(indices, signals, 'imaginary', ...
-    fullfile(directory, 'selected_time_domain_imaginary'), exportOptions);
+    fullfile(directory, 'selected_time_domain_imaginary'), names, ...
+    exportOptions);
 end
 
 function files = exportOneTimeDomainFigure(sampleIndices, signals, component, ...
-    baseFilename, exportOptions)
+    baseFilename, names, exportOptions)
 style = getIEEEPaperStyle();
 figureHandle = figure('Visible', 'off', 'Color', 'w', ...
     'Units', 'inches', 'Position', [1 1 7.16 4.6]);
@@ -478,7 +480,7 @@ title(rightAxes, componentTitle, 'Interpreter', 'none', ...
     'FontSize', style.fontSize, 'FontWeight', 'normal');
 ylabel(rightAxes, componentLabel);
 
-labels = ["Measured output", "Complex GMP", "PN-IQ"];
+labels = [names.measuredOutput, names.complexGMPDOMP, names.pniqGMP];
 legendHandle = legend(leftAxes, legendLines, labels, ...
     'Orientation', 'horizontal', 'NumColumns', 3, ...
     'Interpreter', 'none', 'FontName', style.fontName, ...

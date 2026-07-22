@@ -30,7 +30,7 @@
 \newcommand{\C}{\mathbb{C}}
 
 \title{Especificación matemática y auditoría de implementación\\
-del pipeline Complex GMP--PN-IQ-GMP--Sparse PNNN}
+del pipeline Complex GMP-DOMP--PN-IQ-GMP--PNNN}
 \author{Documento interno previo a la redacción del paper}
 \date{Commit \texttt{675687dc9b5a4b5c603a533f8b39ef5a53413eac}}
 
@@ -446,8 +446,8 @@ Cada característica seleccionada tiene un coeficiente para I y otro para Q:
 P_{\mathrm{PN-IQ}}=2M.
 \]
 
-El nombre recomendado es \textbf{PN-IQ-GMP}. DOMP es el método de selección,
-no una variante ``PN-DOMP''.
+El nombre recomendado es \textbf{PN-IQ-GMP}. DOMP es el método estándar
+de selección aplicado al diccionario normalizado en fase.
 
 Fuente: \code{toolbox/sweep/fit\_independent\_pniq\_domp.m} y
 \code{factorizeGMPRegressor.m}.
@@ -812,11 +812,11 @@ forma parte del sweep canónico y fija actualmente el directorio de resultados.
 \begin{center}
 \begin{tabular}{lrr}
 \toprule
-Modelo & NMSE full-signal & Mejora vs. GMP\\
+Modelo & Validation NMSE (dB) & Mejora vs. GMP\\
 \midrule
-Complex GMP & -38.85998 & 0\\
+Complex GMP-DOMP & -38.85998 & 0\\
 WL-GMP & -38.86672 & 0.00674\\
-PN-IQ & -42.74017 & 3.88019\\
+PN-IQ-GMP & -42.74017 & 3.88019\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -829,11 +829,11 @@ PN-IQ.
 \begin{center}
 \begin{tabular}{lrrr}
 \toprule
-Familia & NMSE full-signal & FLOPs/muestra & Máx. escalar\\
+Familia & Validation NMSE (dB) & FLOPs/muestra & Máx. escalar\\
 \midrule
 Complex GMP-DOMP & -38.85998 & 1807 & \(6.34896\times10^6\)\\
-PN-IQ-GMP + DOMP & -42.74017 & 1095 & \(4.59256\times10^6\)\\
-Sparse PNNN N12 & -39.24296 & 840 & 2.17243\\
+PN-IQ-GMP & -42.74017 & 1095 & \(4.59256\times10^6\)\\
+PNNN & -39.24296 & 840 & 2.17243\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -883,10 +883,8 @@ o no ejecutar ninguna limpieza dentro de la función.
 
 Sustituir:
 
-\begin{itemize}[leftmargin=*]
-\item ``PN-DOMP'';
-\item ``PN-IQ PN-DOMP''.
-\end{itemize}
+La nomenclatura canónica del modelo normalizado en fase es
+\textbf{PN-IQ-GMP}; DOMP describe exclusivamente la selección del soporte.
 
 por:
 
@@ -924,7 +922,7 @@ coeficientes se estiman por separado.
 \subsection*{¿La PNNN usa DOMP?}
 No. Se entrena densa y se poda globalmente por magnitud.
 
-\subsection*{¿Los modelos sparse PNNN forman una trayectoria iterativa?}
+\subsection*{¿Las configuraciones podadas de PNNN forman una trayectoria iterativa?}
 No. Todos parten de una misma fuente densa final y se fine-tunean
 independientemente.
 
@@ -954,8 +952,8 @@ Selector 10\% & \code{toolbox/pn\_gmp\_comparison/sel\_indices.m}\\
 Población GMP & \code{GMP\_createRegressorManager.m}, \code{regressorManager.m}\\
 Evaluación GMP & \code{buildGMPRegressorRows.m}\\
 DOMP & \code{toolbox/domp/selectDOMPSupport.m}\\
-Complex GMP & \code{toolbox/sweep/fit\_complex\_gmp\_domp.m}\\
-PN-IQ & \code{toolbox/sweep/fit\_independent\_pniq\_domp.m}\\
+Complex GMP-DOMP & \code{toolbox/sweep/fit\_complex\_gmp\_domp.m}\\
+PN-IQ-GMP & \code{toolbox/sweep/fit\_pniq\_gmp.m}\\
 Ridge & \code{toolbox/sweep/run\_fixed\_ridge\_sweep.m}\\
 Features PNNN & \code{buildPhaseNormDataset.m}\\
 Fuente densa y normalización & \code{prepare\_pnnn\_dense\_source.m}\\
@@ -977,8 +975,8 @@ Probe WL & \code{run\_widely\_linear\_gmp\_probe.m}\\
 \item[Complex GMP-DOMP] Baseline complejo con soporte seleccionado mediante DOMP.
 \item[PN-IQ-GMP] Modelo propuesto.
 \item[DOMP-selected PN-IQ-GMP] Forma descriptiva completa.
-\item[Sparse PNNN N12] Benchmark neural de 12 neuronas ocultas.
-\item[Full-signal NMSE] NMSE sobre todo el registro, incluyendo identificación.
+\item[PNNN] Benchmark neural de 12 neuronas ocultas.
+\item[Validation NMSE (dB)] NMSE sobre todo el registro, incluyendo identificación.
 \item[Identification NMSE] NMSE sobre el bloque del 10\%.
 \item[Internal validation] Subconjunto de identificación usado solo por la PNNN.
 \end{description}

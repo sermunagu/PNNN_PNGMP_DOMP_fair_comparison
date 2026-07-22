@@ -36,7 +36,8 @@ outputPeak = max(abs(y(identificationRows)));
 % The complex column norm is computed once on identification and undone in h.
 % Unit-peak input gives the same unit-norm columns because its global scale
 % cancels when each homogeneous GMP column is normalized.
-fprintf('[Fixed ridge] Building one Complex GMP identification matrix...\n');
+fprintf('[Fixed ridge] Building one %s identification matrix...\n', ...
+    cfg.names.complexGMPDOMP);
 complexSupport = complexPath(1:maximumFeatures);
 identificationU = buildGMPRegressorRows( ...
     x, identificationRows, manager, complexSupport);
@@ -90,20 +91,21 @@ clear identificationU complexCoefficients complexIdentificationPredictions
 
 %% PN-IQ: normalize real features, fit I/Q, and restore phase
 % Both outputs use the same real features; only their coefficients differ.
-fprintf('[Fixed ridge] Building one PN-IQ identification matrix...\n');
-selectedMetadata = linear.pnPathMap(1:maximumFeatures, :);
-pnComplexSupport = unique(selectedMetadata.SourceRegressorIndex, 'stable');
+fprintf('[Fixed ridge] Building one %s identification matrix...\n', ...
+    cfg.names.pniqGMP);
+selectedMetadata = linear.pniqPathMap(1:maximumFeatures, :);
+pniqComplexSupport = unique(selectedMetadata.SourceRegressorIndex, 'stable');
 [~, selectedColumns] = ismember( ...
-    selectedMetadata.SourceRegressorIndex, pnComplexSupport);
+    selectedMetadata.SourceRegressorIndex, pniqComplexSupport);
 isQ = selectedMetadata.IsQ;
-selectedColumns(isQ) = selectedColumns(isQ) + numel(pnComplexSupport);
-pnDescriptors = repmat(factorizeGMPRegressor( ...
-    manager.regPopulation(pnComplexSupport(1)), pnComplexSupport(1)), ...
-    numel(pnComplexSupport), 1);
-for index = 1:numel(pnComplexSupport)
-    pnDescriptors(index) = factorizeGMPRegressor( ...
-        manager.regPopulation(pnComplexSupport(index)), ...
-        pnComplexSupport(index));
+selectedColumns(isQ) = selectedColumns(isQ) + numel(pniqComplexSupport);
+pniqDescriptors = repmat(factorizeGMPRegressor( ...
+    manager.regPopulation(pniqComplexSupport(1)), pniqComplexSupport(1)), ...
+    numel(pniqComplexSupport), 1);
+for index = 1:numel(pniqComplexSupport)
+    pniqDescriptors(index) = factorizeGMPRegressor( ...
+        manager.regPopulation(pniqComplexSupport(index)), ...
+        pniqComplexSupport(index));
 end
 identificationInput = x(identificationRows);
 identificationRotation = complex(ones(numel(identificationRows), 1));
@@ -118,12 +120,12 @@ for first = 1:cfg.sweep.candidateBlockSize:numel(identificationRows)
     blockRows = identificationRows(local);
     blockRotation = identificationRotation(local);
     complexRegressors = buildGMPRegressorRows( ...
-        x, blockRows, manager, pnComplexSupport);
+        x, blockRows, manager, pniqComplexSupport);
     phaseNormalized = blockRotation .* complexRegressors;
-    regressorsI = zeros(numel(local), numel(pnComplexSupport));
-    regressorsQ = zeros(numel(local), numel(pnComplexSupport));
-    for regressorIndex = 1:numel(pnComplexSupport)
-        descriptor = pnDescriptors(regressorIndex);
+    regressorsI = zeros(numel(local), numel(pniqComplexSupport));
+    regressorsQ = zeros(numel(local), numel(pniqComplexSupport));
+    for regressorIndex = 1:numel(pniqComplexSupport)
+        descriptor = pniqDescriptors(regressorIndex);
         if descriptor.canonicalGMP
             carrierRows = mod(blockRows - descriptor.carrierLag - 1, ...
                 numel(x)) + 1;
@@ -159,10 +161,10 @@ normalizedFeatures = identificationFeatures ./ featureNorms.';
 gram = normalizedFeatures.' * normalizedFeatures;
 rhsI = normalizedFeatures.' * real(normalizedTarget);
 rhsQ = normalizedFeatures.' * imag(normalizedTarget);
-pnCoefficientsI = zeros(maximumFeatures, variantCount);
-pnCoefficientsQ = zeros(maximumFeatures, variantCount);
-pnComparisonI = pnCoefficientsI;
-pnComparisonQ = pnCoefficientsQ;
+pniqCoefficientsI = zeros(maximumFeatures, variantCount);
+pniqCoefficientsQ = zeros(maximumFeatures, variantCount);
+pniqComparisonI = pniqCoefficientsI;
+pniqComparisonQ = pniqCoefficientsQ;
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
@@ -172,39 +174,39 @@ for targetIndex = 1:numel(targets)
             prefixGram + fixedLambdas(lambdaIndex)*eye(count);
         normalizedI = regularizedGram \ rhsI(1:count);
         normalizedQ = regularizedGram \ rhsQ(1:count);
-        pnCoefficientsI(1:count, columns(lambdaIndex)) = ...
+        pniqCoefficientsI(1:count, columns(lambdaIndex)) = ...
             normalizedI ./ featureNorms(1:count);
-        pnCoefficientsQ(1:count, columns(lambdaIndex)) = ...
+        pniqCoefficientsQ(1:count, columns(lambdaIndex)) = ...
             normalizedQ ./ featureNorms(1:count);
-        pnComparisonI(1:count, columns(lambdaIndex)) = ...
+        pniqComparisonI(1:count, columns(lambdaIndex)) = ...
             normalizedI / outputPeak;
-        pnComparisonQ(1:count, columns(lambdaIndex)) = ...
+        pniqComparisonQ(1:count, columns(lambdaIndex)) = ...
             normalizedQ / outputPeak;
     end
 end
-pnIdentificationNormalized = ...
-    identificationFeatures * pnCoefficientsI + ...
-    1j * (identificationFeatures * pnCoefficientsQ);
-pnIdentificationPredictions = ...
-    conj(identificationRotation) .* pnIdentificationNormalized;
-pnIdentificationError = sum(abs( ...
-    pnIdentificationPredictions - identificationTarget).^2, 1);
-pnIdentificationNMSE = ...
-    10*log10(pnIdentificationError(:)/targetEnergyIdentification);
-pnMaxAbs = zeros(variantCount, 1);
+pniqIdentificationNormalized = ...
+    identificationFeatures * pniqCoefficientsI + ...
+    1j * (identificationFeatures * pniqCoefficientsQ);
+pniqIdentificationPredictions = ...
+    conj(identificationRotation) .* pniqIdentificationNormalized;
+pniqIdentificationError = sum(abs( ...
+    pniqIdentificationPredictions - identificationTarget).^2, 1);
+pniqIdentificationNMSE = ...
+    10*log10(pniqIdentificationError(:)/targetEnergyIdentification);
+pniqMaxAbs = zeros(variantCount, 1);
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
         column = columns(lambdaIndex);
-        pnMaxAbs(column) = max(abs([ ...
-            pnComparisonI(1:count, column); ...
-            pnComparisonQ(1:count, column)]));
+        pniqMaxAbs(column) = max(abs([ ...
+            pniqComparisonI(1:count, column); ...
+            pniqComparisonQ(1:count, column)]));
     end
 end
 
-pnFullError = zeros(1, variantCount);
-storedPNFullPredictions = ...
+pniqFullError = zeros(1, variantCount);
+storedPNIQFullPredictions = ...
     complex(zeros(numel(fullSignalRows), numel(storedColumns)));
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullSignalRows));
@@ -215,12 +217,12 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     blockRotation(nonzero) = ...
         conj(blockInput(nonzero)) ./ abs(blockInput(nonzero));
     complexRegressors = buildGMPRegressorRows( ...
-        x, blockRows, manager, pnComplexSupport);
+        x, blockRows, manager, pniqComplexSupport);
     phaseNormalized = blockRotation .* complexRegressors;
-    regressorsI = zeros(numel(local), numel(pnComplexSupport));
-    regressorsQ = zeros(numel(local), numel(pnComplexSupport));
-    for regressorIndex = 1:numel(pnComplexSupport)
-        descriptor = pnDescriptors(regressorIndex);
+    regressorsI = zeros(numel(local), numel(pniqComplexSupport));
+    regressorsQ = zeros(numel(local), numel(pniqComplexSupport));
+    for regressorIndex = 1:numel(pniqComplexSupport)
+        descriptor = pniqDescriptors(regressorIndex);
         if descriptor.canonicalGMP
             carrierRows = mod(blockRows - descriptor.carrierLag - 1, ...
                 numel(x)) + 1;
@@ -249,13 +251,13 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     raw = [regressorsI, regressorsQ];
     features = raw(:, selectedColumns);
     predictionNormalized = complex( ...
-        features * pnCoefficientsI, features * pnCoefficientsQ);
+        features * pniqCoefficientsI, features * pniqCoefficientsQ);
     prediction = conj(blockRotation) .* predictionNormalized;
-    storedPNFullPredictions(local, :) = prediction(:, storedColumns);
-    pnFullError = pnFullError + ...
+    storedPNIQFullPredictions(local, :) = prediction(:, storedColumns);
+    pniqFullError = pniqFullError + ...
         sum(abs(prediction - fullSignalTarget(local)).^2, 1);
 end
-pnFullNMSE = 10*log10(pnFullError(:)/targetEnergyFull);
+pniqFullNMSE = 10*log10(pniqFullError(:)/targetEnergyFull);
 
 %% Package the two supplementary Ridge families
 % Parameters and FLOPs are copied from the principal rows because support is fixed.
@@ -263,31 +265,32 @@ variantTargets = repelem(targets, lambdaCount, 1);
 variantLambdas = repmat(fixedLambdas, numel(targets), 1);
 complexActual = zeros(numel(targets), 1);
 complexFLOPs = zeros(numel(targets), 1);
-pnActual = zeros(numel(targets), 1);
-pnFLOPs = zeros(numel(targets), 1);
+pniqActual = zeros(numel(targets), 1);
+pniqFLOPs = zeros(numel(targets), 1);
 for targetIndex = 1:numel(targets)
     complexRow = linear.complexTable.TargetRealParameters == targets(targetIndex);
-    pnRow = linear.pnTable.TargetRealParameters == targets(targetIndex);
+    pniqRow = linear.pniqTable.TargetRealParameters == targets(targetIndex);
     complexActual(targetIndex) = ...
         linear.complexTable.ActualRealParameters(complexRow);
     complexFLOPs(targetIndex) = linear.complexTable.FLOPsPerSample(complexRow);
-    pnActual(targetIndex) = linear.pnTable.ActualRealParameters(pnRow);
-    pnFLOPs(targetIndex) = linear.pnTable.FLOPsPerSample(pnRow);
+    pniqActual(targetIndex) = ...
+        linear.pniqTable.ActualRealParameters(pniqRow);
+    pniqFLOPs(targetIndex) = linear.pniqTable.FLOPsPerSample(pniqRow);
 end
 complexActual = repelem(complexActual, lambdaCount, 1);
 complexFLOPs = repelem(complexFLOPs, lambdaCount, 1);
-pnActual = repelem(pnActual, lambdaCount, 1);
-pnFLOPs = repelem(pnFLOPs, lambdaCount, 1);
+pniqActual = repelem(pniqActual, lambdaCount, 1);
+pniqFLOPs = repelem(pniqFLOPs, lambdaCount, 1);
 
-Model = [repmat("Complex GMP-DOMP", variantCount, 1); ...
-    repmat("PN-IQ PN-DOMP", variantCount, 1)];
+Model = [repmat(cfg.names.complexGMPDOMP, variantCount, 1); ...
+    repmat(cfg.names.pniqGMP, variantCount, 1)];
 TargetRealParameters = [variantTargets; variantTargets];
-ActualRealParameters = [complexActual; pnActual];
+ActualRealParameters = [complexActual; pniqActual];
 FixedLambda = [variantLambdas; variantLambdas];
-IdentificationNMSEdB = [complexIdentificationNMSE; pnIdentificationNMSE];
-FullSignalNMSEdB = [complexFullNMSE; pnFullNMSE];
-FLOPsPerSample = [complexFLOPs; pnFLOPs];
-MaxAbsRealParameter = [complexMaxAbs; pnMaxAbs];
+IdentificationNMSEdB = [complexIdentificationNMSE; pniqIdentificationNMSE];
+FullSignalNMSEdB = [complexFullNMSE; pniqFullNMSE];
+FLOPsPerSample = [complexFLOPs; pniqFLOPs];
+MaxAbsRealParameter = [complexMaxAbs; pniqMaxAbs];
 fixed.table = table(Model, TargetRealParameters, ActualRealParameters, ...
     FixedLambda, IdentificationNMSEdB, FullSignalNMSEdB, FLOPsPerSample, ...
     MaxAbsRealParameter);
@@ -301,10 +304,10 @@ fixed.table.Properties.UserData = struct( ...
     'fixedRidgeSupportPolicy', ...
         string(cfg.sweep.fixedRidgeSupportPolicy));
 fixed.paths = linear.paths;
-fixed.pnPathMap = linear.pnPathMap;
+fixed.pniqPathMap = linear.pniqPathMap;
 if storePredictions
     fixed.predictions = struct( ...
         'complexFull', storedComplexFullPredictions, ...
-        'pnFull', storedPNFullPredictions);
+        'pniqFull', storedPNIQFullPredictions);
 end
 end

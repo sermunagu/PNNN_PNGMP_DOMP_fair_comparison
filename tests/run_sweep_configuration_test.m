@@ -15,7 +15,12 @@ assert(cfg.gmp.dompOptions.columnTolerance == 1e-12);
 assert(isequal(cfg.pnnn.orders, [1 3 5 7]));
 assert(cfg.pnnn.sparseBaseHiddenNeurons == 12);
 assert(cfg.pnnn.nnSeed == 42);
-assert(cfg.sweep.schemaVersion == 4);
+assert(cfg.sweep.schemaVersion == 5);
+assert(cfg.names.complexGMPDOMP == "Complex GMP-DOMP");
+assert(cfg.names.pniqGMP == "PN-IQ-GMP");
+assert(cfg.names.pnnn == "PNNN");
+assert(cfg.names.measuredOutput == "Measured output");
+assert(cfg.paper.validationNMSELabel == "Validation NMSE (dB)");
 assert(cfg.sweep.coefficientRangeDefinition == ...
     "unit_peak_io_unit_column_norm_v1");
 assert(cfg.sweep.linearIdentificationScope == ...
@@ -34,6 +39,11 @@ runnerSource = fileread(fullfile(projectRoot, 'run_parameter_sweep.m'));
 assert(contains(runnerSource, 'hasCurrentLinearProtocol'));
 assert(contains(runnerSource, 'hasCurrentFixedProtocol'));
 assert(~contains(runnerSource, '''lambdaGrid'', cfg.lambdaGrid'));
+assert(contains(runnerSource, '''names'', cfg.names'));
+
+assert(isfile(fullfile(projectRoot, 'toolbox', 'sweep', 'fit_pniq_gmp.m')));
+assert(~isfile(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    ['fit_independent_pniq_' 'domp.m'])));
 
 pnnnSource = fileread(fullfile(projectRoot, 'toolbox', 'pnnn', ...
     'prepare_pnnn_dense_source.m'));

@@ -11,10 +11,12 @@ fullSignalRows = split.fullSignalIndices(:);
 %% Identification DOMP path and principal least-squares fits
 identificationTarget = y(identificationRows);
 fullSignalTarget = y(fullSignalRows);
-fprintf('[Linear] Building the Complex GMP identification matrix...\n');
+fprintf('[Linear] Building the %s identification matrix...\n', ...
+    cfg.names.complexGMPDOMP);
 identificationU = buildGMPRegressorRows(x, identificationRows, manager, population);
 
-fprintf('[Linear] Computing one Complex GMP DOMP path on identification...\n');
+fprintf(['[Linear] Computing one DOMP support path for %s ' ...
+    'on identification...\n'], cfg.names.complexGMPDOMP);
 identificationPath = selectDOMPSupport(identificationU, ...
     identificationTarget, maximumFeatures, ...
     cfg.gmp.dompOptions.columnTolerance);
@@ -45,7 +47,8 @@ identificationPredictions = identificationU(:, ...
     identificationPath(1:maximumFeatures)) * coefficients;
 
 %% Full-signal prediction
-fprintf('[Linear] Evaluating %d Complex GMP targets on the full signal...\n', numel(targets));
+fprintf('[Linear] Evaluating %d %s targets on the full signal...\n', ...
+    numel(targets), cfg.names.complexGMPDOMP);
 fullPredictions = complex(zeros(numel(fullSignalRows), numel(targets)));
 
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
@@ -57,7 +60,7 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
 end
 
 %% NMSE, parameters, and FLOPs
-Model = repmat("Complex GMP DOMP sweep", numel(targets), 1);
+Model = repmat(cfg.names.complexGMPDOMP, numel(targets), 1);
 TargetRealParameters = targets(:);
 ActualRealParameters = zeros(numel(targets), 1);
 SelectedLambda = zeros(numel(targets), 1);

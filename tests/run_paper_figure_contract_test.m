@@ -2,8 +2,10 @@
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
+addpath(fullfile(projectRoot, 'config'));
 addpath(fullfile(projectRoot, 'toolbox', 'sweep'));
 addpath(fullfile(projectRoot, 'third_party', 'matlab2tikz', 'src'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
 style = getIEEEPaperStyle();
 assert(isequal(style.targetGray, [117 120 123]/255));
 assert(isequal(style.gmpBlue, [0 98 155]/255));
@@ -21,9 +23,9 @@ if ~isfolder(outputDirectory)
 end
 cleanup = onCleanup(@() removeFixture(outputDirectory, removeOutput));
 budgets = [100; 200; 300; 400];
-Model = [repmat("Complex GMP DOMP sweep", 4, 1); ...
-    repmat("Independent PN-IQ PN-DOMP sweep", 4, 1); ...
-    repmat("Sparse PNNN N12", 4, 1)];
+Model = [repmat(cfg.names.complexGMPDOMP, 4, 1); ...
+    repmat(cfg.names.pniqGMP, 4, 1); ...
+    repmat(cfg.names.pnnn, 4, 1)];
 ActualRealParameters = repmat(budgets, 3, 1);
 FullSignalNMSEdB = [-34; -35; -36; -37; ...
     -33.5; -35.2; -36.5; -37.4; -34.1; -36; -38; -38.1];
@@ -35,8 +37,8 @@ results = table(Model, ActualRealParameters, FullSignalNMSEdB, ...
 
 lambdas = [1e-3 1e-4 1e-5];
 variantBudgets = repelem(budgets, numel(lambdas));
-Model = [repmat("Complex GMP-DOMP", numel(variantBudgets), 1); ...
-    repmat("PN-IQ PN-DOMP", numel(variantBudgets), 1)];
+Model = [repmat(cfg.names.complexGMPDOMP, numel(variantBudgets), 1); ...
+    repmat(cfg.names.pniqGMP, numel(variantBudgets), 1)];
 ActualRealParameters = [variantBudgets; variantBudgets];
 FixedLambda = repmat(repmat(lambdas(:), numel(budgets), 1), 2, 1);
 FullSignalNMSEdB = -34 - ActualRealParameters/120 + ...
@@ -49,11 +51,12 @@ selection = selectOperatingPoint(results, struct( ...
     'stabilizationWindowParameters', 100, ...
     'stabilizationToleranceDb', 1.00, ...
     'sensitivityWindowsParameters', [100 200], ...
-    'sensitivityTolerancesDb', [0.50 1.00]));
+    'sensitivityTolerancesDb', [0.50 1.00], 'names', cfg.names));
 options = struct('metricVariable', 'FullSignalNMSEdB', ...
-    'metricLabel', 'Full-signal NMSE (dB)', 'includeFixed', true, ...
+    'metricLabel', char(cfg.paper.validationNMSELabel), ...
+    'includeFixed', true, ...
     'fixedLambdas', lambdas, 'isNMSE', true, ...
-    'annotateSelected', false, 'selection', selection);
+    'annotateSelected', true, 'selection', selection, 'names', cfg.names);
 sweepFiles = plotSweepPaperFigure(results, fixed, ...
     'ActualRealParameters', 'Active real parameters', ...
     fullfile(outputDirectory, 'nmse_contract'), options);
@@ -61,26 +64,27 @@ assertFourFormats(sweepFiles);
 
 figureHandle = openfig(char(sweepFiles.fig), 'invisible');
 figureCleanup = onCleanup(@() closeFigureIfValid(figureHandle));
-axesHandle = findPaperAxes(figureHandle, 'Full-signal NMSE (dB)');
+axesHandle = findPaperAxes(figureHandle, cfg.paper.validationNMSELabel);
 limits = ylim(axesHandle);
 assert(limits(2) == -30);
 assert(limits(1) <= floor(min(fixed.FullSignalNMSEdB)/5)*5);
-assertLineColor(axesHandle, 'Complex GMP-DOMP', style.gmpBlue);
-assertLineColor(axesHandle, 'PN-IQ PN-DOMP', style.pnOrange);
-assertLineColor(axesHandle, 'Sparse PNNN N12', style.pnnnGreen);
+assertLineColor(axesHandle, cfg.names.complexGMPDOMP, style.gmpBlue);
+assertLineColor(axesHandle, cfg.names.pniqGMP, style.pnOrange);
+assertLineColor(axesHandle, cfg.names.pnnn, style.pnnnGreen);
 selectionMarkers = findall(axesHandle, 'Type', 'line', ...
     'DisplayName', 'All three models used in selection');
 assert(isscalar(selectionMarkers));
 assert(numel(selectionMarkers.XData) == 3);
 assert(max(abs(selectionMarkers.Color - style.selectedRed)) < 1e-12);
 pnHighlight = findall(axesHandle, 'Type', 'line', ...
-    'DisplayName', 'PN-IQ at selected common budget');
+    'DisplayName', cfg.names.pniqGMP + " at selected common budget");
 assert(isscalar(pnHighlight));
 assert(max(abs(pnHighlight.Color - style.selectedRed)) < 1e-12);
 assert(strcmpi(pnHighlight.HandleVisibility, 'off'));
 legendHandle = findobj(figureHandle, 'Type', 'legend');
 assert(isscalar(legendHandle));
 assert(strcmpi(legendHandle.Orientation, 'horizontal'));
+assertCanonicalLegends(figureHandle);
 clear figureCleanup;
 
 frequencyMHz = linspace(-100, 100, 128).';
@@ -92,7 +96,7 @@ spectrum = struct( ...
     'errorPSDdB', -45 - abs(frequencyMHz)/12 - (1:3), ...
     'fixedErrorPSDdB', -47 - abs(frequencyMHz)/13 - (1:6));
 spectrumFiles = exportSelectedSpectrumFigures( ...
-    spectrum, outputDirectory, lambdas, struct());
+    spectrum, outputDirectory, lambdas, cfg.names, struct());
 fields = fieldnames(spectrumFiles);
 for index = 1:numel(fields)
     assertFourFormats(spectrumFiles.(fields{index}));
@@ -104,9 +108,10 @@ axesHandle = findPaperAxes(figureHandle, ...
     'PSD relative to target peak (dB)');
 dataLines = findobj(axesHandle, 'Type', 'line');
 assert(numel(dataLines) == 4);
-assertLineColor(axesHandle, 'Target full signal', style.targetGray);
+assertLineColor(axesHandle, cfg.names.measuredOutput, style.targetGray);
 legendHandle = findobj(figureHandle, 'Type', 'legend');
 assert(strcmpi(legendHandle.Orientation, 'horizontal'));
+assertCanonicalLegends(figureHandle);
 clear figureCleanup;
 
 figureHandle = openfig(char(spectrumFiles.ridgeError.fig), 'invisible');
@@ -117,13 +122,20 @@ positions = vertcat(axesHandles.Position);
 assert(abs(diff(positions(:, 2))) < 0.1);
 assert(abs(diff(positions(:, 1))) > 0.2);
 for index = 1:2
-    assertLineColor(axesHandles(index), 'Target full signal', ...
+    assertLineColor(axesHandles(index), cfg.names.measuredOutput, ...
         style.targetGray);
 end
 legendHandle = findobj(figureHandle, 'Type', 'legend');
 assert(isscalar(legendHandle));
 assert(strcmpi(legendHandle.Orientation, 'horizontal'));
+assertCanonicalLegends(figureHandle);
 clear figureCleanup;
+
+for name = ["output", "ridgeOutput"]
+    figureHandle = openfig(char(spectrumFiles.(name).fig), 'invisible');
+    assertCanonicalLegends(figureHandle);
+    close(figureHandle);
+end
 
 clear cleanup;
 fprintf('PAPER FIGURE CONTRACT TEST: PASS\n');
@@ -157,6 +169,15 @@ assert(isfile(files.fig));
 assert(isfile(files.png));
 assert(isfile(files.tikz));
 assert(isfile(files.pdf));
+end
+
+function assertCanonicalLegends(figureHandle)
+forbidden = ["PN-" + "DOMP", "Sparse PNNN " + "N12", ...
+    "Independent PN-" + "IQ", "PN-IQ PN-" + "DOMP"];
+for legendHandle = findobj(figureHandle, 'Type', 'legend').'
+    text = join(string(legendHandle.String), " ");
+    assert(~contains(text, forbidden));
+end
 end
 
 function removeFixture(directory, removeOutput)

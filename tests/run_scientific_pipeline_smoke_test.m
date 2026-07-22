@@ -48,10 +48,10 @@ cfg.sweep.candidateBlockSize = 128;
 cfg.gmp.blockSize = 128;
 linear = run_linear_sweep(x, y, split, cfg);
 assert(all(isfinite(linear.predictions.complexFull), 'all'));
-assert(all(isfinite(linear.predictions.pnFull), 'all'));
+assert(all(isfinite(linear.predictions.pniqFull), 'all'));
 assert(isequal(linear.complexTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
-assert(isequal(linear.pnTable.ActualRealParameters.', ...
+assert(isequal(linear.pniqTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
 
 %% PNNN uses one visible 84-feature, two-output phase-normalized dataset

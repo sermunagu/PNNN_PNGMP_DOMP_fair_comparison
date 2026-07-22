@@ -1,5 +1,5 @@
 function comparison = run_widely_linear_gmp_probe()
-% Compare GMP, WL-GMP and PN-IQ at 340 real parameters without altering the sweep.
+% Compare Complex GMP-DOMP, WL-GMP, and PN-IQ-GMP at 340 real parameters.
 
 root = fileparts(mfilename('fullpath'));
 addpath(fullfile(root, 'config'));
@@ -57,7 +57,7 @@ prediction = complex(zeros(numel(fullRows), 1));
 for first = 1:cfg.gmp.blockSize:numel(fullRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullRows));
     U = buildGMPRegressorRows(x, fullRows(local), manager, population);
-    U = [U, conj(U)];
+    U = [U, conj(U)]; %#ok<AGROW>
     prediction(local) = U(:, path)*c;
 end
 
@@ -66,10 +66,11 @@ wlNMSE = nmseComplexDb(y(fullRows), prediction);
 referenceFile = fullfile(cfg.sweep.resultsRoot, 'sweep_d113e389ab78', 'complexity_sweep.csv');
 reference = readtable(referenceFile);
 rows = reference.TargetRealParameters == target;
-gmp = reference(rows & string(reference.Model) == "Complex GMP DOMP sweep", :);
-pniq = reference(rows & string(reference.Model) == "Independent PN-IQ PN-DOMP sweep", :);
+referenceRows = reference(rows, :);
+gmp = referenceRows(1, :);
+pniq = referenceRows(2, :);
 
-Model = ["Complex GMP"; "Widely linear GMP"; "PN-IQ"];
+Model = [cfg.names.complexGMPDOMP; "Widely linear GMP"; cfg.names.pniqGMP];
 FullSignalNMSEdB = [gmp.FullSignalNMSEdB; wlNMSE; pniq.FullSignalNMSEdB];
 ImprovementVsGMPdB = gmp.FullSignalNMSEdB - FullSignalNMSEdB;
 comparison = table(Model, FullSignalNMSEdB, ImprovementVsGMPdB);

@@ -33,33 +33,34 @@ for index = 1:numel(population)
 end
 SourceRegressorIndex = [population; population];
 IsQ = [false(numel(population), 1); true(numel(population), 1)];
-pnFeatureMap = table(SourceRegressorIndex, IsQ);
-pnFeatureMap = pnFeatureMap(~structuralZero, :);
+pniqFeatureMap = table(SourceRegressorIndex, IsQ);
+pniqFeatureMap = pniqFeatureMap(~structuralZero, :);
 
 complexPath = population(1:max(counts));
-pnCandidates = find(~ismember( ...
-    pnFeatureMap.SourceRegressorIndex, complexPath));
-pnPath = pnCandidates(1:max(counts));
+pniqCandidates = find(~ismember( ...
+    pniqFeatureMap.SourceRegressorIndex, complexPath));
+pniqPath = pniqCandidates(1:max(counts));
 complexSupports = cell(numel(targets), 1);
-pnFeatureSupports = cell(numel(targets), 1);
-pnComplexSupports = cell(numel(targets), 1);
+pniqFeatureSupports = cell(numel(targets), 1);
+pniqComplexSupports = cell(numel(targets), 1);
 for index = 1:numel(targets)
     complexSupports{index} = complexPath(1:counts(index));
-    pnFeatureSupports{index} = pnPath(1:counts(index));
-    pnComplexSupports{index} = unique(pnFeatureMap.SourceRegressorIndex( ...
-        pnFeatureSupports{index}), 'stable');
+    pniqFeatureSupports{index} = pniqPath(1:counts(index));
+    pniqComplexSupports{index} = unique( ...
+        pniqFeatureMap.SourceRegressorIndex( ...
+        pniqFeatureSupports{index}), 'stable');
 end
-assert(~isequal(complexSupports{end}, pnComplexSupports{end}));
+assert(~isequal(complexSupports{end}, pniqComplexSupports{end}));
 
 TargetRealParameters = targets;
 ActualRealParameters = targets;
 FLOPsPerSample = 100 + targets;
 linear.complexTable = table(TargetRealParameters, ...
     ActualRealParameters, FLOPsPerSample);
-linear.pnTable = table(TargetRealParameters, ...
+linear.pniqTable = table(TargetRealParameters, ...
     ActualRealParameters, FLOPsPerSample);
-linear.paths = struct('complex', complexPath, 'pn', pnPath);
-linear.pnPathMap = pnFeatureMap(pnPath, :);
+linear.paths = struct('complex', complexPath, 'pniq', pniqPath);
+linear.pniqPathMap = pniqFeatureMap(pniqPath, :);
 
 fixed = run_fixed_ridge_sweep(x, y, split, cfg, linear);
 assert(fixed.table.Properties.UserData.coefficientRangeDefinition == ...
@@ -71,11 +72,11 @@ assert(fixed.table.Properties.UserData.linearLambdaSelection == "none");
 assert(fixed.table.Properties.UserData.fixedRidgeSupportPolicy == ...
     cfg.sweep.fixedRidgeSupportPolicy);
 assert(isequal(fixed.paths, linear.paths));
-assert(isequal(fixed.pnPathMap, linear.pnPathMap));
+assert(isequal(fixed.pniqPathMap, linear.pniqPathMap));
 assert(height(fixed.table) == 18);
 assert(width(fixed.table) == 8);
 assert(isequal(sort(unique(string(fixed.table.Model))), ...
-    sort(["Complex GMP-DOMP"; "PN-IQ PN-DOMP"])));
+    sort([cfg.names.complexGMPDOMP; cfg.names.pniqGMP])));
 assert(isequal(sort(unique(fixed.table.FixedLambda)), ...
     sort(cfg.fixedRidgeLambdas(:))));
 for model = unique(string(fixed.table.Model)).'
@@ -98,7 +99,7 @@ assert(all(fixed.table.MaxAbsRealParameter >= 0));
 
 withPredictions = run_fixed_ridge_sweep(x, y, split, cfg, linear, true);
 assert(all(isfinite(withPredictions.predictions.complexFull), 'all'));
-assert(all(isfinite(withPredictions.predictions.pnFull), 'all'));
+assert(all(isfinite(withPredictions.predictions.pniqFull), 'all'));
 assert(size(withPredictions.predictions.complexFull, 2) == ...
     numel(targets)*numel(cfg.fixedRidgeLambdas));
 fixedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
@@ -106,14 +107,14 @@ fixedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
 assert(~contains(fixedSource, 'selectDOMPSupport'));
 
 %% Fixed Ridge ranges match explicit unit-peak, unit-column fits
-[explicitComplex, explicitPN] = explicitFixedRanges( ...
+[explicitComplex, explicitPNIQ] = explicitFixedRanges( ...
     x, y, split, cfg, linear);
-complexRows = string(withPredictions.table.Model) == "Complex GMP-DOMP";
-pnRows = string(withPredictions.table.Model) == "PN-IQ PN-DOMP";
+complexRows = string(withPredictions.table.Model) == cfg.names.complexGMPDOMP;
+pniqRows = string(withPredictions.table.Model) == cfg.names.pniqGMP;
 assert(all(abs(withPredictions.table.MaxAbsRealParameter(complexRows) - ...
     explicitComplex) < 1e-9));
-assert(all(abs(withPredictions.table.MaxAbsRealParameter(pnRows) - ...
-    explicitPN) < 1e-9));
+assert(all(abs(withPredictions.table.MaxAbsRealParameter(pniqRows) - ...
+    explicitPNIQ) < 1e-9));
 
 %% Equivalent coefficient range and scientific metrics are scale invariant
 inputScale = 1.7;
@@ -133,12 +134,12 @@ assert(all(abs(scaled.table.MaxAbsRealParameter - ...
     withPredictions.table.MaxAbsRealParameter) < 1e-8));
 assert(all(abs(scaled.predictions.complexFull - ...
     outputScale*withPredictions.predictions.complexFull) < 1e-8, 'all'));
-assert(all(abs(scaled.predictions.pnFull - ...
-    outputScale*withPredictions.predictions.pnFull) < 1e-8, 'all'));
+assert(all(abs(scaled.predictions.pniqFull - ...
+    outputScale*withPredictions.predictions.pniqFull) < 1e-8, 'all'));
 
 fprintf('FIXED-LAMBDA LINEAR SWEEP TEST: PASS\n');
 
-function [complexRanges, pnRanges] = explicitFixedRanges( ...
+function [complexRanges, pniqRanges] = explicitFixedRanges( ...
     x, y, split, cfg, linear)
 rows = split.identificationIndices(:);
 xNormalized = x / max(abs(x(rows)));
@@ -148,9 +149,9 @@ targets = cfg.sweep.parameterGrid(:);
 lambdas = cfg.fixedRidgeLambdas(:);
 variantCount = numel(targets)*numel(lambdas);
 complexRanges = zeros(variantCount, 1);
-pnRanges = zeros(variantCount, 1);
+pniqRanges = zeros(variantCount, 1);
 
-metadata = linear.pnPathMap(1:max(targets)/2, :);
+metadata = linear.pniqPathMap(1:max(targets)/2, :);
 complexSupport = unique(metadata.SourceRegressorIndex, 'stable');
 complexRegressors = buildGMPRegressorRows( ...
     xNormalized, rows, manager, complexSupport);
@@ -160,13 +161,13 @@ rotation(nonzero) = conj(xNormalized(rows(nonzero))) ./ ...
     abs(xNormalized(rows(nonzero)));
 phaseNormalized = rotation .* complexRegressors;
 [~, sourceColumns] = ismember(metadata.SourceRegressorIndex, complexSupport);
-pnFeatures = zeros(numel(rows), height(metadata));
+pniqFeatures = zeros(numel(rows), height(metadata));
 for featureIndex = 1:height(metadata)
     values = phaseNormalized(:, sourceColumns(featureIndex));
     if metadata.IsQ(featureIndex)
-        pnFeatures(:, featureIndex) = imag(values);
+        pniqFeatures(:, featureIndex) = imag(values);
     else
-        pnFeatures(:, featureIndex) = real(values);
+        pniqFeatures(:, featureIndex) = real(values);
     end
 end
 rotatedTarget = rotation .* yNormalized(rows);
@@ -178,7 +179,7 @@ for targetIndex = 1:numel(targets)
     regressors = buildGMPRegressorRows( ...
         xNormalized, rows, manager, support);
     regressors = regressors ./ vecnorm(regressors, 2, 1);
-    features = pnFeatures(:, 1:count);
+    features = pniqFeatures(:, 1:count);
     features = features ./ vecnorm(features, 2, 1);
     for lambdaIndex = 1:numel(lambdas)
         lambda = lambdas(lambdaIndex);
@@ -187,7 +188,7 @@ for targetIndex = 1:numel(targets)
             abs(real(coefficients)); abs(imag(coefficients))]);
         coefficientsI = ridgeFit(features, real(rotatedTarget), lambda);
         coefficientsQ = ridgeFit(features, imag(rotatedTarget), lambda);
-        pnRanges(columns(lambdaIndex)) = max(abs([ ...
+        pniqRanges(columns(lambdaIndex)) = max(abs([ ...
             coefficientsI; coefficientsQ]));
     end
 end

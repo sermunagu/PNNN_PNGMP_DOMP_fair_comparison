@@ -27,46 +27,46 @@ assert(sweep.coefficientRangeDefinition == ...
     cfg.sweep.coefficientRangeDefinition);
 assert(isequal(sweep.complexTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
-assert(isequal(sweep.pnTable.ActualRealParameters.', ...
+assert(isequal(sweep.pniqTable.ActualRealParameters.', ...
     cfg.sweep.parameterGrid));
 assert(all(sweep.complexTable.SelectedLambda == 0));
-assert(all(sweep.pnTable.SelectedLambda == 0));
+assert(all(sweep.pniqTable.SelectedLambda == 0));
 assert(all(isnan(sweep.complexTable.InternalValidationNMSEdB)));
-assert(all(isnan(sweep.pnTable.InternalValidationNMSEdB)));
+assert(all(isnan(sweep.pniqTable.InternalValidationNMSEdB)));
 assert(numel(sweep.paths.complex) == max(cfg.sweep.parameterGrid)/2);
-assert(numel(sweep.paths.pn) == max(cfg.sweep.parameterGrid)/2);
+assert(numel(sweep.paths.pniq) == max(cfg.sweep.parameterGrid)/2);
 assert(numel(unique(sweep.paths.complex)) == numel(sweep.paths.complex));
-assert(numel(unique(sweep.paths.pn)) == numel(sweep.paths.pn));
+assert(numel(unique(sweep.paths.pniq)) == numel(sweep.paths.pniq));
 assert(all(isfinite(sweep.predictions.complexFull), 'all'));
-assert(all(isfinite(sweep.predictions.pnFull), 'all'));
+assert(all(isfinite(sweep.predictions.pniqFull), 'all'));
 assert(all(isfinite(sweep.complexTable.MaxAbsRealParameter)));
-assert(all(isfinite(sweep.pnTable.MaxAbsRealParameter)));
+assert(all(isfinite(sweep.pniqTable.MaxAbsRealParameter)));
 assert(all(sweep.complexTable.MaxAbsRealParameter >= 0));
-assert(all(sweep.pnTable.MaxAbsRealParameter >= 0));
+assert(all(sweep.pniqTable.MaxAbsRealParameter >= 0));
 assert(all(ismember({'SourceRegressorIndex','IsQ'}, ...
-    sweep.pnPathMap.Properties.VariableNames)));
-assert(height(sweep.pnPathMap) == numel(sweep.paths.pn));
+    sweep.pniqPathMap.Properties.VariableNames)));
+assert(height(sweep.pniqPathMap) == numel(sweep.paths.pniq));
 complexPrefixes = cell(numel(cfg.sweep.parameterGrid), 1);
-pnPrefixes = cell(numel(cfg.sweep.parameterGrid), 1);
+pniqPrefixes = cell(numel(cfg.sweep.parameterGrid), 1);
 for targetIndex = 1:numel(cfg.sweep.parameterGrid)
     count = cfg.sweep.parameterGrid(targetIndex)/2;
     complexPrefixes{targetIndex} = sweep.paths.complex(1:count);
-    pnPrefixes{targetIndex} = sweep.paths.pn(1:count);
+    pniqPrefixes{targetIndex} = sweep.paths.pniq(1:count);
 end
 for targetIndex = 2:numel(cfg.sweep.parameterGrid)
     previousCount = numel(complexPrefixes{targetIndex - 1});
     assert(isequal(complexPrefixes{targetIndex - 1}, ...
         complexPrefixes{targetIndex}(1:previousCount)));
-    assert(isequal(pnPrefixes{targetIndex - 1}, ...
-        pnPrefixes{targetIndex}(1:previousCount)));
+    assert(isequal(pniqPrefixes{targetIndex - 1}, ...
+        pniqPrefixes{targetIndex}(1:previousCount)));
 end
 
 %% Source contract: one DOMP call, no internal split or lambda-grid access
 complexSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'fit_complex_gmp_domp.m'));
-pnSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
-    'fit_independent_pniq_domp.m'));
-for source = string({complexSource, pnSource})
+pniqSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
+    'fit_pniq_gmp.m'));
+for source = string({complexSource, pniqSource})
     sourceText = char(source);
     assert(isscalar(strfind(sourceText, 'selectDOMPSupport')));
     assert(~contains(source, 'internalTrainIndices'));
@@ -76,11 +76,12 @@ for source = string({complexSource, pnSource})
 end
 
 %% Coefficient ranges match an explicit unit-peak, unit-column construction
-[explicitComplex, explicitPN] = explicitCoefficientRanges( ...
+[explicitComplex, explicitPNIQ] = explicitCoefficientRanges( ...
     x, y, split, cfg, sweep);
 assert(all(abs(explicitComplex - ...
     sweep.complexTable.MaxAbsRealParameter) < 1e-9));
-assert(all(abs(explicitPN - sweep.pnTable.MaxAbsRealParameter) < 1e-9));
+assert(all(abs(explicitPNIQ - ...
+    sweep.pniqTable.MaxAbsRealParameter) < 1e-9));
 
 %% Equivalent coefficients are invariant to global input/output scaling
 inputScale = 1.7;
@@ -89,32 +90,32 @@ scaledSweep = run_linear_sweep(inputScale*x, outputScale*y, split, cfg);
 assert(isequal(scaledSweep.paths, sweep.paths));
 assert(isequal(scaledSweep.complexTable.SelectedLambda, ...
     sweep.complexTable.SelectedLambda));
-assert(isequal(scaledSweep.pnTable.SelectedLambda, ...
-    sweep.pnTable.SelectedLambda));
+assert(isequal(scaledSweep.pniqTable.SelectedLambda, ...
+    sweep.pniqTable.SelectedLambda));
 invariantColumns = {'ActualRealParameters','FLOPsPerSample'};
 assert(isequal(scaledSweep.complexTable(:, invariantColumns), ...
     sweep.complexTable(:, invariantColumns)));
-assert(isequal(scaledSweep.pnTable(:, invariantColumns), ...
-    sweep.pnTable(:, invariantColumns)));
+assert(isequal(scaledSweep.pniqTable(:, invariantColumns), ...
+    sweep.pniqTable(:, invariantColumns)));
 nmseColumns = {'IdentificationNMSEdB','FullSignalNMSEdB'};
 complexNMSE = sweep.complexTable{:, nmseColumns};
 scaledComplexNMSE = scaledSweep.complexTable{:, nmseColumns};
 assert(all(abs(scaledComplexNMSE - complexNMSE) < 1e-8 | ...
     (scaledComplexNMSE < -250 & complexNMSE < -250), 'all'));
-assert(all(abs(scaledSweep.pnTable{:, nmseColumns} - ...
-    sweep.pnTable{:, nmseColumns}) < 1e-8, 'all'));
+assert(all(abs(scaledSweep.pniqTable{:, nmseColumns} - ...
+    sweep.pniqTable{:, nmseColumns}) < 1e-8, 'all'));
 assert(all(abs(scaledSweep.complexTable.MaxAbsRealParameter - ...
     sweep.complexTable.MaxAbsRealParameter) < 1e-8));
-assert(all(abs(scaledSweep.pnTable.MaxAbsRealParameter - ...
-    sweep.pnTable.MaxAbsRealParameter) < 1e-8));
+assert(all(abs(scaledSweep.pniqTable.MaxAbsRealParameter - ...
+    sweep.pniqTable.MaxAbsRealParameter) < 1e-8));
 assert(all(abs(scaledSweep.predictions.complexFull - ...
     outputScale*sweep.predictions.complexFull) < 1e-8, 'all'));
-assert(all(abs(scaledSweep.predictions.pnFull - ...
-    outputScale*sweep.predictions.pnFull) < 1e-8, 'all'));
+assert(all(abs(scaledSweep.predictions.pniqFull - ...
+    outputScale*sweep.predictions.pniqFull) < 1e-8, 'all'));
 
 fprintf('LINEAR COMPLEXITY SWEEP TEST: PASS\n');
 
-function [complexRanges, pnRanges] = explicitCoefficientRanges( ...
+function [complexRanges, pniqRanges] = explicitCoefficientRanges( ...
     x, y, split, cfg, sweep)
 rows = split.identificationIndices(:);
 xNormalized = x / max(abs(x(rows)));
@@ -122,7 +123,7 @@ yNormalized = y / max(abs(y(rows)));
 manager = GMP_createRegressorManager(xNormalized, yNormalized, cfg.gmp);
 targets = cfg.sweep.parameterGrid(:);
 complexRanges = zeros(numel(targets), 1);
-pnRanges = zeros(numel(targets), 1);
+pniqRanges = zeros(numel(targets), 1);
 
 for targetIndex = 1:numel(targets)
     count = targets(targetIndex)/2;
@@ -134,7 +135,7 @@ for targetIndex = 1:numel(targets)
     complexRanges(targetIndex) = max([ ...
         abs(real(coefficients)); abs(imag(coefficients))]);
 
-    metadata = sweep.pnPathMap(1:count, :);
+    metadata = sweep.pniqPathMap(1:count, :);
     complexSupport = unique(metadata.SourceRegressorIndex, 'stable');
     complexRegressors = buildGMPRegressorRows( ...
         xNormalized, rows, manager, complexSupport);
@@ -158,7 +159,7 @@ for targetIndex = 1:numel(targets)
     target = rotation .* yNormalized(rows);
     coefficientsI = fitUnitColumns(features, real(target));
     coefficientsQ = fitUnitColumns(features, imag(target));
-    pnRanges(targetIndex) = max(abs([coefficientsI; coefficientsQ]));
+    pniqRanges(targetIndex) = max(abs([coefficientsI; coefficientsQ]));
 end
 end
 

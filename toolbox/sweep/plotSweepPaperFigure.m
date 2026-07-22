@@ -13,9 +13,9 @@ cleanup = onCleanup(@() close(figureHandle));
 axesHandle = axes(figureHandle);
 hold(axesHandle, 'on');
 
-models = ["Complex GMP DOMP sweep", ...
-    "Independent PN-IQ PN-DOMP sweep", "Sparse PNNN N12"];
-labels = ["Complex GMP-DOMP", "PN-IQ PN-DOMP", "Sparse PNNN N12"];
+models = [options.names.complexGMPDOMP, ...
+    options.names.pniqGMP, options.names.pnnn];
+labels = models;
 mainLines = gobjects(3, 1);
 shownY = zeros(0, 1);
 for index = 1:3
@@ -36,7 +36,7 @@ for index = 1:3
 end
 
 if options.includeFixed
-    fixedModels = ["Complex GMP-DOMP", "PN-IQ PN-DOMP"];
+    fixedModels = [options.names.complexGMPDOMP, options.names.pniqGMP];
     for modelIndex = 1:2
         for lambdaIndex = 1:numel(options.fixedLambdas)
             rows = string(fixed.Model) == fixedModels(modelIndex) & ...
@@ -89,7 +89,8 @@ if options.annotateSelected
         'MarkerFaceColor', style.selectedRed, ...
         'MarkerSize', 3.5, 'LineWidth', 1.0, ...
         'HandleVisibility', 'off', ...
-        'DisplayName', 'PN-IQ at selected common budget');
+        'DisplayName', options.names.pniqGMP + ...
+            " at selected common budget");
 end
 
 grid(axesHandle, 'on');
@@ -121,7 +122,7 @@ legend(axesHandle, 'Location', 'southoutside', ...
     'FontSize', style.fontSize - 1);
 exportOptions = options.exportOptions;
 markerStep = max(1, ceil(nnz(string(results.Model) == ...
-    "Complex GMP DOMP sweep")/17));
+    options.names.complexGMPDOMP)/17));
 exportOptions.tikzExtraAxisOptions = { ...
     'clip=true', ...
     'clip mode=individual', ...
@@ -142,7 +143,11 @@ if ~isfield(options, 'metricVariable')
     options.metricVariable = 'FullSignalNMSEdB';
 end
 if ~isfield(options, 'metricLabel')
-    options.metricLabel = 'Full-signal NMSE (dB)';
+    options.metricLabel = 'Validation NMSE (dB)';
+end
+if ~isfield(options, 'names')
+    error('plotSweepPaperFigure:MissingNames', ...
+        'Canonical public names must be supplied in options.names.');
 end
 if ~isfield(options, 'includeFixed')
     options.includeFixed = false;

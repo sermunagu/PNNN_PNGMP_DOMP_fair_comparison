@@ -9,9 +9,9 @@ cfg = getFairDOMPComparisonConfig(projectRoot);
 targets = (20:10:500).';
 targetCount = numel(targets);
 
-Model = [repmat("Complex GMP DOMP sweep", targetCount, 1); ...
-    repmat("Independent PN-IQ PN-DOMP sweep", targetCount, 1); ...
-    repmat("Sparse PNNN N12", targetCount, 1)];
+Model = [repmat(cfg.names.complexGMPDOMP, targetCount, 1); ...
+    repmat(cfg.names.pniqGMP, targetCount, 1); ...
+    repmat(cfg.names.pnnn, targetCount, 1)];
 TargetRealParameters = repmat(targets, 3, 1);
 ActualRealParameters = TargetRealParameters;
 FullSignalNMSEdB = [-25 - 0.01*targets; ...
@@ -25,7 +25,7 @@ InternalValidationNMSEdB = nan(3*targetCount, 1);
 IdentificationNMSEdB = FullSignalNMSEdB + 0.1;
 FineTuneEpochs = nan(3*targetCount, 1);
 MaxAbsRealParameter = 0.01 + ActualRealParameters/1000;
-pnnnRows = Model == "Sparse PNNN N12";
+pnnnRows = Model == cfg.names.pnnn;
 ActiveBiases(pnnnRows) = 14;
 ActiveWeights(pnnnRows) = ActualRealParameters(pnnnRows) - 14;
 results = table(Model, TargetRealParameters, ...
@@ -36,8 +36,8 @@ results = table(Model, TargetRealParameters, ...
 
 fixedLambdas = cfg.fixedRidgeLambdas(:);
 variantTargets = repelem(targets, numel(fixedLambdas));
-Model = [repmat("Complex GMP-DOMP", numel(variantTargets), 1); ...
-    repmat("PN-IQ PN-DOMP", numel(variantTargets), 1)];
+Model = [repmat(cfg.names.complexGMPDOMP, numel(variantTargets), 1); ...
+    repmat(cfg.names.pniqGMP, numel(variantTargets), 1)];
 TargetRealParameters = [variantTargets; variantTargets];
 ActualRealParameters = TargetRealParameters;
 FixedLambda = repmat(repmat(fixedLambdas, targetCount, 1), 2, 1);
@@ -55,8 +55,10 @@ assert(height(fixedResults) == 294);
 assert(width(results) == 13);
 assert(width(fixedResults) == 8);
 assert(isequal(sort(unique(results.Model)), sort([ ...
-    "Complex GMP DOMP sweep"; "Independent PN-IQ PN-DOMP sweep"; ...
-    "Sparse PNNN N12"])));
+    cfg.names.complexGMPDOMP; cfg.names.pniqGMP; cfg.names.pnnn])));
+assert(isequal(sort(unique(fixedResults.Model)), sort([ ...
+    cfg.names.complexGMPDOMP; cfg.names.pniqGMP])));
+assert(cfg.paper.validationNMSELabel == "Validation NMSE (dB)");
 assert(~any(contains(results.Model, "Historical")));
 for target = targets.'
     rows = results.TargetRealParameters == target;

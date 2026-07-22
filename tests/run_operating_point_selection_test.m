@@ -2,7 +2,9 @@
 
 clearvars;
 projectRoot = fileparts(fileparts(mfilename('fullpath')));
+addpath(fullfile(projectRoot, 'config'));
 addpath(fullfile(projectRoot, 'toolbox', 'sweep'));
+cfg = getFairDOMPComparisonConfig(projectRoot);
 
 budgets = (100:10:150).';
 gmpNMSE = [-35.00; -35.20; -35.30; -35.35; -35.37; -35.38];
@@ -11,9 +13,9 @@ pnnnNMSE = [-30.00; -31.00; -32.00; -32.15; -32.18; -32.19];
 gmpFLOPs = [500; 520; 540; 560; 580; 600];
 pnFLOPs = [400; 415; 430; 445; 460; 475];
 pnnnFLOPs = [300; 320; 340; 360; 380; 400];
-Model = [repmat("Complex GMP DOMP sweep", numel(budgets), 1); ...
-    repmat("Independent PN-IQ PN-DOMP sweep", numel(budgets), 1); ...
-    repmat("Sparse PNNN N12", numel(budgets), 1)];
+Model = [repmat(cfg.names.complexGMPDOMP, numel(budgets), 1); ...
+    repmat(cfg.names.pniqGMP, numel(budgets), 1); ...
+    repmat(cfg.names.pnnn, numel(budgets), 1)];
 ActualRealParameters = repmat(budgets, 3, 1);
 FullSignalNMSEdB = [gmpNMSE; pnNMSE; pnnnNMSE];
 FLOPsPerSample = [gmpFLOPs; pnFLOPs; pnnnFLOPs];
@@ -22,7 +24,7 @@ results = table(Model, ActualRealParameters, FullSignalNMSEdB, ...
 config = struct('stabilizationWindowParameters', 20, ...
     'stabilizationToleranceDb', 0.20, ...
     'sensitivityWindowsParameters', [10 20 30], ...
-    'sensitivityTolerancesDb', [0.10 0.20]);
+    'sensitivityTolerancesDb', [0.10 0.20], 'names', cfg.names);
 selection = selectOperatingPoint(results, config);
 assert(selection.selectedParameters == 120);
 assert(selection.selectedParameters ~= 340);
@@ -30,7 +32,7 @@ assert(selection.criterionName == ...
     "joint stabilization minimum-complexity criterion");
 assert(selection.selectedComplexGMPFutureGainDb <= 0.20);
 assert(selection.selectedPNIQFutureGainDb <= 0.20);
-assert(selection.selectedSparsePNNNFutureGainDb <= 0.20);
+assert(selection.selectedPNNNFutureGainDb <= 0.20);
 assert(selection.selectedWorstFutureGainDb <= 0.20);
 diagnostics = selection.diagnosticsTable;
 assert(~diagnostics.JointlyStabilized( ...
@@ -50,19 +52,22 @@ assert(sensitivity.HasJointlyStabilizedPoint(row));
 assert(sensitivity.SelectedParameters(row) == 120);
 
 nonmonotonic = results;
-row = nonmonotonic.Model == "Independent PN-IQ PN-DOMP sweep" & ...
+row = nonmonotonic.Model == cfg.names.pniqGMP & ...
     nonmonotonic.ActualRealParameters == 130;
 nonmonotonic.FLOPsPerSample(row) = 400;
 assertError(@() selectOperatingPoint(nonmonotonic, config), ...
     'selectOperatingPoint:NonmonotonicFLOPs');
 
 historicalFile = fullfile(projectRoot, 'results', 'parameter_sweep', ...
-    'sweep_d113e389ab78', 'complexity_sweep.csv');
+    'legacy', 'sweep_d113e389ab78', 'complexity_sweep.csv');
 historical = readtable(historicalFile);
+historical.Model = repelem([cfg.names.complexGMPDOMP; ...
+    cfg.names.pniqGMP; cfg.names.pnnn], numel(unique( ...
+    historical.ActualRealParameters)));
 historicalConfig = struct('stabilizationWindowParameters', 100, ...
     'stabilizationToleranceDb', 0.20, ...
     'sensitivityWindowsParameters', [80 100 120], ...
-    'sensitivityTolerancesDb', [0.15 0.20 0.25]);
+    'sensitivityTolerancesDb', [0.15 0.20 0.25], 'names', cfg.names);
 historicalSelection = selectOperatingPoint(historical, historicalConfig);
 assert(historicalSelection.selectedParameters == 340);
 historicalDiagnostics = historicalSelection.diagnosticsTable;
@@ -73,7 +78,7 @@ assert(historicalDiagnostics.PNIQFutureGainDb(row330) > 0.20);
 assert(historicalDiagnostics.JointlyStabilized(row340));
 assert(all([historicalDiagnostics.ComplexGMPFutureGainDb(row340), ...
     historicalDiagnostics.PNIQFutureGainDb(row340), ...
-    historicalDiagnostics.SparsePNNNFutureGainDb(row340)] <= 0.20));
+    historicalDiagnostics.PNNNFutureGainDb(row340)] <= 0.20));
 
 fprintf('OPERATING POINT SELECTION TEST: PASS\n');
 

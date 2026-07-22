@@ -55,7 +55,7 @@ assert(contains(selectedSource, 'timeDomainFigureFiles'));
 assert(contains(selectedSource, ...
     'exportSelectedTimeDomainFigures(targetFullSignal, complexPrediction'));
 assert(contains(selectedSource, ...
-    'pnPrediction, selectedDirectory, exportOptions'));
+    'pniqPrediction, selectedDirectory, cfg.names, exportOptions'));
 assert(~contains(selectedSource, 'bestPNNNParameters'));
 
 clear cleanup;
