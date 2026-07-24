@@ -212,7 +212,7 @@ completeTableFile = fullfile(selectedDirectory, ...
     'selected_complete_comparison.csv');
 writetable(completeComparisonTable, completeTableFile);
 results.completeComparisonTableFile = string(completeTableFile);
-exportOptions = struct('latexmkCommand', cfg.paper.latexmkCommand);
+exportOptions = struct();
 [timeDomainFigureFiles, timeDomainWindow] = ...
     exportSelectedTimeDomainFigures(targetFullSignal, complexPrediction, ...
     pniqPrediction, selectedDirectory, cfg.names, exportOptions);
@@ -282,7 +282,6 @@ grid(axesHandle, 'on');
 box(axesHandle, 'on');
 set(axesHandle, 'FontName', style.fontName, ...
     'FontSize', style.fontSize, 'LineWidth', style.axisLineWidth);
-exportOptions.figureHeight = '4.2in';
 files = exportPaperFigure(figureHandle, ...
     fullfile(directory, 'selected_ampm'), exportOptions);
 clear cleanup;
@@ -322,7 +321,6 @@ grid(axesHandle, 'on');
 box(axesHandle, 'on');
 set(axesHandle, 'FontName', style.fontName, ...
     'FontSize', style.fontSize, 'LineWidth', style.axisLineWidth);
-exportOptions.figureHeight = '4.2in';
 files = exportPaperFigure(figureHandle, ...
     fullfile(directory, 'selected_phase_error'), exportOptions);
 clear cleanup;
@@ -495,10 +493,7 @@ end
 
 markerStep = max(1, floor(numel(sampleIndices)/14));
 exportOptions.tikzExtraAxisOptions = { ...
-    'legend columns=3', ...
-    'legend style={at={(1.1,-0.22)},anchor=north}', ...
     sprintf('every axis plot/.append style={mark repeat=%d}', markerStep)};
-exportOptions.figureHeight = '4.6in';
 files = exportPaperFigure(figureHandle, baseFilename, exportOptions);
 clear cleanup;
 end

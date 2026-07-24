@@ -60,7 +60,8 @@ options = struct('metricVariable', 'FullSignalNMSEdB', ...
 sweepFiles = plotSweepPaperFigure(results, fixed, ...
     'ActualRealParameters', 'Active real parameters', ...
     fullfile(outputDirectory, 'nmse_contract'), options);
-assertFourFormats(sweepFiles);
+assertThreeFormats(sweepFiles);
+assertTikzDelegatesLayout(sweepFiles);
 
 figureHandle = openfig(char(sweepFiles.fig), 'invisible');
 figureCleanup = onCleanup(@() closeFigureIfValid(figureHandle));
@@ -99,7 +100,8 @@ spectrumFiles = exportSelectedSpectrumFigures( ...
     spectrum, outputDirectory, lambdas, cfg.names, struct());
 fields = fieldnames(spectrumFiles);
 for index = 1:numel(fields)
-    assertFourFormats(spectrumFiles.(fields{index}));
+    assertThreeFormats(spectrumFiles.(fields{index}));
+    assertTikzDelegatesLayout(spectrumFiles.(fields{index}));
 end
 
 figureHandle = openfig(char(spectrumFiles.error.fig), 'invisible');
@@ -165,11 +167,22 @@ assert(isscalar(lineHandle));
 assert(max(abs(lineHandle.Color - expectedColor)) < 1e-12);
 end
 
-function assertFourFormats(files)
+function assertThreeFormats(files)
+assert(isequal(sort(string(fieldnames(files))), sort(["fig"; "png"; "tikz"])));
 assert(isfile(files.fig));
 assert(isfile(files.png));
 assert(isfile(files.tikz));
-assert(isfile(files.pdf));
+end
+
+function assertTikzDelegatesLayout(files)
+tikzText = fileread(files.tikz);
+assert(contains(tikzText, '\figurewidth'));
+assert(contains(tikzText, '\figureheight'));
+assert(~contains(tikzText, '0.68\figurewidth'));
+assert(~contains(tikzText, '0.7\figureheight'));
+absoluteInches = regexp(tikzText, ...
+    '(?m)^\s*(width|height)\s*=\s*[0-9.]+\s*in\s*,?', 'once');
+assert(isempty(absoluteInches));
 end
 
 function assertCanonicalLegends(figureHandle)

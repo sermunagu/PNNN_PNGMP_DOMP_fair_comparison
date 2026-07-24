@@ -22,10 +22,10 @@ end
 
 targets = cfg.sweep.parameterGrid;
 
-%% Verify the paper-export toolchain before data loading or training
-fprintf('[Preflight] Checking matlab2tikz and standalone LaTeX export...\n');
+%% Verify matlab2tikz export before data loading or training
+fprintf('[Preflight] Checking matlab2tikz export...\n');
 paperToolchain = preflightPaperFigureToolchain(projectRoot, cfg.paper);
-fprintf('[Preflight] Paper-figure toolchain passed.\n');
+fprintf('[Preflight] matlab2tikz export passed.\n');
 
 %% Load the measurement and build the common split
 measurement = load(cfg.measurementFile, 'x', 'y');
@@ -294,7 +294,7 @@ writeTableAtomically(selection.sensitivityTable, resultDirectory, ...
 writeTextAtomically([selection.summarySentence; ...
     coefficientMetadata.warning], resultDirectory, ...
     'operating_point_selection_summary.txt');
-exportOptions = struct('latexmkCommand', cfg.paper.latexmkCommand);
+exportOptions = struct();
 nmseOptions = struct('metricVariable', 'FullSignalNMSEdB', ...
     'metricLabel', char(cfg.paper.validationNMSELabel), ...
     'names', cfg.names, 'includeFixed', true, ...
