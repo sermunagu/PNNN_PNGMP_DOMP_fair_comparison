@@ -36,8 +36,9 @@ cfg.fixedRidgeLambdas = [1e-3 1e-4 1e-5];
 cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
-cfg.sweep.schemaVersion = 5;
-cfg.sweep.coefficientRangeDefinition = "unit_peak_io_unit_column_norm_v1";
+cfg.sweep.schemaVersion = 8;
+cfg.sweep.coefficientRangeDefinition = ...
+    "unit_peak_output_per_column_peak_regressors_v4";
 cfg.sweep.linearIdentificationScope = "complete identification subset";
 cfg.sweep.linearPrincipalLambda = 0;
 cfg.sweep.linearLambdaSelection = "none";

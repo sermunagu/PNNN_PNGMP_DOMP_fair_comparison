@@ -21,30 +21,42 @@ identificationPath = selectDOMPSupport(identificationU, ...
     identificationTarget, maximumFeatures, ...
     cfg.gmp.dompOptions.columnTolerance);
 identificationPath = identificationPath(:);
-identificationNorms = sqrt(sum(abs(identificationU).^2, 1)).';
 
-% Unit-peak input gives the same unit-norm columns because its global scale
-% cancels when each homogeneous GMP column is normalized.
-outputPeak = max(abs(y(identificationRows)));
+outputPeak = max(abs(identificationTarget));
+if ~isfinite(outputPeak) || outputPeak <= 0
+    error('fit_complex_gmp_domp:InvalidIdentificationOutputPeak', ...
+        'The identification output peak must be finite and positive.');
+end
+unitPeakIdentificationTarget = identificationTarget / outputPeak;
 
-coefficients = complex(zeros(maximumFeatures, numel(targets)));
-comparisonCoefficients = coefficients;
+predictionCoefficients = complex(zeros(maximumFeatures, numel(targets)));
+unitPeakRegressionCoefficientPaths = complex(zeros(maximumFeatures, numel(targets)));
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     support = identificationPath(1:count);
-    columnNorms = identificationNorms(support);
-    normalizedU = identificationU(:, support) ./ columnNorms.';
-    rankTolerance = max(size(normalizedU))*eps(norm(normalizedU, 2));
-    normalizedCoefficients = lsqminnorm( ...
-        normalizedU, identificationTarget, rankTolerance);
+    selectedRegressors = identificationU(:, support);
+    regressorPeaks = max(abs(selectedRegressors), [], 1).';
+    invalidColumn = find(~isfinite(regressorPeaks) | ...
+        regressorPeaks <= 0, 1);
+    if ~isempty(invalidColumn)
+        error('fit_complex_gmp_domp:InvalidRegressorPeak', ...
+            ['%s target %d selected column %d has a nonfinite or ' ...
+            'nonpositive peak.'], cfg.names.complexGMPDOMP, ...
+            targets(targetIndex), support(invalidColumn));
+    end
+    
+    unitPeakRegressors = selectedRegressors ./ regressorPeaks.';
+    rankTolerance = max(size(unitPeakRegressors)) *  eps(norm(unitPeakRegressors, 2));
 
-    comparisonCoefficients(1:count, targetIndex) = ...
-        normalizedCoefficients / outputPeak;
-    coefficients(1:count, targetIndex) = normalizedCoefficients ./ columnNorms;
+    unitPeakRegressionCoefficients = lsqminnorm(unitPeakRegressors, unitPeakIdentificationTarget, rankTolerance);
+
+    unitPeakRegressionCoefficientPaths(1:count, targetIndex) = unitPeakRegressionCoefficients;
+
+    predictionCoefficients(1:count, targetIndex) = ...
+        (unitPeakRegressionCoefficients * outputPeak) ./ regressorPeaks;
 end
 
-identificationPredictions = identificationU(:, ...
-    identificationPath(1:maximumFeatures)) * coefficients;
+identificationPredictions = identificationU(:, identificationPath(1:maximumFeatures)) * predictionCoefficients;
 
 %% Full-signal prediction
 fprintf('[Linear] Evaluating %d %s targets on the full signal...\n', ...
@@ -55,8 +67,8 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullSignalRows));
     U = buildGMPRegressorRows(x, fullSignalRows(local), manager, ...
         identificationPath(1:maximumFeatures));
-    
-    fullPredictions(local, :) = U * coefficients;
+
+    fullPredictions(local, :) = U * predictionCoefficients;
 end
 
 %% NMSE, parameters, and FLOPs
@@ -79,17 +91,15 @@ for targetIndex = 1:numel(targets)
     operations = countModelOperations(manager.regPopulation, support);
     cost = countModelFLOPs(operations(1, :), getFLOPConvention());
     ActualRealParameters(targetIndex) = double(cost.NumRealParameters);
-    IdentificationNMSEdB(targetIndex) = nmseComplexDb( ...
-        identificationTarget, identificationPredictions(:, targetIndex));
-    FullSignalNMSEdB(targetIndex) = nmseComplexDb( ...
-        fullSignalTarget, fullPredictions(:, targetIndex));
+    IdentificationNMSEdB(targetIndex) = nmseComplexDb(identificationTarget, identificationPredictions(:, targetIndex));
+    FullSignalNMSEdB(targetIndex) = nmseComplexDb(fullSignalTarget, fullPredictions(:, targetIndex));
     FLOPsPerSample(targetIndex) = double(cost.FLOPsPerSample);
-    activeCoefficients = comparisonCoefficients( ...
-        1:featureCounts(targetIndex), ...
-        targetIndex);
-    MaxAbsRealParameter(targetIndex) = max([ ...
-        abs(real(activeCoefficients)); ...
-        abs(imag(activeCoefficients))]);
+
+    activeUnitPeakRegressionCoefficients = ...
+        unitPeakRegressionCoefficientPaths( ...
+        1:featureCounts(targetIndex), targetIndex);
+    MaxAbsRealParameter(targetIndex) = ...
+        max(abs(activeUnitPeakRegressionCoefficients(:)));
 end
 
 resultTable = table(Model, TargetRealParameters, ActualRealParameters, ...

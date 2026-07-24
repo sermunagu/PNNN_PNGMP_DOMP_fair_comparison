@@ -9,7 +9,7 @@ end
 if ~isfolder(directory)
     mkdir(directory);
 end
-frequencyMHz = spectrum.frequencyMHz;
+frequencyMHz = spectrum.frequencyMHz + 2600;
 targetPSD = spectrum.outputPSDdB(:, 1);
 files = struct();
 files.output = exportMainSpectrum(frequencyMHz, ...
@@ -174,7 +174,7 @@ function formatSpectrumAxes(axesHandle, style)
 grid(axesHandle, 'on');
 box(axesHandle, 'on');
 xlabel(axesHandle, 'Frequency (MHz)');
-ylabel(axesHandle, 'PSD relative to target peak (dB)');
+ylabel(axesHandle, 'Normalized PSD (dB/Hz)');
 set(axesHandle, 'FontName', style.fontName, ...
     'FontSize', style.fontSize, 'LineWidth', style.axisLineWidth);
 end

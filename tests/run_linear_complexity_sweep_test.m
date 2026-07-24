@@ -75,7 +75,7 @@ for source = string({complexSource, pniqSource})
     assert(contains(source, 'lsqminnorm'));
 end
 
-%% Coefficient ranges match an explicit unit-peak, unit-column construction
+%% Coefficient ranges match an explicit per-column peak construction
 [explicitComplex, explicitPNIQ] = explicitCoefficientRanges( ...
     x, y, split, cfg, sweep);
 assert(all(abs(explicitComplex - ...
@@ -83,7 +83,7 @@ assert(all(abs(explicitComplex - ...
 assert(all(abs(explicitPNIQ - ...
     sweep.pniqTable.MaxAbsRealParameter) < 1e-9));
 
-%% Equivalent coefficients are invariant to global input/output scaling
+%% Equivalent normalized coefficients are invariant to input/output scaling
 inputScale = 1.7;
 outputScale = 0.6;
 scaledSweep = run_linear_sweep(inputScale*x, outputScale*y, split, cfg);
@@ -118,9 +118,9 @@ fprintf('LINEAR COMPLEXITY SWEEP TEST: PASS\n');
 function [complexRanges, pniqRanges] = explicitCoefficientRanges( ...
     x, y, split, cfg, sweep)
 rows = split.identificationIndices(:);
-xNormalized = x / max(abs(x(rows)));
-yNormalized = y / max(abs(y(rows)));
-manager = GMP_createRegressorManager(xNormalized, yNormalized, cfg.gmp);
+outputPeak = max(abs(y(rows)));
+unitPeakTarget = y / outputPeak;
+manager = GMP_createRegressorManager(x, y, cfg.gmp);
 targets = cfg.sweep.parameterGrid(:);
 complexRanges = zeros(numel(targets), 1);
 pniqRanges = zeros(numel(targets), 1);
@@ -129,20 +129,18 @@ for targetIndex = 1:numel(targets)
     count = targets(targetIndex)/2;
     support = sweep.paths.complex(1:count);
     regressors = buildGMPRegressorRows( ...
-        xNormalized, rows, manager, support);
-    regressors = regressors ./ vecnorm(regressors, 2, 1);
-    coefficients = fitUnitColumns(regressors, yNormalized(rows));
-    complexRanges(targetIndex) = max([ ...
-        abs(real(coefficients)); abs(imag(coefficients))]);
+        x, rows, manager, support);
+    regressors = regressors ./ max(abs(regressors), [], 1);
+    coefficients = fitUnitColumns(regressors, unitPeakTarget(rows));
+    complexRanges(targetIndex) = max(abs(coefficients));
 
     metadata = sweep.pniqPathMap(1:count, :);
     complexSupport = unique(metadata.SourceRegressorIndex, 'stable');
     complexRegressors = buildGMPRegressorRows( ...
-        xNormalized, rows, manager, complexSupport);
+        x, rows, manager, complexSupport);
     rotation = complex(ones(numel(rows), 1));
-    nonzero = abs(xNormalized(rows)) ~= 0;
-    rotation(nonzero) = conj(xNormalized(rows(nonzero))) ./ ...
-        abs(xNormalized(rows(nonzero)));
+    nonzero = abs(x(rows)) ~= 0;
+    rotation(nonzero) = conj(x(rows(nonzero))) ./ abs(x(rows(nonzero)));
     phaseNormalized = rotation .* complexRegressors;
     [~, sourceColumns] = ismember( ...
         metadata.SourceRegressorIndex, complexSupport);
@@ -155,8 +153,8 @@ for targetIndex = 1:numel(targets)
             features(:, featureIndex) = real(values);
         end
     end
-    features = features ./ vecnorm(features, 2, 1);
-    target = rotation .* yNormalized(rows);
+    features = features ./ max(abs(features), [], 1);
+    target = rotation .* unitPeakTarget(rows);
     coefficientsI = fitUnitColumns(features, real(target));
     coefficientsQ = fitUnitColumns(features, imag(target));
     pniqRanges(targetIndex) = max(abs([coefficientsI; coefficientsQ]));

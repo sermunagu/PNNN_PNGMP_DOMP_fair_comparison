@@ -23,9 +23,9 @@ for row = 1:height(learnables)
     end
     total = numel(data);
     active = nnz(mask);
+    
     if active > 0
-        counts.maxAbsRealParameter = max( ...
-            counts.maxAbsRealParameter, max(abs(data(mask))));
+        counts.maxAbsRealParameter = max(counts.maxAbsRealParameter, max(abs(data(mask))));
     end
     name = lower(string(learnables.Parameter(row)));
     if name == "weights"

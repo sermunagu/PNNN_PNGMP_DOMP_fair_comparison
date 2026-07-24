@@ -15,14 +15,14 @@ assert(cfg.gmp.dompOptions.columnTolerance == 1e-12);
 assert(isequal(cfg.pnnn.orders, [1 3 5 7]));
 assert(cfg.pnnn.sparseBaseHiddenNeurons == 12);
 assert(cfg.pnnn.nnSeed == 42);
-assert(cfg.sweep.schemaVersion == 5);
+assert(cfg.sweep.schemaVersion == 8);
 assert(cfg.names.complexGMPDOMP == "Complex GMP-DOMP");
 assert(cfg.names.pniqGMP == "PN-IQ-GMP");
 assert(cfg.names.pnnn == "PNNN");
 assert(cfg.names.measuredOutput == "Measured output");
 assert(cfg.paper.validationNMSELabel == "Validation NMSE (dB)");
 assert(cfg.sweep.coefficientRangeDefinition == ...
-    "unit_peak_io_unit_column_norm_v1");
+    "unit_peak_output_per_column_peak_regressors_v4");
 assert(cfg.sweep.linearIdentificationScope == ...
     "complete identification subset");
 assert(cfg.sweep.linearPrincipalLambda == 0);

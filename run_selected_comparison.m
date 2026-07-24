@@ -86,7 +86,7 @@ if ~isequaln(summaryPayload.results, sweep.results) || ...
 end
 if ~isfield(summaryPayload, 'selection')
     error('run_selected_comparison:MissingSelection', ...
-        'The schema-v5 sweep summary must contain automatic selection data.');
+        'The schema-v8 sweep summary must contain automatic selection data.');
 end
 automaticSelection = summaryPayload.selection;
 

@@ -38,10 +38,18 @@ effectiveFeatureCount = height(pniqFeatureMap);
 identificationInput = x(identificationRows);
 identificationRotation = complex(ones(size(identificationInput)));
 nonzero = abs(identificationInput) ~= 0;
-identificationRotation(nonzero) = ...
-    conj(identificationInput(nonzero)) ./ abs(identificationInput(nonzero));
+identificationRotation(nonzero) = conj(identificationInput(nonzero)) ./ abs(identificationInput(nonzero));
 identificationTarget = y(identificationRows);
-rotatedIdentificationTarget = identificationRotation .* identificationTarget;
+
+phaseNormalizedIdentificationTarget = ...
+    identificationRotation .* identificationTarget;
+outputPeak = max(abs(phaseNormalizedIdentificationTarget));
+if ~isfinite(outputPeak) || outputPeak <= 0
+    error('fit_pniq_gmp:InvalidIdentificationOutputPeak', ...
+        'The phase-normalized identification output peak must be finite and positive.');
+end
+unitPeakPhaseNormalizedIdentificationTarget = ...
+    phaseNormalizedIdentificationTarget / outputPeak;
 fullSignalTarget = y(fullSignalRows);
 
 fprintf('[Linear] Building the %s identification matrix...\n', ...
@@ -58,41 +66,57 @@ end
 fprintf(['[Linear] Computing one DOMP support path for %s ' ...
     'on identification...\n'], cfg.names.pniqGMP);
 identificationPath = selectDOMPSupport( ...
-    identificationFeatures, rotatedIdentificationTarget, ...
+    identificationFeatures, phaseNormalizedIdentificationTarget, ...
     maximumFeatures, cfg.gmp.dompOptions.columnTolerance);
 identificationPath = identificationPath(:);
 
-% Unit-peak input gives the same unit-norm features because its global scale
-% cancels when each homogeneous GMP feature is normalized.
-outputPeak = max(abs(y(identificationRows)));
+% Global input scaling cancels when each homogeneous GMP feature is peak-normalized.
 
-coefficientsI = zeros(maximumFeatures, numel(targets));
-coefficientsQ = zeros(maximumFeatures, numel(targets));
-comparisonI = coefficientsI;
-comparisonQ = coefficientsQ;
+predictionCoefficientsI = zeros(maximumFeatures, numel(targets));
+predictionCoefficientsQ = zeros(maximumFeatures, numel(targets));
+unitPeakRegressionCoefficientPathsI = ...
+    zeros(maximumFeatures, numel(targets));
+unitPeakRegressionCoefficientPathsQ = ...
+    zeros(maximumFeatures, numel(targets));
 
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     support = identificationPath(1:count);
     selectedFeatures = identificationFeatures(:, support);
-    featureNorms = sqrt(sum(selectedFeatures.^2, 1)).';
-    normalizedFeatures = selectedFeatures ./ featureNorms.';
-    rankTolerance = max(size(normalizedFeatures)) * ...
-        eps(norm(normalizedFeatures, 2));
-    normalizedI = lsqminnorm(normalizedFeatures, ...
-        real(rotatedIdentificationTarget), rankTolerance);
-    normalizedQ = lsqminnorm(normalizedFeatures, ...
-        imag(rotatedIdentificationTarget), rankTolerance);
-    comparisonI(1:count, targetIndex) = normalizedI / outputPeak;
-    comparisonQ(1:count, targetIndex) = normalizedQ / outputPeak;
-    coefficientsI(1:count, targetIndex) = normalizedI ./ featureNorms;
-    coefficientsQ(1:count, targetIndex) = normalizedQ ./ featureNorms;
+    featurePeaks = max(abs(selectedFeatures), [], 1).';
+    invalidFeature = find(~isfinite(featurePeaks) | featurePeaks <= 0, 1);
+    if ~isempty(invalidFeature)
+        error('fit_pniq_gmp:InvalidFeaturePeak', ...
+            ['%s target %d selected feature %d has a nonfinite or ' ...
+            'nonpositive peak.'], cfg.names.pniqGMP, ...
+            targets(targetIndex), support(invalidFeature));
+    end
+    unitPeakFeatures = selectedFeatures ./ featurePeaks.';
+    rankTolerance = max(size(unitPeakFeatures)) * ...
+        eps(norm(unitPeakFeatures, 2));
+
+    unitPeakRegressionCoefficientsI = lsqminnorm( ...
+        unitPeakFeatures, real(unitPeakPhaseNormalizedIdentificationTarget), ...
+        rankTolerance);
+    unitPeakRegressionCoefficientsQ = lsqminnorm( ...
+        unitPeakFeatures, imag(unitPeakPhaseNormalizedIdentificationTarget), ...
+        rankTolerance);
+
+    unitPeakRegressionCoefficientPathsI(1:count, targetIndex) = ...
+        unitPeakRegressionCoefficientsI;
+    unitPeakRegressionCoefficientPathsQ(1:count, targetIndex) = ...
+        unitPeakRegressionCoefficientsQ;
+
+    predictionCoefficientsI(1:count, targetIndex) = ...
+        (unitPeakRegressionCoefficientsI * outputPeak) ./ featurePeaks;
+    predictionCoefficientsQ(1:count, targetIndex) = ...
+        (unitPeakRegressionCoefficientsQ * outputPeak) ./ featurePeaks;
 end
 
 selectedIdentificationFeatures = identificationFeatures(:, identificationPath(1:maximumFeatures));
 rotatedIdentificationPrediction = complex( ...
-    selectedIdentificationFeatures * coefficientsI, ...
-    selectedIdentificationFeatures * coefficientsQ);
+    selectedIdentificationFeatures * predictionCoefficientsI, ...
+    selectedIdentificationFeatures * predictionCoefficientsQ);
 identificationPredictions = conj(identificationRotation) .* rotatedIdentificationPrediction;
 
 %% Full-signal prediction and phase restoration
@@ -116,7 +140,9 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     raw = buildFeatures(x, fullSignalRows(local), rotation, ...
         manager, complexSupport, descriptors);
     features = raw(:, selectedColumns);
-    rotatedPrediction = complex(features * coefficientsI, features * coefficientsQ);
+    rotatedPrediction = complex( ...
+        features * predictionCoefficientsI, ...
+        features * predictionCoefficientsQ);
     fullPredictions(local, :) = conj(rotation) .* rotatedPrediction;
 end
 
@@ -149,9 +175,14 @@ for targetIndex = 1:numel(targets)
         fullSignalTarget, fullPredictions(:, targetIndex));
     FLOPsPerSample(targetIndex) = double(cost.FLOPsPerSample);
     count = featureCounts(targetIndex);
+
+    activeUnitPeakRegressionCoefficientsI = ...
+        unitPeakRegressionCoefficientPathsI(1:count, targetIndex);
+    activeUnitPeakRegressionCoefficientsQ = ...
+        unitPeakRegressionCoefficientPathsQ(1:count, targetIndex);
     MaxAbsRealParameter(targetIndex) = max(abs([ ...
-        comparisonI(1:count, targetIndex); ...
-        comparisonQ(1:count, targetIndex)]));
+        activeUnitPeakRegressionCoefficientsI(:); ...
+        activeUnitPeakRegressionCoefficientsQ(:)]));
 end
 
 resultTable = table(Model, TargetRealParameters, ActualRealParameters, ...

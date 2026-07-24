@@ -291,15 +291,18 @@ K=P/2,\qquad
 Sea:
 
 \[
-D=\mathrm{diag}(\|u_1\|_2,\ldots,\|u_K\|_2),
+D=\mathrm{diag}(\max_n|u_1[n]|,\ldots,\max_n|u_K[n]|),
 \qquad
 \widetilde U=UD^{-1}.
 \]
 
+Con \(p_y=\max_n|y[n]|\), se ajusta la salida de pico unitario
+\(\widetilde y=y/p_y\).
+
 Para \(\lambda=0\):
 
 \[
-\widetilde h_0=\widetilde U^\dagger y.
+\widetilde h_0=\widetilde U^\dagger \widetilde y.
 \]
 
 Para \(\lambda>0\):
@@ -307,13 +310,13 @@ Para \(\lambda>0\):
 \[
 \widetilde h_\lambda
 =(\widetilde U^H\widetilde U+\lambda I)^{-1}
-\widetilde U^H y.
+\widetilde U^H\widetilde y.
 \]
 
 Los coeficientes en la matriz física son:
 
 \[
-h_\lambda=D^{-1}\widetilde h_\lambda.
+h_\lambda=p_yD^{-1}\widetilde h_\lambda.
 \]
 
 La solución principal usa siempre \(\lambda=0\) y se calcula mediante
@@ -406,6 +409,9 @@ La predicción rotada y la restauración son:
 
 El soporte es común a los dos ajustes. Ambos se resuelven independientemente
 mediante \code{lsqminnorm} y usan \(\lambda=0\) en la solución principal.
+Para el ajuste, cada característica activa se divide por su máximo absoluto y
+la salida rotada se divide por el pico de la salida original. La transformación
+inversa se aplica únicamente a los coeficientes usados para predecir.
 
 \subsection{Libertad adicional}
 
@@ -690,28 +696,18 @@ Fuentes:
 
 \subsection{Construcción lineal equivalente}
 
-En identificación se conceptualiza:
+Cada columna se normaliza por su pico:
 
 \[
-x_u=\frac{x}{\max_{n\in\mathcal I}|x[n]|},
-\qquad
-y_u=\frac{y}{\max_{n\in\mathcal I}|y[n]|}.
+\bar u_k=\frac{u_k(x)}{\max_n|u_k(x)[n]|}.
 \]
 
-Cada columna se normaliza:
-
-\[
-\bar u_k=\frac{u_k(x_u)}{\|u_k(x_u)\|_2}.
-\]
-
-Se ajustan los coeficientes en esa base. Para GMP:
+La salida de identificación se normaliza a pico unitario y se ajusta en esa
+base. Para GMP:
 
 \[
 C_{\max}^{\mathrm{GMP}}
-=\max_k\big(
-|\Re\{\bar h_k\}|,
-|\Im\{\bar h_k\}|
-\big).
+=\max_k|\bar h_k|.
 \]
 
 Para PN-IQ:
@@ -724,9 +720,11 @@ C_{\max}^{\mathrm{PN-IQ}}
 \big).
 \]
 
-La normalización de entrada es implícita en el código principal, porque el
-factor global de una columna homogénea cancela al dividir por su norma. La
-prueba lineal reconstruye la versión explícita y verifica igualdad.
+Una escala global positiva de entrada es equivalente, porque su factor cancela
+al dividir cada columna por su propio pico. La solución en la base de pico
+unitario define la métrica y se transforma únicamente para predecir la salida
+original. Las pruebas lineales reconstruyen la salida y las columnas de pico
+unitario, y verifican igualdad.
 
 \subsection{PNNN}
 

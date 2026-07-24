@@ -106,7 +106,7 @@ fixedSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'run_fixed_ridge_sweep.m'));
 assert(~contains(fixedSource, 'selectDOMPSupport'));
 
-%% Fixed Ridge ranges match explicit unit-peak, unit-column fits
+%% Fixed Ridge ranges match explicit per-column peak fits
 [explicitComplex, explicitPNIQ] = explicitFixedRanges( ...
     x, y, split, cfg, linear);
 complexRows = string(withPredictions.table.Model) == cfg.names.complexGMPDOMP;
@@ -116,7 +116,7 @@ assert(all(abs(withPredictions.table.MaxAbsRealParameter(complexRows) - ...
 assert(all(abs(withPredictions.table.MaxAbsRealParameter(pniqRows) - ...
     explicitPNIQ) < 1e-9));
 
-%% Equivalent coefficient range and scientific metrics are scale invariant
+%% Equivalent normalized coefficients are invariant to input/output scaling
 inputScale = 1.7;
 outputScale = 0.6;
 scaled = run_fixed_ridge_sweep(inputScale*x, outputScale*y, split, ...
@@ -142,9 +142,9 @@ fprintf('FIXED-LAMBDA LINEAR SWEEP TEST: PASS\n');
 function [complexRanges, pniqRanges] = explicitFixedRanges( ...
     x, y, split, cfg, linear)
 rows = split.identificationIndices(:);
-xNormalized = x / max(abs(x(rows)));
-yNormalized = y / max(abs(y(rows)));
-manager = GMP_createRegressorManager(xNormalized, yNormalized, cfg.gmp);
+outputPeak = max(abs(y(rows)));
+unitPeakTarget = y / outputPeak;
+manager = GMP_createRegressorManager(x, y, cfg.gmp);
 targets = cfg.sweep.parameterGrid(:);
 lambdas = cfg.fixedRidgeLambdas(:);
 variantCount = numel(targets)*numel(lambdas);
@@ -154,11 +154,10 @@ pniqRanges = zeros(variantCount, 1);
 metadata = linear.pniqPathMap(1:max(targets)/2, :);
 complexSupport = unique(metadata.SourceRegressorIndex, 'stable');
 complexRegressors = buildGMPRegressorRows( ...
-    xNormalized, rows, manager, complexSupport);
+    x, rows, manager, complexSupport);
 rotation = complex(ones(numel(rows), 1));
-nonzero = abs(xNormalized(rows)) ~= 0;
-rotation(nonzero) = conj(xNormalized(rows(nonzero))) ./ ...
-    abs(xNormalized(rows(nonzero)));
+nonzero = abs(x(rows)) ~= 0;
+rotation(nonzero) = conj(x(rows(nonzero))) ./ abs(x(rows(nonzero)));
 phaseNormalized = rotation .* complexRegressors;
 [~, sourceColumns] = ismember(metadata.SourceRegressorIndex, complexSupport);
 pniqFeatures = zeros(numel(rows), height(metadata));
@@ -170,24 +169,23 @@ for featureIndex = 1:height(metadata)
         pniqFeatures(:, featureIndex) = real(values);
     end
 end
-rotatedTarget = rotation .* yNormalized(rows);
+phaseNormalizedTarget = rotation .* unitPeakTarget(rows);
 
 for targetIndex = 1:numel(targets)
     count = targets(targetIndex)/2;
     columns = (targetIndex - 1)*numel(lambdas) + (1:numel(lambdas));
     support = linear.paths.complex(1:count);
     regressors = buildGMPRegressorRows( ...
-        xNormalized, rows, manager, support);
-    regressors = regressors ./ vecnorm(regressors, 2, 1);
+        x, rows, manager, support);
+    regressors = regressors ./ max(abs(regressors), [], 1);
     features = pniqFeatures(:, 1:count);
-    features = features ./ vecnorm(features, 2, 1);
+    features = features ./ max(abs(features), [], 1);
     for lambdaIndex = 1:numel(lambdas)
         lambda = lambdas(lambdaIndex);
-        coefficients = ridgeFit(regressors, yNormalized(rows), lambda);
-        complexRanges(columns(lambdaIndex)) = max([ ...
-            abs(real(coefficients)); abs(imag(coefficients))]);
-        coefficientsI = ridgeFit(features, real(rotatedTarget), lambda);
-        coefficientsQ = ridgeFit(features, imag(rotatedTarget), lambda);
+        coefficients = ridgeFit(regressors, unitPeakTarget(rows), lambda);
+        complexRanges(columns(lambdaIndex)) = max(abs(coefficients));
+        coefficientsI = ridgeFit(features, real(phaseNormalizedTarget), lambda);
+        coefficientsQ = ridgeFit(features, imag(phaseNormalizedTarget), lambda);
         pniqRanges(columns(lambdaIndex)) = max(abs([ ...
             coefficientsI; coefficientsQ]));
     end

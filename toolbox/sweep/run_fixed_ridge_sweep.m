@@ -30,37 +30,53 @@ identificationTarget = y(identificationRows);
 fullSignalTarget = y(fullSignalRows);
 targetEnergyIdentification = sum(abs(identificationTarget).^2);
 targetEnergyFull = sum(abs(fullSignalTarget).^2);
-outputPeak = max(abs(y(identificationRows)));
+outputPeak = max(abs(identificationTarget));
+if ~isfinite(outputPeak) || outputPeak <= 0
+    error('run_fixed_ridge_sweep:InvalidIdentificationOutputPeak', ...
+        'The identification output peak must be finite and positive.');
+end
+unitPeakIdentificationTarget = identificationTarget / outputPeak;
 
-%% Complex GMP: normalize, fit all fixed lambdas, and predict
-% The complex column norm is computed once on identification and undone in h.
-% Unit-peak input gives the same unit-norm columns because its global scale
-% cancels when each homogeneous GMP column is normalized.
+%% Complex GMP: peak-normalize, fit all fixed lambdas, and predict
+% Global input scaling cancels when each homogeneous GMP column is peak-normalized.
 fprintf('[Fixed ridge] Building one %s identification matrix...\n', ...
     cfg.names.complexGMPDOMP);
 complexSupport = complexPath(1:maximumFeatures);
 identificationU = buildGMPRegressorRows( ...
     x, identificationRows, manager, complexSupport);
-complexColumnNorms = sqrt(sum(abs(identificationU).^2, 1)).';
-complexCoefficients = complex(zeros(maximumFeatures, variantCount));
-complexComparisonCoefficients = complexCoefficients;
+complexPredictionCoefficients = complex(zeros(maximumFeatures, variantCount));
+complexUnitPeakRegressionCoefficientPaths = ...
+    complex(zeros(maximumFeatures, variantCount));
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
-    columnNorms = complexColumnNorms(1:count);
-    normalizedU = identificationU(:, 1:count) ./ columnNorms.';
-    gram = normalizedU' * normalizedU;
-    rhs = normalizedU' * identificationTarget;
+    selectedRegressors = identificationU(:, 1:count);
+    regressorPeaks = max(abs(selectedRegressors), [], 1).';
+    invalidColumn = find(~isfinite(regressorPeaks) | ...
+        regressorPeaks <= 0, 1);
+    if ~isempty(invalidColumn)
+        error('run_fixed_ridge_sweep:InvalidComplexRegressorPeak', ...
+            ['%s fixed-Ridge target %d selected column %d has a ' ...
+            'nonfinite or nonpositive peak.'], cfg.names.complexGMPDOMP, ...
+            targets(targetIndex), complexSupport(invalidColumn));
+    end
+    unitPeakRegressors = selectedRegressors ./ regressorPeaks.';
+    gram = unitPeakRegressors' * unitPeakRegressors;
+    rhs = unitPeakRegressors' * unitPeakIdentificationTarget;
     for lambdaIndex = 1:lambdaCount
-        normalizedCoefficients = ...
-            (gram + fixedLambdas(lambdaIndex)*eye(count)) \ rhs;
-        complexComparisonCoefficients(1:count, columns(lambdaIndex)) = ...
-            normalizedCoefficients / outputPeak;
-        complexCoefficients(1:count, columns(lambdaIndex)) = ...
-            normalizedCoefficients ./ columnNorms;
+        column = columns(lambdaIndex);
+        regularizedGram = gram + ...
+            fixedLambdas(lambdaIndex)*eye(count, 'like', gram);
+        unitPeakRegressionCoefficients = regularizedGram \ rhs;
+        complexUnitPeakRegressionCoefficientPaths(1:count, column) = ...
+            unitPeakRegressionCoefficients;
+        complexPredictionCoefficients(1:count, column) = ...
+            (unitPeakRegressionCoefficients * outputPeak) ./ ...
+            regressorPeaks;
     end
 end
-complexIdentificationPredictions = identificationU * complexCoefficients;
+complexIdentificationPredictions = ...
+    identificationU * complexPredictionCoefficients;
 complexIdentificationError = sum(abs( ...
     complexIdentificationPredictions - identificationTarget).^2, 1);
 complexIdentificationNMSE = ...
@@ -70,10 +86,11 @@ for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
-        values = complexComparisonCoefficients( ...
-            1:count, columns(lambdaIndex));
-        complexMaxAbs(columns(lambdaIndex)) = max([ ...
-            abs(real(values)); abs(imag(values))]);
+        column = columns(lambdaIndex);
+        activeUnitPeakRegressionCoefficients = ...
+            complexUnitPeakRegressionCoefficientPaths(1:count, column);
+        complexMaxAbs(column) = ...
+            max(abs(activeUnitPeakRegressionCoefficients(:)));
     end
 end
 
@@ -82,12 +99,12 @@ storedComplexFullPredictions = complex(zeros(numel(fullSignalRows), numel(stored
 for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     local = first:min(first + cfg.gmp.blockSize - 1, numel(fullSignalRows));
     U = buildGMPRegressorRows(x, fullSignalRows(local), manager, complexSupport);
-    prediction = U * complexCoefficients;
+    prediction = U * complexPredictionCoefficients;
     storedComplexFullPredictions(local, :) = prediction(:, storedColumns);
     complexFullError = complexFullError + sum(abs(prediction - fullSignalTarget(local)).^2, 1);
 end
 complexFullNMSE = 10*log10(complexFullError(:)/targetEnergyFull);
-clear identificationU complexCoefficients complexIdentificationPredictions
+clear identificationU complexPredictionCoefficients complexIdentificationPredictions
 
 %% PN-IQ: normalize real features, fit I/Q, and restore phase
 % Both outputs use the same real features; only their coefficients differ.
@@ -154,41 +171,61 @@ for first = 1:cfg.sweep.candidateBlockSize:numel(identificationRows)
     raw = [regressorsI, regressorsQ];
     identificationFeatures(local, :) = raw(:, selectedColumns);
 end
-normalizedTarget = identificationRotation .* identificationTarget;
+phaseNormalizedIdentificationTarget = ...
+    identificationRotation .* identificationTarget;
+unitPeakPhaseNormalizedIdentificationTarget = ...
+    phaseNormalizedIdentificationTarget / outputPeak;
 
-featureNorms = sqrt(sum(identificationFeatures.^2, 1)).';
-normalizedFeatures = identificationFeatures ./ featureNorms.';
-gram = normalizedFeatures.' * normalizedFeatures;
-rhsI = normalizedFeatures.' * real(normalizedTarget);
-rhsQ = normalizedFeatures.' * imag(normalizedTarget);
-pniqCoefficientsI = zeros(maximumFeatures, variantCount);
-pniqCoefficientsQ = zeros(maximumFeatures, variantCount);
-pniqComparisonI = pniqCoefficientsI;
-pniqComparisonQ = pniqCoefficientsQ;
+pniqPredictionCoefficientsI = zeros(maximumFeatures, variantCount);
+pniqPredictionCoefficientsQ = zeros(maximumFeatures, variantCount);
+pniqUnitPeakRegressionCoefficientPathsI = ...
+    zeros(maximumFeatures, variantCount);
+pniqUnitPeakRegressionCoefficientPathsQ = ...
+    zeros(maximumFeatures, variantCount);
 for targetIndex = 1:numel(targets)
     count = featureCounts(targetIndex);
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
-    prefixGram = gram(1:count, 1:count);
+    selectedFeatures = identificationFeatures(:, 1:count);
+    featurePeaks = max(abs(selectedFeatures), [], 1).';
+    invalidFeature = find(~isfinite(featurePeaks) | featurePeaks <= 0, 1);
+    if ~isempty(invalidFeature)
+        error('run_fixed_ridge_sweep:InvalidPNIQFeaturePeak', ...
+            ['%s fixed-Ridge target %d selected feature %d has a ' ...
+            'nonfinite or nonpositive peak.'], cfg.names.pniqGMP, ...
+            targets(targetIndex), linear.paths.pniq(invalidFeature));
+    end
+    unitPeakFeatures = selectedFeatures ./ featurePeaks.';
+    gram = unitPeakFeatures.' * unitPeakFeatures;
+    rhsI = unitPeakFeatures.' * ...
+        real(unitPeakPhaseNormalizedIdentificationTarget);
+    rhsQ = unitPeakFeatures.' * ...
+        imag(unitPeakPhaseNormalizedIdentificationTarget);
     for lambdaIndex = 1:lambdaCount
-        regularizedGram = ...
-            prefixGram + fixedLambdas(lambdaIndex)*eye(count);
-        normalizedI = regularizedGram \ rhsI(1:count);
-        normalizedQ = regularizedGram \ rhsQ(1:count);
-        pniqCoefficientsI(1:count, columns(lambdaIndex)) = ...
-            normalizedI ./ featureNorms(1:count);
-        pniqCoefficientsQ(1:count, columns(lambdaIndex)) = ...
-            normalizedQ ./ featureNorms(1:count);
-        pniqComparisonI(1:count, columns(lambdaIndex)) = ...
-            normalizedI / outputPeak;
-        pniqComparisonQ(1:count, columns(lambdaIndex)) = ...
-            normalizedQ / outputPeak;
+        regularizedGram = gram + ...
+            fixedLambdas(lambdaIndex)*eye(count, 'like', gram);
+        column = columns(lambdaIndex);
+        unitPeakRegressionCoefficientsI = ...
+            regularizedGram \ rhsI(1:count);
+        unitPeakRegressionCoefficientsQ = ...
+            regularizedGram \ rhsQ(1:count);
+        pniqPredictionCoefficientsI(1:count, column) = ...
+            (unitPeakRegressionCoefficientsI * outputPeak) ./ ...
+            featurePeaks;
+        pniqPredictionCoefficientsQ(1:count, column) = ...
+            (unitPeakRegressionCoefficientsQ * outputPeak) ./ ...
+            featurePeaks;
+        pniqUnitPeakRegressionCoefficientPathsI(1:count, column) = ...
+            unitPeakRegressionCoefficientsI;
+        pniqUnitPeakRegressionCoefficientPathsQ(1:count, column) = ...
+            unitPeakRegressionCoefficientsQ;
     end
 end
-pniqIdentificationNormalized = ...
-    identificationFeatures * pniqCoefficientsI + ...
-    1j * (identificationFeatures * pniqCoefficientsQ);
+pniqPhaseNormalizedIdentificationPrediction = ...
+    identificationFeatures * pniqPredictionCoefficientsI + ...
+    1j * (identificationFeatures * pniqPredictionCoefficientsQ);
 pniqIdentificationPredictions = ...
-    conj(identificationRotation) .* pniqIdentificationNormalized;
+    conj(identificationRotation) .* ...
+    pniqPhaseNormalizedIdentificationPrediction;
 pniqIdentificationError = sum(abs( ...
     pniqIdentificationPredictions - identificationTarget).^2, 1);
 pniqIdentificationNMSE = ...
@@ -199,9 +236,12 @@ for targetIndex = 1:numel(targets)
     columns = (targetIndex - 1)*lambdaCount + (1:lambdaCount);
     for lambdaIndex = 1:lambdaCount
         column = columns(lambdaIndex);
+        activeI = pniqUnitPeakRegressionCoefficientPathsI( ...
+            1:count, column);
+        activeQ = pniqUnitPeakRegressionCoefficientPathsQ( ...
+            1:count, column);
         pniqMaxAbs(column) = max(abs([ ...
-            pniqComparisonI(1:count, column); ...
-            pniqComparisonQ(1:count, column)]));
+            activeI(:); activeQ(:)]));
     end
 end
 
@@ -250,9 +290,10 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     end
     raw = [regressorsI, regressorsQ];
     features = raw(:, selectedColumns);
-    predictionNormalized = complex( ...
-        features * pniqCoefficientsI, features * pniqCoefficientsQ);
-    prediction = conj(blockRotation) .* predictionNormalized;
+    phaseNormalizedPrediction = complex( ...
+        features * pniqPredictionCoefficientsI, ...
+        features * pniqPredictionCoefficientsQ);
+    prediction = conj(blockRotation) .* phaseNormalizedPrediction;
     storedPNIQFullPredictions(local, :) = prediction(:, storedColumns);
     pniqFullError = pniqFullError + ...
         sum(abs(prediction - fullSignalTarget(local)).^2, 1);

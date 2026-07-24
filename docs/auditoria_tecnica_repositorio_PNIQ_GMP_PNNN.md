@@ -153,25 +153,25 @@ K=P/2.
 
 ### 7.2 Ajuste principal sin regularización
 
-Para cada prefijo, se normalizan columnas:
+Para cada prefijo, cada columna se normaliza por su máximo módulo:
 
 \[
-D=\operatorname{diag}(\|u_1\|_2,\ldots,\|u_K\|_2),\qquad
-\widetilde U=UD^{-1}.
+D=\operatorname{diag}(\max_n|u_1[n]|,\ldots,\max_n|u_K[n]|),\qquad
+\widetilde U=UD^{-1},\qquad \widetilde y=y/\max_n|y[n]|.
 \]
 
 Para \(\lambda=0\):
 
 \[
-\widetilde h=\widetilde U^\dagger y
+\widetilde h=\widetilde U^\dagger \widetilde y
 \]
 
 mediante `lsqminnorm` y una tolerancia de rango robusta.
 
-Los coeficientes físicos son:
+Los coeficientes físicos usados para predecir son:
 
 \[
-h=D^{-1}\widetilde h.
+h=\max_n|y[n]|\,D^{-1}\widetilde h.
 \]
 
 La solución principal usa siempre \(\lambda=0\). `cfg.lambdaGrid` se conserva solo para experimentos auxiliares y no participa en el pipeline lineal canónico.
@@ -261,6 +261,11 @@ Las dos salidas comparten soporte, se ajustan independientemente mediante `lsqmi
 \qquad
 \hat y[n]=r^*[n]\hat z[n].
 \]
+
+Para el ajuste, las columnas activas de \(F_{\mathcal S}\) se normalizan
+individualmente por su máximo absoluto y la salida compleja rotada se divide
+por el pico de la salida original. Los coeficientes físicos se recuperan solo
+para predecir.
 
 ### 8.5 Libertad adicional
 
@@ -451,20 +456,17 @@ Para PNNN dispersa, los FLOPs reportados asumen un kernel ideal que omite pesos 
 
 La definición solicitada por el tutor se implementa así:
 
-1. entrada y salida con máximo módulo uno en identificación;
-2. construcción del diccionario;
-3. normalización L2 de cada columna;
-4. ajuste en esa base;
-5. máximo absoluto de los escalares reales activos.
+1. construcción del diccionario sobre la entrada de identificación;
+2. normalización de cada columna por su máximo módulo o valor absoluto;
+3. normalización de la salida de identificación a pico unitario;
+4. ajuste de esa salida normalizada en la base de columnas de pico unitario;
+5. máximo del módulo de los coeficientes normalizados activos.
 
 Para GMP complejo:
 
 \[
 C_{\max}=
-\max_k\{
-|\Re\{\widetilde h_k\}|,
-|\Im\{\widetilde h_k\}|
-\}.
+\max_k |\widetilde h_k|.
 \]
 
 Para PN-IQ:
@@ -477,7 +479,7 @@ C_{\max}=
 \}.
 \]
 
-El código usa las señales originales y divide los coeficientes de columnas normalizadas por el pico de salida. La normalización global de entrada cancela al normalizar cada columna. La prueba `run_linear_complexity_sweep_test` reconstruye explícitamente la normalización de pico y verifica igualdad numérica.
+El código resuelve una sola regresión contra la salida de pico unitario. Esos coeficientes se usan directamente para la métrica y, tras multiplicarlos por el pico de salida y dividirlos por los picos de columna, para predecir la salida original. Una escala global positiva de entrada cancela al normalizar cada columna por su propio pico. Las pruebas lineales reconstruyen explícitamente la definición y verifican la igualdad numérica.
 
 ### 13.2 PNNN
 
@@ -572,7 +574,7 @@ clear; clc; close all force;
 1. El modo PNNN `full` contiene una característica cero y una duplicada.
 2. `run_widely_linear_gmp_probe` fija directamente el directorio `sweep_d113e389ab78`; es frágil si cambia la identidad.
 3. La tabla y las leyendas usan ahora el nombre canónico `PN-IQ-GMP`.
-4. El título “Max. abs. real coefficient” sería más preciso como “maximum absolute active real scalar component”.
+4. La figura usa el título canónico “Maximum absolute coefficient/parameter”.
 5. `exportPaperFigure` restaura `Visible` después de `savefig`, pero no mediante `onCleanup`; un error durante `savefig` puede dejar la figura visible.
 
 ## 20. Respuestas que debes dominar

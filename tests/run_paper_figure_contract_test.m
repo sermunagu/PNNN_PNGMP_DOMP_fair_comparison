@@ -105,9 +105,10 @@ end
 figureHandle = openfig(char(spectrumFiles.error.fig), 'invisible');
 figureCleanup = onCleanup(@() closeFigureIfValid(figureHandle));
 axesHandle = findPaperAxes(figureHandle, ...
-    'PSD relative to target peak (dB)');
+    'Normalized PSD (dB/Hz)');
 dataLines = findobj(axesHandle, 'Type', 'line');
 assert(numel(dataLines) == 4);
+assert(all(abs(dataLines(1).XData - (frequencyMHz + 2600).') < 1e-12));
 assertLineColor(axesHandle, cfg.names.measuredOutput, style.targetGray);
 legendHandle = findobj(figureHandle, 'Type', 'legend');
 assert(strcmpi(legendHandle.Orientation, 'horizontal'));
