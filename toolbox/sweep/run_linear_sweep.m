@@ -6,7 +6,18 @@ function sweep = run_linear_sweep(x, y, split, cfg)
 x = x(:);
 y = y(:);
 manager = GMP_createRegressorManager(x, y, cfg.gmp);
-population = (1:numel(manager.regPopulation)).';
+
+%% Report the initial dense Complex GMP size
+Q = numel(manager.regPopulation);
+
+denseComplexRegressors = Q;
+denseComplexRealParameters = 2 * Q;
+
+fprintf(['[Linear] Complex GMP dense population: %d complex ' ...
+    'regressors, equivalent to %d real parameters.\n'], ...
+    denseComplexRegressors, denseComplexRealParameters);
+
+population = (1:Q).';
 
 %% Fit the two scientific model families
 complexModel = fit_complex_gmp_domp(x, y, split, cfg, manager, population);

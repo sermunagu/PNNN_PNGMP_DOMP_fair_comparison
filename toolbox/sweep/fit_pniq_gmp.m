@@ -32,7 +32,18 @@ keptFeatures = find(~structuralZero);
 pniqFeatureMap = table(SourceRegressorIndex(keptFeatures), ...
     IsQ(keptFeatures), ...
     'VariableNames', {'SourceRegressorIndex','IsQ'});
+
 effectiveFeatureCount = height(pniqFeatureMap);
+
+%% Report the initial dense PN-IQ-GMP size
+D = effectiveFeatureCount;
+densePNIQRealParameters = 2 * D;
+numStructuralZeroQFeatures = nnz(structuralZero);
+
+fprintf(['[Linear] PN-IQ-GMP dense population: %d real candidate ' ...
+    'features, equivalent to %d real parameters ' ...
+    '(%d structurally zero Q-features removed).\n'], ...
+    D, densePNIQRealParameters, numStructuralZeroQFeatures);
 
 %% DOMP support path for PN-IQ-GMP and independent principal I/Q fits
 identificationInput = x(identificationRows);
