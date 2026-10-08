@@ -1,4 +1,4 @@
-function sweep = run_linear_sweep(x, y, split, cfg)
+function [sweep, models] = run_linear_sweep(x, y, split, cfg, paths)
 % run_linear_sweep - Coordinate the two linear model sweeps.
 % Complex GMP-DOMP and PN-IQ-GMP share one GMP population; each model
 % owns one identification DOMP path, its prefix fits, predictions, and costs.
@@ -20,8 +20,15 @@ fprintf(['[Linear] Complex GMP dense population: %d complex ' ...
 population = (1:Q).';
 
 %% Fit the two scientific model families
-complexModel = fit_complex_gmp_domp(x, y, split, cfg, manager, population);
-pniqModel = fit_pniq_gmp(x, y, split, cfg, manager, population);
+if nargin < 5
+    complexModel = fit_complex_gmp_domp(x, y, split, cfg, manager, population);
+    pniqModel = fit_pniq_gmp(x, y, split, cfg, manager, population);
+else
+    % Explicit recovery: reuse the saved supports, never rerun DOMP.
+    complexModel = fit_complex_gmp_domp(x, y, split, cfg, manager, population, paths.complex);
+    pniqModel = fit_pniq_gmp(x, y, split, cfg, manager, population, paths.pniq);
+end
+models = {complexModel.parameters, pniqModel.parameters};
 
 
 

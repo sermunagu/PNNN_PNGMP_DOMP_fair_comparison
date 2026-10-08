@@ -1,4 +1,4 @@
-function model = fit_pniq_gmp(x, y, split, cfg, manager, population)
+function model = fit_pniq_gmp(x, y, split, cfg, manager, population, identificationPath)
 % fit_pniq_gmp - Fit PN-IQ-GMP using DOMP-based sparse support selection.
 % The file shows phase rotation, I/Q features, independent coefficient fits,
 % phase restoration, predictions, metrics, parameters, and FLOPs.
@@ -69,16 +69,21 @@ identificationFeatures = zeros(numel(identificationRows), effectiveFeatureCount)
 
 for first = 1:cfg.sweep.candidateBlockSize:numel(identificationRows)
     local = first:min(first + cfg.sweep.candidateBlockSize - 1, numel(identificationRows));
-    raw = buildFeatures(x, identificationRows(local), ...
+    raw = buildPNIQFeatures(x, identificationRows(local), ...
         identificationRotation(local), manager, population, descriptors);
     identificationFeatures(local, :) = raw(:, keptFeatures);
 end
 
-fprintf(['[Linear] Computing one DOMP support path for %s ' ...
-    'on identification...\n'], cfg.names.pniqGMP);
-identificationPath = selectDOMPSupport( ...
-    identificationFeatures, phaseNormalizedIdentificationTarget, ...
-    maximumFeatures, cfg.gmp.dompOptions.columnTolerance);
+if nargin < 7
+    fprintf(['[Linear] Computing one DOMP support path for %s ' ...
+        'on identification...\n'], cfg.names.pniqGMP);
+    identificationPath = selectDOMPSupport( ...
+        identificationFeatures, phaseNormalizedIdentificationTarget, ...
+        maximumFeatures, cfg.gmp.dompOptions.columnTolerance);
+else
+    assert(numel(identificationPath) == maximumFeatures && ...
+        numel(unique(identificationPath)) == maximumFeatures, 'Invalid saved support.');
+end
 identificationPath = identificationPath(:);
 
 % Global input scaling cancels when each homogeneous GMP feature is peak-normalized.
@@ -148,7 +153,7 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     nonzero = abs(xRows) ~= 0;
     rotation(nonzero) = conj(xRows(nonzero)) ./ abs(xRows(nonzero));
 
-    raw = buildFeatures(x, fullSignalRows(local), rotation, ...
+    raw = buildPNIQFeatures(x, fullSignalRows(local), rotation, ...
         manager, complexSupport, descriptors);
     features = raw(:, selectedColumns);
     rotatedPrediction = complex( ...
@@ -205,45 +210,14 @@ model.table = resultTable;
 model.path = identificationPath;
 model.fullPredictions = fullPredictions;
 model.pniqPathMap = pniqFeatureMap(identificationPath, :);
-end
-
-
-
-
-
-
-function features = buildFeatures( ...
-    x, rows, rotation, manager, support, descriptors)
-% Build the real I/Q representation of phase-normalized GMP regressors.
-
-complexRegressors = buildGMPRegressorRows(x, rows, manager, support);
-phaseNormalized = rotation .* complexRegressors;
-regressorsI = zeros(numel(rows), numel(support));
-regressorsQ = zeros(numel(rows), numel(support));
-signalLength = numel(x);
-
-for localIndex = 1:numel(support)
-    descriptor = descriptors(support(localIndex));
-    if descriptor.canonicalGMP
-        carrierRows = mod( ...
-            rows - descriptor.carrierLag - 1, signalLength) + 1;
-        normalizedCarrier = rotation .* x(carrierRows);
-        envelope = ones(numel(rows), 1);
-        for termIndex = 1:numel(descriptor.envelopeLags)
-            envelopeRows = mod(rows - ...
-                descriptor.envelopeLags(termIndex) - 1, signalLength) + 1;
-            envelope = envelope .* abs(x(envelopeRows)).^ ...
-                descriptor.envelopePowers(termIndex);
-        end
-        regressorsI(:, localIndex) = real(normalizedCarrier) .* envelope;
-        regressorsQ(:, localIndex) = imag(normalizedCarrier) .* envelope;
-        if descriptor.QColumnStructurallyZero
-            regressorsQ(:, localIndex) = 0;
-        end
-    else
-        regressorsI(:, localIndex) = real(phaseNormalized(:, localIndex));
-        regressorsQ(:, localIndex) = imag(phaseNormalized(:, localIndex));
-    end
-end
-features = [regressorsI, regressorsQ];
+model.parameters = struct('kind', "pniq", ...
+    'regPopulation', compactGMPRegressors(manager, complexSupport), ...
+    'support', identificationPath, 'featureMap', model.pniqPathMap, ...
+    'descriptors', descriptors(complexSupport), ...
+    'selectedColumns', selectedColumns, ...
+    'coefficientsI', predictionCoefficientsI, ...
+    'coefficientsQ', predictionCoefficientsQ, ...
+    'comparisonI', unitPeakRegressionCoefficientPathsI, ...
+    'comparisonQ', unitPeakRegressionCoefficientPathsQ, ...
+    'outputPeak', outputPeak, 'gmpConfig', cfg.gmp);
 end
