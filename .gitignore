@@ -23,3 +23,6 @@ desktop.ini
 # Local Codex handoff/staging
 .codex_handoff/
 .codex/
+
+# Resultados DPD locales
+/results/dpd_offline/

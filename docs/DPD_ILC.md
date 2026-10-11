@@ -1,5 +1,46 @@
 # DPD offline por imitación del ILC
 
+## OFFLINE / ONLINE
+
+Desde la raíz del repositorio:
+
+```matlab
+modelFile = trainDPDOffline('measurements/nueva_medida.mat', 340);
+outputFile = runDPDOnline(modelFile, 'measurements/entrada_online.mat');
+```
+
+OFFLINE carga directamente `x` e `y`. Cada llamada ajusta de nuevo los tres
+modelos, conservando el centrado DC, la identificación, DOMP, N12/sigmoide,
+selección de épocas, poda y fine-tuning existentes. No reutiliza entrenamientos.
+
+Una carpeta nueva creada con `tempname` bajo `results/dpd_offline/` contiene:
+
+- `models.mat`: los tres modelos en `bundle`, configuración, split, métricas,
+  archivo de origen y `fs` si existe.
+- `predictions.mat`: predicciones directas del ajuste.
+
+ONLINE carga el `bundle`, lee `x` y llama a `applyDPDModels`, sin entrenar.
+Guarda un MAT nuevo junto al modelo, con `dpd(k).yvalmod` y `dpd(k).modeltype`
+en orden GMP-DOMP, PN-IQ-GMP, PNNN. Tras reiniciar MATLAB, usar la ruta del
+`models.mat` guardado. Los paquetes existentes siguen siendo compatibles.
+
+Las rutas relativas las resuelve MATLAB. Se usa el formato conocido del tutor;
+archivo o campos incorrectos producen los errores normales de MATLAB.
+No hay helpers de carga, hashes de medidas, UUID ni comprobaciones de calibración.
+El investigador debe usar señales compatibles en frecuencia, escala y periodicidad.
+No se escala, recorta ni restaura DC; el NMSE offline no es una medida RF.
+
+Se conservan los tests sintéticos ligeros de entrenamiento y recarga. El tercer
+argumento opcional `cfg` de OFFLINE permite reducir épocas y usar una carpeta
+temporal en esos tests; las dos llamadas normales mantienen el protocolo original.
+
+Tras la simplificación pasan los tests sintéticos y la recarga en otra sesión
+MATLAB. El P340 existente reproduce exactamente, señal por señal y con el mismo
+tipo numérico, su archivo ONLINE anterior (error relativo 0 en los tres modelos).
+No se repitió su entrenamiento. `checkcode` no informa diagnósticos.
+
+## Experimento histórico y recuperación
+
 `testDPD` es ahora una función: `testDPD(P, modo)`, con P=340 y modo
 `"reuse"` por defecto. Añade `config/` y `toolbox/` al path. No controla RF.
 Usa exclusivamente `measurements/experiment20260429T134032_xy.mat`: `x=u`
