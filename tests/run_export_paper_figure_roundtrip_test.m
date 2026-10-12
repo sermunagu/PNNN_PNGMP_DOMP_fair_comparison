@@ -30,19 +30,16 @@ assert(isempty(absoluteInches));
 
 exportSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
     'exportPaperFigure.m'));
-preflightSource = fileread(fullfile(projectRoot, 'toolbox', 'sweep', ...
-    'preflightPaperFigureToolchain.m'));
 configSource = fileread(fullfile(projectRoot, 'config', ...
     'getFairDOMPComparisonConfig.m'));
 runnerSource = fileread(fullfile(projectRoot, 'run_parameter_sweep.m'));
 selectedSource = fileread(fullfile(projectRoot, 'run_selected_comparison.m'));
 matlabSources = string(exportSource) + newline + ...
-    string(preflightSource) + newline + string(configSource) + newline + ...
+    string(configSource) + newline + ...
     string(runnerSource) + newline + string(selectedSource);
 assert(~contains(matlabSources, 'latexmk', 'IgnoreCase', true));
 assert(~contains(matlabSources, 'resolveLatexmkCommand'));
 assert(~contains(exportSource, 'system('));
-assert(~contains(preflightSource, 'system('));
 assert(~contains(exportSource, 'standaloneTex'));
 assert(~contains(exportSource, 'standalonePdf'));
 assert(~contains(exportSource, 'writeStandaloneWrapper'));

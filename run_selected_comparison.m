@@ -1,5 +1,5 @@
 function results = run_selected_comparison(selectedParameters, sweep)
-% run_selected_comparison - Present one signed parameter-sweep point.
+% run_selected_comparison - Present one parameter-sweep point.
 % The three main predictions come from checkpoints; six fixed-ridge
 % predictions are refitted on the same stored supports before plotting.
 
@@ -8,171 +8,53 @@ addpath(fullfile(projectRoot, 'config'));
 for folder = ["metrics","pn_gmp_comparison","pnnn","splits","sweep"]
     addpath(fullfile(projectRoot, 'toolbox', folder));
 end
-cfg = getFairDOMPComparisonConfig(projectRoot);
-addpath(cfg.paper.matlab2tikzSource);
-
 if nargin < 2 || isempty(sweep)
     sweep = run_parameter_sweep(20:10:500);
 end
-
-%% Select the three comparable rows and load their signed checkpoints
-identity = sweep.sweepIdentity;
-signature = identity.experimentSignature;
-fixedLambdas = identity.fixedRidgeLambdas(:);
-if ~ismember(selectedParameters, identity.parameterGrid)
-    error('run_selected_comparison:UnsignedTarget', ...
-        'The requested target is not part of the signed grid.');
-end
+cfg = sweep.config;
+addpath(cfg.paper.matlab2tikzSource);
+directory = char(sweep.resultDirectory);
+fixedLambdas = cfg.fixedRidgeLambdas(:);
+automaticSelection = sweep.selection;
 modelNames = [cfg.names.complexGMPDOMP; cfg.names.pniqGMP; cfg.names.pnnn];
 selectedRows = sweep.results([],:);
 for model = modelNames.'
     row = string(sweep.results.Model) == model & ...
         sweep.results.TargetRealParameters == selectedParameters;
-    if nnz(row) ~= 1
-        error('run_selected_comparison:MissingSweepPoint', ...
-            'Target %d must occur once in each model family.', ...
-            selectedParameters);
-    end
     selectedRows = [selectedRows; sweep.results(row,:)]; %#ok<AGROW>
 end
-if any(selectedRows.ActualRealParameters ~= selectedParameters)
-    error('run_selected_comparison:ParameterMismatch', ...
-        'Every selected model must have the requested real-parameter count.');
-end
-
-directory = char(string(sweep.resultDirectory));
-stored = load(fullfile(directory, 'complexity_sweep.mat'), ...
-    'checkpointArtifact');
-artifact = stored.checkpointArtifact;
-if ~isequaln(artifact.sweepIdentity, identity)
-    error('run_selected_comparison:ExperimentMismatch', ...
-        'The sweep summary belongs to another experiment.');
-end
-summaryPayload = artifact.payload;
-
-stored = load(fullfile(directory, 'linear_sweep.mat'), ...
-    'checkpointArtifact');
-artifact = stored.checkpointArtifact;
-if ~isequaln(artifact.sweepIdentity, identity)
-    error('run_selected_comparison:ExperimentMismatch', ...
-        'The linear checkpoint belongs to another experiment.');
-end
-linear = artifact.payload;
-
-stored = load(fullfile(directory, 'sweep_dense_source.mat'), ...
-    'checkpointArtifact');
-artifact = stored.checkpointArtifact;
-if ~isequaln(artifact.sweepIdentity, identity)
-    error('run_selected_comparison:ExperimentMismatch', ...
-        'The dense PNNN checkpoint belongs to another experiment.');
-end
-denseSource = artifact.payload;
-
-stored = load(fullfile(directory, ...
-    sprintf('pnnn_target_%04d.mat', selectedParameters)), ...
-    'checkpointArtifact');
-artifact = stored.checkpointArtifact;
-if ~isequaln(artifact.sweepIdentity, identity)
-    error('run_selected_comparison:ExperimentMismatch', ...
-        'The PNNN point checkpoint belongs to another experiment.');
-end
-pnnn = artifact.payload;
-
-if ~isequaln(summaryPayload.results, sweep.results) || ...
-        ~isequaln(summaryPayload.evaluationProtocol, ...
-        sweep.evaluationProtocol)
-    error('run_selected_comparison:SummaryMismatch', ...
-        'The in-memory sweep differs from its signed summary.');
-end
-if ~isfield(summaryPayload, 'selection')
-    error('run_selected_comparison:MissingSelection', ...
-        'The schema-v8 sweep summary must contain automatic selection data.');
-end
-automaticSelection = summaryPayload.selection;
-
-complexIndex = find(linear.complexTable.TargetRealParameters == ...
-        selectedParameters);
+stored = load(fullfile(directory, 'linear_sweep.mat'), 'linear');
+linear = stored.linear;
+stored = load(fullfile(directory, sprintf('pnnn_target_%04d.mat', ...
+    selectedParameters)), 'point');
+pnnn = stored.point;
+complexIndex = find(linear.complexTable.TargetRealParameters == selectedParameters);
 pniqIndex = find(linear.pniqTable.TargetRealParameters == selectedParameters);
-if numel(complexIndex) ~= 1 || numel(pniqIndex) ~= 1 || ...
-        pnnn.row.TargetRealParameters ~= selectedParameters || ...
-        pnnn.denseSourceDigest ~= denseSource.digest
-    error('run_selected_comparison:ArtifactMismatch', ...
-        'The selected linear or PNNN checkpoint is incompatible.');
-end
-if ~isequaln(linear.complexTable(complexIndex, :), selectedRows(1, :)) || ...
-        ~isequaln(linear.pniqTable(pniqIndex, :), selectedRows(2, :)) || ...
-        ~isequaln(pnnn.row, selectedRows(3, :))
-    error('run_selected_comparison:ArtifactRowMismatch', ...
-        'Artifact rows must equal the corresponding signed summary rows.');
-end
 complexPrediction = linear.predictions.complexFull(:, complexIndex);
 pniqPrediction = linear.predictions.pniqFull(:, pniqIndex);
 pnnnPrediction = pnnn.fullSignalPrediction(:);
 
-%% Recover the signed measurement and aligned full-signal target
-measurement = load(cfg.measurementFile);
-[x, y] = selectXYByMapping(measurement.x, measurement.y, cfg.mappingMode);
-x = x(:);
-y = y(:);
-if ~isequaln(buildExperimentSignature(x, y, cfg), signature)
-    error('run_selected_comparison:SignatureMismatch', ...
-        'The configured measurement differs from the signed sweep.');
-end
-if cfg.pnnn.removeDC
-    x = x - mean(x);
-    y = y - mean(y);
-end
-split = buildCommonComparisonSplit(x, y, cfg);
+%% Use the preprocessed measurement and alignment saved by this run
+stored = load(fullfile(directory, 'experiment.mat'), 'x', 'y', 'split');
+x = stored.x;
+y = stored.y;
+split = stored.split;
 fullSignalIndices = double(split.fullSignalIndices(:));
 modelInput = x(fullSignalIndices);
 targetFullSignal = y(fullSignalIndices);
+measurement = load(cfg.measurementFile, 'fs', 'info_signal');
 sampleRateHz = resolveMeasurementSampleRate(measurement);
 
-%% Refit the six fixed-ridge references on the selected supports
-stored = load(fullfile(directory, ...
-    'fixed_lambda_linear_sweep.mat'), 'checkpointArtifact');
-artifact = stored.checkpointArtifact;
-if ~isequaln(artifact.sweepIdentity, identity)
-    error('run_selected_comparison:ExperimentMismatch', ...
-        'The fixed-ridge checkpoint belongs to another experiment.');
-end
-fixedSweep = artifact.payload;
+%% Refit fixed Ridge on the saved supports to obtain its predictions
 selectedLinear = struct( ...
     'complexTable', linear.complexTable(complexIndex, :), ...
     'pniqTable', linear.pniqTable(pniqIndex, :), ...
-    'paths', linear.paths, ...
-    'pniqPathMap', linear.pniqPathMap);
+    'paths', linear.paths, 'pniqPathMap', linear.pniqPathMap);
 selectedConfig = cfg;
 selectedConfig.sweep.parameterGrid = selectedParameters;
-evaluated = run_fixed_ridge_sweep( ...
-    x, y, split, selectedConfig, selectedLinear, true);
-fixedTable = orderFixedRows( ...
-    fixedSweep, selectedParameters, fixedLambdas, cfg.names);
-evaluatedRows = orderFixedRows( ...
-    evaluated.table, selectedParameters, fixedLambdas, cfg.names);
-if any(evaluatedRows.ActualRealParameters ~= ...
-        fixedTable.ActualRealParameters) || ...
-        any(evaluatedRows.FLOPsPerSample ~= fixedTable.FLOPsPerSample) || ...
-        any(abs(evaluatedRows.IdentificationNMSEdB - ...
-        fixedTable.IdentificationNMSEdB) > 1e-9) || ...
-        any(abs(evaluatedRows.FullSignalNMSEdB - ...
-        fixedTable.FullSignalNMSEdB) > 1e-9) || ...
-        any(abs(evaluatedRows.MaxAbsRealParameter - ...
-        fixedTable.MaxAbsRealParameter) > 1e-12)
-    error('run_selected_comparison:FixedRidgeMismatch', ...
-        'Selected ridge refits differ from the saved sweep.');
-end
-expectedFixedParameters = repelem( ...
-    selectedRows.ActualRealParameters(1:2), numel(fixedLambdas));
-expectedFixedFLOPs = repelem( ...
-    selectedRows.FLOPsPerSample(1:2), numel(fixedLambdas));
-if any(fixedTable.ActualRealParameters ~= expectedFixedParameters) || ...
-        any(fixedTable.FLOPsPerSample ~= expectedFixedFLOPs)
-    error('run_selected_comparison:FixedRidgeComplexityMismatch', ...
-        'Fixed Ridge must retain the selected supports, parameters, and FLOPs.');
-end
-fixedPredictionMatrix = [evaluated.predictions.complexFull, ...
-    evaluated.predictions.pniqFull];
+evaluated = run_fixed_ridge_sweep(x, y, split, selectedConfig, selectedLinear, true);
+fixedTable = orderFixedRows(evaluated.table, selectedParameters, fixedLambdas, cfg.names);
+fixedPredictionMatrix = [evaluated.predictions.complexFull, evaluated.predictions.pniqFull];
 
 %% Build the public three-row comparison
 comparisonTable = selectedRows;
@@ -241,7 +123,7 @@ results.spectrumConfig = spectrum.config;
 fprintf('\n=== Complete tutor comparison (principal and fixed Ridge) ===\n');
 disp(completeComparisonTable);
 fprintf('Complete tutor table: %s\n', completeTableFile);
-fprintf('Reused linear, fixed-ridge, dense-source, and PNNN point checkpoints: YES\n');
+fprintf('Reused linear and PNNN checkpoints; fixed Ridge refitted on saved supports\n');
 fprintf('Selected-point figures: %s\n', selectedDirectory);
 end
 
@@ -406,10 +288,6 @@ for model = models.'
     for lambda = fixedLambdas.'
         match = string(value.Model) == model & ...
             value.TargetRealParameters == target & value.FixedLambda == lambda;
-        if nnz(match) ~= 1
-            error('run_selected_comparison:MissingFixedRow', ...
-                'Each family and fixed lambda must occur exactly once.');
-        end
         rows = [rows; value(match,:)]; %#ok<AGROW>
     end
 end
@@ -423,12 +301,6 @@ target = target(:);
 complexPrediction = complexPrediction(:);
 pniqPrediction = pniqPrediction(:);
 sampleCount = numel(target);
-if numel(complexPrediction) ~= sampleCount || ...
-        numel(pniqPrediction) ~= sampleCount
-    error('run_selected_comparison:TimeDomainLengthMismatch', ...
-        'The measured and linear-model signals must have equal lengths.');
-end
-
 windowLength = min(1000, sampleCount);
 firstSample = floor((sampleCount - windowLength)/2) + 1;
 lastSample = firstSample + windowLength - 1;

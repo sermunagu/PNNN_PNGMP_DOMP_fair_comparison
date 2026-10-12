@@ -4,49 +4,11 @@ function selection = selectOperatingPoint(results, selectionConfig)
 % can improve by more than the configured NMSE tolerance within the next
 % configured number of real parameters. The lowest such budget is selected.
 
-if nargin < 2 || isempty(selectionConfig)
-    selectionConfig = struct();
-end
-if ~isfield(selectionConfig, 'stabilizationWindowParameters')
-    selectionConfig.stabilizationWindowParameters = 100;
-end
-if ~isfield(selectionConfig, 'stabilizationToleranceDb')
-    selectionConfig.stabilizationToleranceDb = 0.20;
-end
-if ~isfield(selectionConfig, 'sensitivityWindowsParameters')
-    selectionConfig.sensitivityWindowsParameters = [80 100 120];
-end
-if ~isfield(selectionConfig, 'sensitivityTolerancesDb')
-    selectionConfig.sensitivityTolerancesDb = [0.15 0.20 0.25];
-end
-if ~isfield(selectionConfig, 'names')
-    error('selectOperatingPoint:MissingNames', ...
-        'The selection configuration must contain canonical public names.');
-end
-
 windowParameters = double(selectionConfig.stabilizationWindowParameters);
 toleranceDb = double(selectionConfig.stabilizationToleranceDb);
-if ~(isscalar(windowParameters) && isfinite(windowParameters) && ...
-        windowParameters > 0)
-    error('selectOperatingPoint:InvalidWindow', ...
-        'The stabilization window must be one positive finite scalar.');
-end
-if ~(isscalar(toleranceDb) && isfinite(toleranceDb) && toleranceDb >= 0)
-    error('selectOperatingPoint:InvalidTolerance', ...
-        'The stabilization tolerance must be one nonnegative finite scalar.');
-end
-
 criterionName = "joint stabilization minimum-complexity criterion";
 modelNames = [selectionConfig.names.complexGMPDOMP, ...
     selectionConfig.names.pniqGMP, selectionConfig.names.pnnn];
-required = ["Model", "ActualRealParameters", "FullSignalNMSEdB", ...
-    "FLOPsPerSample"];
-if ~istable(results) || ~all(ismember(required, ...
-        string(results.Properties.VariableNames)))
-    error('selectOperatingPoint:InvalidResults', ...
-        'The canonical results table is missing required variables.');
-end
-
 [budgets, nmse, flops] = collectPrincipalFamilies(results, modelNames);
 if any(~isfinite([budgets; nmse(:); flops(:)]))
     error('selectOperatingPoint:NonfiniteData', ...
@@ -180,18 +142,9 @@ SelectedPNNNFutureGainDb = nan(rowCount, 1);
 SelectedWorstFutureGainDb = nan(rowCount, 1);
 outputRow = 0;
 for windowIndex = 1:numel(windows)
-    if ~(isfinite(windows(windowIndex)) && windows(windowIndex) > 0)
-        error('selectOperatingPoint:InvalidSensitivityWindow', ...
-            'Sensitivity windows must be positive and finite.');
-    end
     [gainDb, hasFullWindow] = calculateFutureGain( ...
         budgets, nmse, windows(windowIndex));
     for toleranceIndex = 1:numel(tolerances)
-        if ~(isfinite(tolerances(toleranceIndex)) && ...
-                tolerances(toleranceIndex) >= 0)
-            error('selectOperatingPoint:InvalidSensitivityTolerance', ...
-                'Sensitivity tolerances must be nonnegative and finite.');
-        end
         outputRow = outputRow + 1;
         StabilizationWindowParameters(outputRow) = windows(windowIndex);
         StabilizationToleranceDb(outputRow) = tolerances(toleranceIndex);

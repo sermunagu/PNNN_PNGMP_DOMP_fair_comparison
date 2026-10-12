@@ -3,20 +3,13 @@ function [features, neuralTargets, phaseRotation] = ...
 % buildPhaseNormDataset - Build the complete phase-normalized PNNN dataset.
 % Memory taps use periodic extension: x(n), x(n-1), ..., x(n-M).
 
-%% 1. Validate and align the modeled input and output signals
+%% 1. Align the modeled input and output signals
 if nargin < 5 || isempty(featMode)
     featMode = "full";
 end
 
 x = x(:).';
 y = y(:).';
-if numel(x) ~= numel(y)
-    error('x e y deben tener la misma longitud.');
-end
-if any(~isfinite(x)) || any(~isfinite(y))
-    error('x o y contienen NaN/Inf.');
-end
-
 %% 2. Rotate the input and build the periodic nonlinear features
 [features, phaseRotation] = buildPhaseNormInput(x, M, orders, featMode);
 
@@ -34,8 +27,7 @@ function [features, phaseRotation] = ...
 % Build the feature matrix without changing the established feature order.
 
 x = x(:).';
-validateInputSignal(x, M);
-orders = validateOrders(orders);
+orders = orders(:).';
 featMode = string(featMode);
 sampleCount = numel(x);
 
@@ -58,7 +50,7 @@ for sample = 1:sampleCount
         rotation = conj(x(sample)) / abs(x(sample));
     end
 
-    taps = periodicTapIndices(sample, M, sampleCount);
+    taps = mod((sample:-1:sample-M) - 1, sampleCount) + 1;
     tappedInput = x(taps);
     rotatedTaps = rotation * tappedInput;
 
@@ -93,36 +85,5 @@ for sample = 1:sampleCount
 
     features(:, sample) = featureVector(:);
     phaseRotation(sample) = rotation;
-end
-end
-
-function taps = periodicTapIndices(sample, M, sampleCount)
-taps = mod((sample:-1:sample-M) - 1, sampleCount) + 1;
-end
-
-function validateInputSignal(x, M)
-if isempty(x)
-    error('x no puede estar vacío.');
-end
-if any(~isfinite(x))
-    error('x contiene NaN/Inf.');
-end
-if ~isscalar(M) || M < 0 || M ~= floor(M)
-    error('M debe ser un entero no negativo.');
-end
-if numel(x) <= M
-    error('La señal debe tener más muestras que M. N=%d, M=%d.', ...
-        numel(x), M);
-end
-end
-
-function orders = validateOrders(orders)
-orders = orders(:).';
-if isempty(orders)
-    error('orders no puede estar vacío.');
-end
-if any(~isfinite(orders)) || any(orders < 1) || ...
-        any(orders ~= floor(orders))
-    error('orders debe contener enteros positivos finitos.');
 end
 end

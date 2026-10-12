@@ -4,13 +4,6 @@ function point = fit_sparse_pnnn_target(denseSource, target, features, neuralTar
 % fine-tuning duration selected once at the reference sparse budget.
 
 target = double(target);
-referenceDigest = denseSource.digest;
-
-%% 1. Verify that the shared dense source has not changed
-if buildNetworkSignature(denseSource.denseFit) ~= referenceDigest
-    error('fit_sparse_pnnn_target:DenseSourceChanged', ...
-        'Every sparse target must start from the same immutable dense source.');
-end
 denseCounts = summarizeTrainableParameters(denseSource.denseFit.network);
 
 %% 2. Prune independently from the original dense source
@@ -26,11 +19,6 @@ fineTuneOptions = struct( ...
 t = tic;
 sparseFit = pruneAndFineTunePNNN(denseSource.denseFit, features, neuralTargets, fineTuneOptions);
 fprintf('Fine-tuning: %.1f s\n', toc(t));
-
-if buildNetworkSignature(denseSource.denseFit) ~= referenceDigest
-    error('fit_sparse_pnnn_target:DenseSourceChanged', ...
-        'A sparse fit modified the immutable dense source.');
-end
 
 %% 3. Predict the identification subset and complete signal
 normalization = denseSource.denseFit.normalization;
@@ -79,8 +67,7 @@ row = table(Model, TargetRealParameters, ActualRealParameters, ...
     WeightSparsityPercent, FineTuneEpochs, MaxAbsRealParameter);
 
 point = struct('row', row, 'mask', {sparseFit.masks}, ...
-    'fullSignalPrediction', fullSignalPrediction, ...
-    'denseSourceDigest', referenceDigest);
+    'fullSignalPrediction', fullSignalPrediction);
 point.model = struct('kind', "pnnn", 'network', sparseFit.network, ...
     'normalization', normalization, 'masks', {sparseFit.masks}, ...
     'featureConfig', cfg.pnnn, 'counts', counts);

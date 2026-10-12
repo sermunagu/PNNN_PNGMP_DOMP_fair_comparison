@@ -124,6 +124,7 @@ for index = 1:numel(pniqComplexSupport)
         manager.regPopulation(pniqComplexSupport(index)), ...
         pniqComplexSupport(index));
 end
+pniqManager = struct('regPopulation', manager.regPopulation(pniqComplexSupport));
 identificationInput = x(identificationRows);
 identificationRotation = complex(ones(numel(identificationRows), 1));
 nonzero = abs(identificationInput) ~= 0;
@@ -136,39 +137,8 @@ for first = 1:cfg.sweep.candidateBlockSize:numel(identificationRows)
         numel(identificationRows));
     blockRows = identificationRows(local);
     blockRotation = identificationRotation(local);
-    complexRegressors = buildGMPRegressorRows( ...
-        x, blockRows, manager, pniqComplexSupport);
-    phaseNormalized = blockRotation .* complexRegressors;
-    regressorsI = zeros(numel(local), numel(pniqComplexSupport));
-    regressorsQ = zeros(numel(local), numel(pniqComplexSupport));
-    for regressorIndex = 1:numel(pniqComplexSupport)
-        descriptor = pniqDescriptors(regressorIndex);
-        if descriptor.canonicalGMP
-            carrierRows = mod(blockRows - descriptor.carrierLag - 1, ...
-                numel(x)) + 1;
-            normalizedCarrier = blockRotation .* x(carrierRows);
-            envelope = ones(numel(local), 1);
-            for termIndex = 1:numel(descriptor.envelopeLags)
-                envelopeRows = mod(blockRows - ...
-                    descriptor.envelopeLags(termIndex) - 1, numel(x)) + 1;
-                envelope = envelope .* abs(x(envelopeRows)).^ ...
-                    descriptor.envelopePowers(termIndex);
-            end
-            regressorsI(:, regressorIndex) = ...
-                real(normalizedCarrier) .* envelope;
-            regressorsQ(:, regressorIndex) = ...
-                imag(normalizedCarrier) .* envelope;
-            if descriptor.QColumnStructurallyZero
-                regressorsQ(:, regressorIndex) = 0;
-            end
-        else
-            regressorsI(:, regressorIndex) = ...
-                real(phaseNormalized(:, regressorIndex));
-            regressorsQ(:, regressorIndex) = ...
-                imag(phaseNormalized(:, regressorIndex));
-        end
-    end
-    raw = [regressorsI, regressorsQ];
+    raw = buildPNIQFeatures(x, blockRows, blockRotation, ...
+        pniqManager, 1:numel(pniqComplexSupport), pniqDescriptors);
     identificationFeatures(local, :) = raw(:, selectedColumns);
 end
 phaseNormalizedIdentificationTarget = ...
@@ -256,39 +226,8 @@ for first = 1:cfg.gmp.blockSize:numel(fullSignalRows)
     nonzero = abs(blockInput) ~= 0;
     blockRotation(nonzero) = ...
         conj(blockInput(nonzero)) ./ abs(blockInput(nonzero));
-    complexRegressors = buildGMPRegressorRows( ...
-        x, blockRows, manager, pniqComplexSupport);
-    phaseNormalized = blockRotation .* complexRegressors;
-    regressorsI = zeros(numel(local), numel(pniqComplexSupport));
-    regressorsQ = zeros(numel(local), numel(pniqComplexSupport));
-    for regressorIndex = 1:numel(pniqComplexSupport)
-        descriptor = pniqDescriptors(regressorIndex);
-        if descriptor.canonicalGMP
-            carrierRows = mod(blockRows - descriptor.carrierLag - 1, ...
-                numel(x)) + 1;
-            normalizedCarrier = blockRotation .* x(carrierRows);
-            envelope = ones(numel(local), 1);
-            for termIndex = 1:numel(descriptor.envelopeLags)
-                envelopeRows = mod(blockRows - ...
-                    descriptor.envelopeLags(termIndex) - 1, numel(x)) + 1;
-                envelope = envelope .* abs(x(envelopeRows)).^ ...
-                    descriptor.envelopePowers(termIndex);
-            end
-            regressorsI(:, regressorIndex) = ...
-                real(normalizedCarrier) .* envelope;
-            regressorsQ(:, regressorIndex) = ...
-                imag(normalizedCarrier) .* envelope;
-            if descriptor.QColumnStructurallyZero
-                regressorsQ(:, regressorIndex) = 0;
-            end
-        else
-            regressorsI(:, regressorIndex) = ...
-                real(phaseNormalized(:, regressorIndex));
-            regressorsQ(:, regressorIndex) = ...
-                imag(phaseNormalized(:, regressorIndex));
-        end
-    end
-    raw = [regressorsI, regressorsQ];
+    raw = buildPNIQFeatures(x, blockRows, blockRotation, ...
+        pniqManager, 1:numel(pniqComplexSupport), pniqDescriptors);
     features = raw(:, selectedColumns);
     phaseNormalizedPrediction = complex( ...
         features * pniqPredictionCoefficientsI, ...

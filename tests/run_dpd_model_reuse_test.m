@@ -35,17 +35,17 @@ network = dlnetwork([featureInputLayer(84, Name="input"); ...
     fullyConnectedLayer(12, Name="fc1"); sigmoidLayer(Name="sigmoid1"); ...
     fullyConnectedLayer(2, Name="fcOut")]);
 denseFit = struct('network', network, 'normalization', normalization);
-denseSource = struct('denseFit', denseFit, 'digest', buildNetworkSignature(denseFit), ...
+denseSource = struct('denseFit', denseFit, ...
     'fineTuneEpochs', 1, 'runtimeConfig', struct('training', cfg.training, 'pruning', cfg.pruning));
+weightsBefore = denseFit.network.Learnables;
 point = fit_sparse_pnnn_target(denseSource, 340, features, targets, rotation(:), y, split, cfg);
 models{3} = point.model;
 counts = summarizeTrainableParameters(point.model.network, point.model.masks);
 assert(counts.activeWeightParams == 326 && counts.activeBiasParams == 14);
 assert(counts.totalWeightParams + counts.totalBiasParams == 1046);
 assert(sum(cellfun(@nnz, point.model.masks)) == 340);
-assert(buildNetworkSignature(denseFit) == denseSource.digest);
-assert(buildNetworkSignature(struct('network', point.model.network, ...
-    'normalization', normalization)) ~= denseSource.digest);
+assert(isequaln(denseFit.network.Learnables, weightsBefore));
+assert(~isequaln(point.model.network.Learnables, weightsBefore));
 bundle = struct('P', 340, 'config', cfg, 'models', {models}, ...
     'sampleRateHz', 491520000, 'metrics', [linear.complexTable; linear.pniqTable; point.row]);
 

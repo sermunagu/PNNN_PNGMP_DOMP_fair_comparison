@@ -36,7 +36,6 @@ cfg.fixedRidgeLambdas = [1e-3 1e-4 1e-5];
 cfg.reducedRealParameterTarget = 200;
 
 cfg.sweep = struct();
-cfg.sweep.schemaVersion = 8;
 cfg.sweep.coefficientRangeDefinition = ...
     "unit_peak_output_per_column_peak_regressors_v4";
 cfg.sweep.linearIdentificationScope = "complete identification subset";
@@ -45,7 +44,6 @@ cfg.sweep.linearLambdaSelection = "none";
 cfg.sweep.fixedRidgeSupportPolicy = ...
     "reuse principal identification DOMP path";
 cfg.sweep.parameterGrid = 20:10:500;
-cfg.sweep.resume = true;
 cfg.sweep.candidateBlockSize = 2048;
 cfg.sweep.resultsRoot = fullfile(projectRoot, 'results', 'parameter_sweep');
 

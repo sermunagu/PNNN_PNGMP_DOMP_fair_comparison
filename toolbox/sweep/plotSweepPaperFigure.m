@@ -5,7 +5,15 @@ function files = plotSweepPaperFigure(results, fixed, xVariable, ...
 if nargin < 6 || isempty(options)
     options = struct();
 end
-options = applyDefaults(options);
+defaults = struct('metricVariable', 'FullSignalNMSEdB', ...
+    'metricLabel', 'Validation NMSE (dB)', 'includeFixed', false, ...
+    'fixedLambdas', [1e-3 1e-4 1e-5], 'isNMSE', false, ...
+    'useLogWhenPositive', false, 'annotateSelected', false, ...
+    'selection', struct(), 'exportOptions', struct());
+for name = string(fieldnames(options)).'
+    defaults.(name) = options.(name);
+end
+options = defaults;
 style = getIEEEPaperStyle();
 figureHandle = figure('Visible', 'off', 'Color', 'w', ...
     'Units', 'inches', 'Position', [1 1 7.0 4.5]);
@@ -64,11 +72,6 @@ if options.annotateSelected
     for modelIndex = 1:3
         row = string(results.Model) == models(modelIndex) & ...
             results.ActualRealParameters == selectedParameters;
-        if nnz(row) ~= 1
-            error('plotSweepPaperFigure:MissingSelectedBudget', ...
-                ['The selected common budget must occur once in each ' ...
-                'principal family.']);
-        end
         selectedX(modelIndex) = double(results.(xVariable)(row));
         selectedY(modelIndex) = ...
             double(results.(options.metricVariable)(row));
@@ -134,38 +137,4 @@ end
 function indices = sweepMarkerIndices(count)
 step = max(1, ceil(count/17));
 indices = unique([1:step:count, count]);
-end
-
-function options = applyDefaults(options)
-if ~isfield(options, 'metricVariable')
-    options.metricVariable = 'FullSignalNMSEdB';
-end
-if ~isfield(options, 'metricLabel')
-    options.metricLabel = 'Validation NMSE (dB)';
-end
-if ~isfield(options, 'names')
-    error('plotSweepPaperFigure:MissingNames', ...
-        'Canonical public names must be supplied in options.names.');
-end
-if ~isfield(options, 'includeFixed')
-    options.includeFixed = false;
-end
-if ~isfield(options, 'fixedLambdas')
-    options.fixedLambdas = [1e-3 1e-4 1e-5];
-end
-if ~isfield(options, 'isNMSE')
-    options.isNMSE = false;
-end
-if ~isfield(options, 'useLogWhenPositive')
-    options.useLogWhenPositive = false;
-end
-if ~isfield(options, 'annotateSelected')
-    options.annotateSelected = false;
-end
-if ~isfield(options, 'selection')
-    options.selection = struct();
-end
-if ~isfield(options, 'exportOptions')
-    options.exportOptions = struct();
-end
 end

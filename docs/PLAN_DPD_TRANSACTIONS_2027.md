@@ -3,7 +3,7 @@
 > **Documento de seguimiento del proyecto** · Versión inicial: 11/10/2026  
 > **Objetivo a corto plazo:** trabajar con nuevas medidas del tutor mediante un flujo **OFFLINE → ONLINE** sencillo, reproducible y separado.  
 > **Objetivo científico:** preparar la comparación **DPD real** para una posible *IEEE Transactions* en enero de 2027.  
-> **Estado:** planificación. **No autoriza ejecutar Codex, entrenamientos extensos, transmisiones RF, commits ni pushes.**
+> **Estado:** fase A implementada y probada sintéticamente; laboratorio y fases B–G pendientes. **No autoriza ejecutar Codex, entrenamientos extensos, transmisiones RF, commits ni pushes.**
 
 ## 0. Cómo utilizar este documento
 
@@ -73,10 +73,10 @@
 | Barrido original **del modelado PA** `20:10:500` | [x] | 49 presupuestos; **no es todavía el barrido de DPD**. |
 | Selección original de P=340 | [x] | Criterio de estabilización conjunta aplicado al modelado PA; **no asumir que es óptimo para DPD**. |
 | Primer experimento de imitación ILC con P=340 | [x] | NMSE offline y modelos recuperados. |
-| Carga e inferencia programática con `applyDPDModels` | [x] | Trabaja con un `bundle` y vector de entrada; falta entrada cómoda por archivo/flujo de usuario. |
+| Carga e inferencia programática con `applyDPDModels` | [x] | Trabaja con un `bundle` y vector; `runDPDOnline` añade la entrada por archivo. |
 | Recuperación histórica `testDPD(340,"recover")` | [x] | Es recuperación de **la misma captura**, no entrenamiento desde cero de captura nueva. |
-| Selección libre de medidas para OFFLINE | [ ] | `testDPD.m` fija un `.mat` concreto. |
-| OFFLINE/ONLINE separados y fáciles de ejecutar | [ ] | Falta completar las dos entradas operativas. |
+| Selección libre de medidas para OFFLINE | [x] | `trainDPDOffline(measurementFile,P)`. |
+| OFFLINE/ONLINE separados y fáciles de ejecutar | [x] | Dos capturas sintéticas y recarga en sesión nueva verificadas. |
 | Barrido específicamente DPD | [ ] | Futuro; no ejecutarlo ahora. |
 | Ensayos RF con los tres DPD | [ ] | No inferirlos a partir del NMSE offline. |
 
@@ -96,55 +96,33 @@
 
 ## 3. FASE A — Preparar OFFLINE/ONLINE para el laboratorio [PRIORIDAD A]
 
-### A1. Selección explícita de medidas
+### A1–A3. Implementación operativa
 
-- [ ] Permitir que el usuario proporcione **ruta absoluta o relativa** a un `.mat` de entrenamiento.
-- [ ] Mantener el contrato del repo PNNN: campos `x` y `y`; metadatos opcionales `fs`, `fsmed`, `description` e `info_signal` cuando existan.
-- [ ] Validar existencia, dimensiones, mismo número de muestras, tipo numérico compatible y ausencia de NaN/Inf.
-- [ ] Exponer y guardar la **interpretación de x/y** y la identidad de la captura; no deducir el bloque físico de `xy_forward`.
-- [ ] Conservar frecuencia de muestreo y escalas físicas conocidas; **no inventarlas** si faltan.
-- [ ] Verificar la convención exacta con el tutor si las nuevas capturas contienen `meas_out` en lugar de `x/y` directas.
-
-**Aceptación A1:** se pueden seleccionar **dos archivos distintos** sin modificar el código fuente ni editar rutas incrustadas.
-
-### A2. OFFLINE: entrenamiento completo de los tres modelos
-
-- [ ] Crear una entrada simple, por ejemplo `trainDPDOffline(measurementFile,P)`; el nombre es **propuesta, no API existente**.
-- [ ] Para la captura seleccionada, ejecutar la selección DOMP **nueva** de cada modelo lineal y estimar sus coeficientes.
-- [ ] Inicializar y entrenar **desde cero** una PNNN densa; podar al presupuesto P y realizar el reajuste posterior.
-- [ ] Impedir *warm start* accidental, carga silenciosa de otro experimento o uso de normalización ajena. **El antiguo PNNN tiene opciones de warm start: no copiarlas como comportamiento obligatorio.**
-- [ ] Mantener el protocolo científico actual del repositorio, arquitectura de PNNN, semillas y presupuesto real P; **no sustituirlos** por la configuración por defecto del PNNN original.
-- [ ] Entrenar **un solo presupuesto P** por ejecución normal. **No** arrancar `20:10:500`.
-- [ ] Guardar individualmente coeficientes/regresores/soportes GMP; soporte I/Q y coeficientes PN-IQ; red **final podada** y normalización PNNN.
-- [ ] Guardar bundle/deploy autocontenido, resumen de NMSE/FLOPs/parámetros, configuración, firma de captura y tiempo de entrenamiento.
-- [ ] No sobrescribir sesiones previas. Una recuperación tras fallo debe ser **explícita**, limitada a la misma identidad de experimento y distinguible de entrenar desde cero.
-
-**Aceptación A2:** la captura A produce tres modelos nuevos y un paquete reutilizable; la captura B genera **otro conjunto independiente**, aunque se use el mismo presupuesto P.
-
-### A3. ONLINE: inferencia sin entrenamiento
-
-- [ ] Crear una entrada simple, por ejemplo `runDPDOnline(modelFile,inputFile)`; nombre **propuesto, no API existente**.
-- [ ] Seleccionar explícitamente **qué paquete de modelos** se carga y **qué archivo de señal** se procesa; leer `x` (o alias documentado) con la lógica compatible de PNNN.
-- [ ] Reutilizar `applyDPDModels` para calcular las tres salidas; **no** ejecutar DOMP, `trainnet`, poda o *fine-tuning*.
-- [ ] Reutilizar las estadísticas de normalización del entrenamiento; aplicar a la nueva entrada solo el tratamiento previsto (p. ej., centrado de su propia media cuando así quedó definido).
-- [ ] Comprobar compatibilidad de frecuencia de muestreo, amplitud y memoria periódica; rechazar o advertir cuando no haya información suficiente.
-- [ ] Guardar `dpd(k).yvalmod`, `dpd(k).modeltype` (3 modelos), más metadatos de captura/modelo/configuración.
-- [ ] La salida debe poder generarse aunque no haya referencia `y` para evaluar NMSE.
-- [ ] Si existe objetivo medido, calcular NMSE **opcional** y sin mezclarlo con medidas RF posteriores.
-- [ ] No sobreescribir señales de otras ejecuciones; probar con MATLAB recién iniciado.
-
-**Aceptación A3:** cerrar MATLAB, abrir una sesión nueva, seleccionar el deploy A y una señal compatible y obtener tres vectores complejos **sin entrenamiento**.
+- [x] `trainDPDOffline(measurementFile,P)`: rutas absolutas/relativas, carga
+  directa de x/y y conservación de fs cuando existe.
+- [x] Cada ejecución ajusta nuevos soportes/coeficientes y entrena una PNNN
+  densa desde cero; poda y fine-tuning al presupuesto P. Arquitectura, semillas,
+  selección de épocas y normalizaciones históricas conservadas.
+- [x] Bundle autocontenido con los tres modelos, métricas, configuración, split
+  y archivo de origen; carpeta nueva por ejecución, sin hashes.
+- [x] `runDPDOnline(modelFile,inputFile)`: carga explícita, entrada x sin y,
+  inferencia mediante `applyDPDModels`, MAT nuevo con tres salidas
+  `dpd(k).yvalmod` y `dpd(k).modeltype`.
+- [x] No hay DOMP, entrenamiento, poda ni fine-tuning durante ONLINE.
+- [ ] Confirmar semántica física, fs, amplitud, periodicidad y DC con el tutor
+  para cada campaña. No se deducen ni verifican automáticamente.
+- [ ] NMSE opcional de una nueva señal ONLINE con objetivo disponible; no
+  confundirlo con la evaluación RF.
 
 ### A4. Pruebas antes de ir al laboratorio
 
-- [ ] Test sintético ligero: dos capturas diferentes → dos identidades de entrenamiento distintas.
-- [ ] Comprobar recuento **exacto** de parámetros P en cada modelo.
-- [ ] Comprobar que guardar/abrir el deploy no cambia las predicciones.
-- [ ] Confirmar mediante tests o instrumentación que ONLINE **nunca** llama al entrenamiento.
-- [ ] Verificar la longitud de señal, orden de modelos, `yvalmod`, formato `.mat`, no sobrescritura y registro de procedencia.
-- [ ] Ejecutar un OFFLINE real **solo con autorización expresa** (es costoso).
-- [ ] Generar ONLINE con la misma captura de entrenamiento y, si se dispone, con una segunda señal compatible.
-- [ ] Revisar compatibilidad de las salidas con la cadena de medida: media/DC, escalado, límites DAC, CFR/PAPR, longitud y sincronización.
+- [x] Dos capturas sintéticas generan entrenamientos independientes con P exacto.
+- [x] Guardado/recarga, longitud compleja, orden de modelos y no sobrescritura.
+- [x] Instrumentación: ONLINE no llama al entrenamiento; recarga en MATLAB nuevo.
+- [x] Inferencia del P340 guardado idéntica a su ONLINE anterior, sin reentrenarlo.
+- [ ] Revisar salidas contra límites DAC, CFR/PAPR, DC y sincronización del banco.
+- [ ] Ejecutar entrenamientos reales nuevos solo con autorización; no se ejecutan
+  en esta refactorización.
 
 **Hito A — Listo para laboratorio:** el tutor puede entregar `medida.mat`; se completan **OFFLINE → ONLINE** sin tocar el código ni volver a entrenar durante ONLINE.
 
@@ -192,7 +170,7 @@
 - [ ] Diseñar una entrada `runDPDParameterSweep(measurementFile,parameterGrid)` (**API propuesta**), que **reutilice funciones OFFLINE**, no una implementación independiente.
 - [ ] Una ruta DOMP por arquitectura lineal y captura; usar sus prefijos para varios presupuestos de **la misma captura**.
 - [ ] Una red densa PNNN por captura y configuración; generar podas independientes y *fine-tuning* por presupuesto sin entrenar la densa desde cero 49 veces.
-- [ ] Guardar checkpoint por presupuesto con identidad y controles estrictos; reanudar explícitamente si se interrumpe.
+- [ ] Guardar checkpoint por presupuesto en una carpeta explícita de la misma captura; reanudar explícitamente si se interrumpe.
 - [ ] Guardar **modelos inferibles**, métricas y metadatos por punto; no limitarse a predicciones.
 - [ ] Para cada presupuesto, calcular parámetros reales activos, FLOPs, NMSE offline de identificación/test y coste numérico adicional pertinente.
 - [ ] Exportar curvas: NMSE vs parámetros, NMSE vs FLOPs, FLOPs vs parámetros, sparsity vs calidad.
@@ -278,7 +256,7 @@ Estas observaciones provienen de los **Reviewer 1 y 2** compartidos para el trab
 ## 10. Orden de ejecución recomendado (sin lanzar nada ahora)
 
 1. **Revisar contrato de medidas con el tutor:** archivo ejemplo, x/y, frecuencia, potencia y propósito DPD; confirmar tratamiento de `x` y `xCFR` para comparaciones físicas.
-2. **Implementar A1–A3:** selección de medidas, OFFLINE completo para P fijo, deploy y ONLINE por archivo.
+2. **Mantener A1–A3 (implementadas):** selección de medidas, OFFLINE completo para P fijo, deploy y ONLINE por archivo.
 3. **Pasar A4:** pruebas sintéticas y una corrida real autorizada; verificar que ONLINE no entrena.
 4. **Comprobar uso en laboratorio (B2):** generar los tres DPD, transmitir y medir con controles RF apropiados.
 5. **Cerrar B1/B3:** partición independiente, tratamiento numérico y documentación de complejidad.
@@ -316,6 +294,8 @@ Estas observaciones provienen de los **Reviewer 1 y 2** compartidos para el trab
 | — | — | — | Pendiente | — | — |
 | 2026-10-11 | Dos tests sintéticos P20 y P340 real ya guardado | Simplificación OFFLINE/ONLINE solicitada | Código de producción 247 → 58 líneas; tres helpers eliminados. Tests y recarga pasan; P340 reproduce exactamente su ONLINE anterior (error relativo 0) | `trainDPDOffline.m`, `runDPDOnline.m`, `docs/DPD_ILC.md`; sin Java de archivos, hashes de medidas ni gestión UUID propia | Mantener formato conocido x/y/fs y protocolo científico; sin reentrenar P340 ni transmitir RF |
 
+| 2026-10-12 | Referencia sintética y P340 guardado | Simplificación de infraestructura y clases heredadas | Firmas eliminadas; checkpoints directos con reanudación explícita; matemáticas preservadas | `docs/DPD_ILC.md`, tests de regresión y reanudación | Validación física y fases B–G siguen pendientes; sin RF ni reentrenar P340 |
+
 ### Plantilla breve para próximas sesiones
 
 ```text
@@ -336,7 +316,7 @@ Qué toca después:
 
 - Repositorio actual: `sermunagu/PNNN_PNGMP_DOMP_fair_comparison`.
 - Repositorio del flujo original: `sermunagu/PNNN` (`train_PNNN_offline.m`, `run_PNNN_online_from_xy.m`, `config/getPNNNConfig.m`).
-- Lógica DPD actual: `testDPD.m`, `toolbox/sweep/applyDPDModels.m`, `docs/DPD_ILC.md`.
+- Lógica DPD actual: `trainDPDOffline.m`, `runDPDOnline.m`, `llamadas_DPD.m`, `toolbox/sweep/applyDPDModels.m`, `docs/DPD_ILC.md`.
 - Barrido anterior: `run_parameter_sweep.m`, `run_selected_comparison.m`, `toolbox/sweep/selectOperatingPoint.m`.
 - Modelos y datos: `measurements/experiment20260429T134032_xy.mat` para imitación ILC; `_forward_xy.mat` para comparación anterior del PA.
 - Código adquisición ILC: `sermunagu/ILC_PAWR2027_v20260428`, donde aparecen las señales `u`, `x`, `xCFR`, `y` y `meas_out`.

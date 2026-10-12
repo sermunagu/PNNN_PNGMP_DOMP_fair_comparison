@@ -39,85 +39,51 @@ MATLAB. El P340 existente reproduce exactamente, señal por señal y con el mism
 tipo numérico, su archivo ONLINE anterior (error relativo 0 en los tres modelos).
 No se repitió su entrenamiento. `checkcode` no informa diagnósticos.
 
-## Experimento histórico y recuperación
+## Barrido de modelado PA y reanudación
 
-`testDPD` es ahora una función: `testDPD(P, modo)`, con P=340 y modo
-`"reuse"` por defecto. Añade `config/` y `toolbox/` al path. No controla RF.
-Usa exclusivamente `measurements/experiment20260429T134032_xy.mat`: `x=u`
-deseada, `y=x_ILC` predistorsionada. No usa el MAT `_forward_xy` ni requiere
-el repositorio ILC vecino. La firma del MAT coincide con `395e47d7554e…`.
-
-## Estado del experimento existente
-
-Los checkpoints históricos de `results/dpd_ilc/P340_395e47d7554e/` conservan
-predicciones, soportes y métricas lineales, pero no coeficientes; `pnnn_P340.mat` tiene máscara y
-predicciones, pero no la red sparse final. `pnnn_dense_source.mat` sí guarda
-red densa, normalización, firma y duración de fine-tuning. Las predicciones
-no permiten reconstruir fielmente los parámetros perdidos.
-
-Recuperación autorizada y completada el 9 de octubre de 2026: se reajustaron
-los dos modelos lineales sobre sus soportes guardados (sin DOMP) y se repitió
-poda + 164 épocas de fine-tuning desde la red densa existente, sin repetir sus
-1228 épocas. La normalización histórica permanece intacta.
-Los modelos reutilizables están en `models_P340.mat`, con checkpoints nuevos
-`linear_models_P340.mat` y `pnnn_model_P340.mat`. Los cuatro MAT históricos
-conservan exactamente su SHA-256; no se sobrescribió ninguno.
-
-## Comandos MATLAB
-
-La recuperación ya ejecutada desde la raíz fue:
+El barrido canónico sigue usando por defecto la captura `_forward_xy.mat`;
+no es el futuro barrido DPD ni cambia el significado físico de x/y.
 
 ```matlab
-[bundle, dpd] = testDPD(340, "recover");
+sweep = run_parameter_sweep(); % nueva carpeta, no reutiliza otros experimentos
+sweep = run_parameter_sweep('results/parameter_sweep/carpeta_de_esta_ejecucion');
+comparison = run_selected_comparison(sweep.selection.selectedParameters, sweep);
 ```
 
-Para un presupuesto nuevo, identificación explícita de un solo punto (puede
-ser costosa; no ejecuta el sweep completo):
+La segunda llamada es una alternativa para reanudar, no otro entrenamiento.
+La carpeta se imprime antes de entrenar. `experiment.mat` guarda configuración,
+señales preprocesadas y split; los MAT lineal, Ridge, denso y
+`pnnn_target_XXXX.mat` guardan cada etapa. Solo se calculan etapas ausentes.
+Cada PNNN parte de la misma fuente densa, no de la poda anterior.
+No cambie los archivos de esa carpeta para reutilizarla con otra captura.
 
-```matlab
-[bundle, dpd] = testDPD(200, "train");
-```
+Los nuevos checkpoints usan variables directas (`linear`, `fixedResults`,
+`denseSource`, `point`, `result`), sin firmas ni versiones de protocolo.
+No se migran ni sobrescriben checkpoints históricos: para ejecutarlos con el
+formato anterior debe usarse la revisión histórica del código.
+Para regenerar figuras de una ejecución nueva se carga
+`complexity_sweep.mat` y se pasa `S.result` a `run_selected_comparison`.
+Reanudar vuelve a exportar las tres figuras del barrido, sin repetir ajustes.
 
-Después de obtener los modelos, la carga no entrena:
+Las métricas y checkpoints se guardan antes de exportar. No hay preflight:
+`matlab2tikz` solo se necesita al producir figuras FIG/PNG/TikZ. Un error gráfico
+no borra el entrenamiento; se puede reanudar la misma carpeta.
+El tercer argumento opcional `cfg` permite pruebas sintéticas reducidas,
+como en OFFLINE; el uso normal mantiene el preset científico.
 
-```matlab
-[bundle, dpd] = testDPD(340); % carga y nueva exportación con timestamp
-addpath(genpath('toolbox'));
-modelFile = 'results/dpd_ilc/P340_395e47d7554e/models_P340.mat';
-dpd = applyDPDModels(modelFile, uNueva, 'mi_nueva_execution.mat');
-```
+## Experimentos históricos
 
-`uNueva` debe ser un registro periódico completo, complejo, finito, más largo
-que M, a la misma tasa (491.52 MHz en este experimento), amplitud física y
-convención que el entrenamiento. La compatibilidad física de una señal nueva
-debe comprobarla el usuario: no se deduce de sus muestras. No es una API de
-streaming por bloques; los retardos se extienden circularmente sobre el registro.
+La recuperación P340 del 9 de octubre reajustó los modelos lineales sobre
+soportes guardados y repitió únicamente poda/fine-tuning desde la densa.
+No se repitieron sus 1228 épocas. Los archivos históricos no se migran.
+`testDPD.m` ya estaba eliminado del working tree al iniciar esta limpieza;
+no es una llamada operativa vigente. Para inferir use el `models.mat` existente
+con ONLINE. La captura DPD es `experiment20260429T134032_xy.mat`:
+`x=u`, `y=x_ILC`; no debe confundirse con el modelado PA.
 
-La entrada se centra restando su propia media, igual que en identificación.
-La salida representa el objetivo ILC sin DC; **no** se restaura su media,
-normaliza el pico, recorta ni adapta a límites del DAC. PNNN reutiliza mu/sigma
-del entrenamiento y su rotación inversa; PN-IQ conserva su construcción I/Q y
-restauración de fase. GMP usa los coeficientes físicos ya ajustados, sin volver
-a calcular normalizaciones con la entrada nueva.
-
-## Archivos y controles
-
-Se guardan en la carpeta P/firma del experimento:
-
-- `linear_models_P<P>.mat`: coeficientes físicos y de comparación, definición
-  compacta de regresores, soportes, correspondencia I/Q, configuración y métricas.
-- `pnnn_model_P<P>.mat`: red **final** sparse, máscaras, normalización, arquitectura,
-  métricas y firma de la densa. Ambos sidecars permiten reanudar una interrupción.
-- `models_P<P>.mat`: bundle autónomo con los tres modelos, configuración, split,
-  medias originales, procedencia, tasa de muestreo, métricas y versión MATLAB.
-- `experiment20260429T134032_xy_execution_<timestamp>.mat`: `dpd(k).yvalmod`,
-  `dpd(k).modeltype` y metadatos; nunca sustituye el execution original.
-
-Antes de publicar el bundle se comparan predicciones de ajuste e inferencia.
-En recuperación se comparan además soportes/máscaras y predicciones antiguas:
-error relativo L2 <=1e-10 para lineales (double), <=1e-6 para PNNN (learnables
-single). Si no coinciden, se detiene sin aceptar silenciosamente otro modelo.
-Los sidecars conservan el trabajo para examinarlo; no borrar los originales.
+El registro de entrada es periódico. ONLINE centra su propia media y conserva
+la normalización entrenada. No restaura DC ni adapta pico, CFR o límites DAC.
+La compatibilidad física de las nuevas señales debe comprobarla el investigador.
 
 ## Auditoría de P=340
 
@@ -154,30 +120,20 @@ En el checkpoint denso real se confirma sigmaX=8.019388e-19 en la característic
 ## Validación y límites
 
 ```matlab
-addpath('tests'); run_dpd_model_reuse_test
-run('tests/run_linear_complexity_sweep_test.m')
-run('tests/run_pnnn_shared_dense_sweep_test.m')
+addpath('tests');
+run_dpd_offline_online_test;
+run_dpd_model_reuse_test;
+run_pnnn_shared_dense_sweep_test;
+run_sweep_resume_test;
 ```
 
-El test nuevo es sintético (384 muestras, una época sparse, sin entrenamiento
-denso): comprueba P340, serialización, nuevas entradas, memoria periódica,
-rotación, formato de exportación, protección de archivos y recuperación de
-soportes. No confundir ese test con validación experimental RF.
+Los tests usan capturas sintéticas y pocas épocas. Comprueban soportes,
+presupuestos, máscaras, guardado/recarga, ONLINE sin entrenamiento y
+reanudación completa o con un único punto ausente. El test de regresión de
+simplificación permite registrar una referencia antes de editar y compararla
+después; no genera su propio resultado esperado durante la comprobación.
 
-La validación real posterior a la recuperación también pasó en otra sesión de
-MATLAB: error relativo L2 exactamente 0 para los tres modelos frente al ajuste
-recuperado, las predicciones históricas y la nueva exportación. Tolerancias:
-1e-10 para lineales double y 1e-6 para PNNN con learnables single. Coinciden
-soportes, máscaras, normalización, presupuesto, lambdas y FLOPs. Informe:
-`validation_20261009_001045_626.mat`; señales nuevas:
-`experiment20260429T134032_xy_execution_20261009_000954_626.mat`.
-
-Validación ejecutada en MATLAB R2026a: las tres pruebas anteriores pasan;
-`checkcode` no emite diagnósticos en los nueve archivos MATLAB modificados o
-creados. El modo por defecto se detiene correctamente si faltan modelos,
-sin entrenar ni exportar. Los cuatro MAT históricos conservan su SHA-256.
-
-NMSE histórico offline: Complex −38.456 dB, PN-IQ −38.931 dB, PNNN −35.630 dB,
-respecto a x_ILC centrada, no a la salida del PA. Quedan pendientes transmisión
-autorizada, límites/amplitud del DAC, decisión sobre DC, sincronización, y medida
-de NMSE/ACLR/espectro de salida del PA; este flujo no realiza ninguna de ellas.
+Siguen pendientes la evaluación sobre muestras externas, la decisión sobre
+sigma casi nula, y la transmisión y medida RF autorizadas. El NMSE offline
+sobre señal completa incluye muestras de identificación; no es un holdout
+independiente ni una medida de linealización del PA.

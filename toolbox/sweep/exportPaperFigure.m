@@ -6,18 +6,10 @@ function files = exportPaperFigure(figureHandle, baseFilename, options)
 if nargin < 3 || isempty(options)
     options = struct();
 end
-if ~isgraphics(figureHandle, 'figure')
-    error('exportPaperFigure:InvalidFigure', ...
-        'figureHandle must refer to one live MATLAB figure.');
-end
 baseFilename = char(string(baseFilename));
-[directory, name, extension] = fileparts(baseFilename);
+[directory, name] = fileparts(baseFilename);
 if isempty(directory)
     directory = pwd;
-end
-if ~isempty(extension)
-    error('exportPaperFigure:BaseFilenameHasExtension', ...
-        'baseFilename must not include a file extension.');
 end
 if ~isfolder(directory)
     mkdir(directory);
@@ -37,11 +29,6 @@ clear visibilityCleanup;
 exportgraphics(figureHandle, char(files.png), 'Resolution', 300, ...
     'BackgroundColor', 'white');
 
-if exist('matlab2tikz', 'file') ~= 2
-    error('exportPaperFigure:MissingMatlab2tikz', ...
-        ['matlab2tikz is not on the MATLAB path. Initialize the submodule ' ...
-        'and add third_party/matlab2tikz/src.']);
-end
 matlab2tikzArguments = {char(files.tikz), ...
     'figurehandle', figureHandle, ...
     'width', '\figurewidth', 'height', '\figureheight', ...

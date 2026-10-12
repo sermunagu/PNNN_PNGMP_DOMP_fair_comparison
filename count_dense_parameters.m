@@ -79,6 +79,3 @@ fprintf('  Structurally zero Q-features removed: %d\n', ...
     numStructuralZeroQFeatures);
 fprintf('  Independent real parameters: %d\n\n', ...
     pniqRealParameters);
-
-fprintf('Selected operating point:\n');
-fprintf('  Retained real parameters: 340\n');

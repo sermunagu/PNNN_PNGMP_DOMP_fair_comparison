@@ -15,7 +15,6 @@ assert(cfg.gmp.dompOptions.columnTolerance == 1e-12);
 assert(isequal(cfg.pnnn.orders, [1 3 5 7]));
 assert(cfg.pnnn.sparseBaseHiddenNeurons == 12);
 assert(cfg.pnnn.nnSeed == 42);
-assert(cfg.sweep.schemaVersion == 8);
 assert(cfg.names.complexGMPDOMP == "Complex GMP-DOMP");
 assert(cfg.names.pniqGMP == "PN-IQ-GMP");
 assert(cfg.names.pnnn == "PNNN");
@@ -36,8 +35,8 @@ assert(isequal(cfg.selection.sensitivityTolerancesDb, [0.15 0.20 0.25]));
 assert(~isfield(cfg.selection, 'criterionName'));
 
 runnerSource = fileread(fullfile(projectRoot, 'run_parameter_sweep.m'));
-assert(contains(runnerSource, 'hasCurrentLinearProtocol'));
-assert(contains(runnerSource, 'hasCurrentFixedProtocol'));
+assert(~contains(runnerSource, 'hasCurrentLinearProtocol'));
+assert(~contains(runnerSource, 'hasCurrentFixedProtocol'));
 assert(~contains(runnerSource, '''lambdaGrid'', cfg.lambdaGrid'));
 assert(contains(runnerSource, '''names'', cfg.names'));
 

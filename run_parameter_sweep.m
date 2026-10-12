@@ -1,210 +1,89 @@
-function result = run_parameter_sweep(parameterGrid, resultsRoot)
-% run_parameter_sweep - Run or resume the three-family complexity sweep.
-% The scientific stages appear in execution order, while signed checkpoints
-% keep linear, fixed-ridge, dense N12, and sparse targets independent.
-
-%% Configure the experiment
+function result = run_parameter_sweep(parameterGrid, resultsRoot, cfg)
+% Run a new sweep, or resume explicitly with run_parameter_sweep(runDirectory).
+% The optional cfg is useful for small synthetic experiments.
 projectRoot = fileparts(mfilename('fullpath'));
-addpath(fullfile(projectRoot, 'config'));
-for folder = ["complexity","domp","metrics","pn_gmp_comparison", ...
-        "pnnn","splits","sweep"]
-    addpath(fullfile(projectRoot, 'toolbox', folder));
-end
-
-cfg = getFairDOMPComparisonConfig(projectRoot);
-if nargin >= 2 && ~isempty(resultsRoot)
-    cfg.sweep.resultsRoot = char(string(resultsRoot));
-end
-
-if nargin >= 1 && ~isempty(parameterGrid)
-    cfg.sweep.parameterGrid = unique(double(parameterGrid(:).'));
-end
-
-targets = cfg.sweep.parameterGrid;
-
-%% Verify matlab2tikz export before data loading or training
-fprintf('[Preflight] Checking matlab2tikz export...\n');
-paperToolchain = preflightPaperFigureToolchain(projectRoot, cfg.paper);
-fprintf('[Preflight] matlab2tikz export passed.\n');
-
-%% Load the measurement and build the common split
-measurement = load(cfg.measurementFile, 'x', 'y');
-[x, y] = selectXYByMapping(measurement.x, measurement.y, cfg.mappingMode);
-x = x(:);
-y = y(:);
-
-experimentSignature = buildExperimentSignature(x, y, cfg);
-
-if cfg.pnnn.removeDC
-    x = x - mean(x);
-    y = y - mean(y);
-end
-
-split = buildCommonComparisonSplit(x, y, cfg);
-
-sweepIdentity = buildSweepIdentity(cfg, experimentSignature);
-resultDirectory = resolveResultDirectory(cfg, sweepIdentity);
-
-if ~isfolder(resultDirectory)
-    mkdir(resultDirectory);
-end
-
-fprintf('\n=== Signed parameter-complexity sweep ===\n');
-fprintf('Result directory: %s\n', resultDirectory);
-
-%% Complex GMP and PN-IQ: one identification path, lambda-zero prefixes
-linearFile = fullfile(resultDirectory, 'linear_sweep.mat');
-linearNeedsRebuild = ~isfile(linearFile);
-linearWasRebuilt = false;
-
-if ~linearNeedsRebuild
-    saved = load(linearFile, 'checkpointArtifact');
-    checkpointArtifact = saved.checkpointArtifact;
-
-    if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', 'The linear checkpoint belongs to another experiment.');
-    end
-    linear = checkpointArtifact.payload;
-
-    if ~hasCurrentLinearProtocol(linear, cfg)
-        linearNeedsRebuild = true;
-        fprintf(['[Linear] Checkpoint protocol metadata is missing or ' ...
-            'stale; rejecting and rebuilding linear models only.\n']);
-    else
-        if any(string(linear.complexTable.Model) ~= ...
-                cfg.names.complexGMPDOMP) || ...
-                any(string(linear.pniqTable.Model) ~= cfg.names.pniqGMP)
-            error('run_parameter_sweep:FamilyMismatch', 'The linear checkpoint mixes model families.');
-        end
-        fprintf('[Linear] Reused matrices, paths, fits, and predictions.\n');
-    end
-end
-
-if linearNeedsRebuild
-    fprintf('[Linear] Building designs, DOMP paths, fits, and predictions...\n');
-    linear = run_linear_sweep(x, y, split, cfg);
-    checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', linear);
-    save(linearFile, 'checkpointArtifact', '-v7.3');
-    linearWasRebuilt = true;
-    fprintf('[Linear] Completed.\n');
-end
-
-%% Fixed Ridge: refit both linear families on the stored supports
-fixedFile = fullfile(resultDirectory, 'fixed_lambda_linear_sweep.mat');
-fixedNeedsRebuild = linearWasRebuilt || ~isfile(fixedFile);
-
-if ~fixedNeedsRebuild
-    saved = load(fixedFile, 'checkpointArtifact');
-    checkpointArtifact = saved.checkpointArtifact;
-
-    if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', 'The fixed-ridge checkpoint belongs to another experiment.');
-    end
-    fixedResults = checkpointArtifact.payload;
-
-    if ~hasCurrentFixedProtocol(fixedResults, cfg)
-        fixedNeedsRebuild = true;
-        fprintf(['[Fixed ridge] Checkpoint protocol metadata is missing or ' ...
-            'stale; rejecting and rebuilding fixed Ridge only.\n']);
-    else
-        if ~isequal(sort(unique(string(fixedResults.Model))), ...
-                sort([cfg.names.complexGMPDOMP; cfg.names.pniqGMP]))
-            error('run_parameter_sweep:FamilyMismatch', 'The fixed-ridge checkpoint mixes model families.');
-        end
-        fprintf('[Fixed ridge] Reused supplementary checkpoint.\n');
-    end
-end
-
-if fixedNeedsRebuild
-    fixedLinear = run_fixed_ridge_sweep(x, y, split, cfg, linear);
-    fixedResults = fixedLinear.table;
-    checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', fixedResults);
-    save(fixedFile, 'checkpointArtifact', '-v7.3');
-    fprintf('[Fixed ridge] Completed.\n');
-end
-
-%% Sparse PNNN: prepare or reuse one immutable dense N12 source
-denseFile = fullfile(resultDirectory, 'sweep_dense_source.mat');
-
-if ~isfile(denseFile)
-    fprintf('[PNNN] Fitting the shared dense 12-neuron source...\n');
-    [denseSource, features, neuralTargets, phaseRotation] = prepare_pnnn_dense_source( ...
-            x, y, split, cfg, cfg.reducedRealParameterTarget);
-
-    checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', denseSource);
-    save(denseFile, 'checkpointArtifact', '-v7.3');
-    fprintf('[PNNN] Dense-source checkpoint completed.\n');
-
+addpath(fullfile(projectRoot, 'config'), genpath(fullfile(projectRoot, 'toolbox')));
+if nargin >= 1 && (ischar(parameterGrid) || isstring(parameterGrid))
+    resultDirectory = char(parameterGrid);
+    saved = load(fullfile(resultDirectory, 'experiment.mat'));
+    cfg = saved.cfg;
+    x = saved.x;
+    y = saved.y;
+    split = saved.split;
 else
-    saved = load(denseFile, 'checkpointArtifact');
-    checkpointArtifact = saved.checkpointArtifact;
-    
-    if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-        error('run_parameter_sweep:ExperimentMismatch', 'The dense PNNN checkpoint belongs to another experiment.');
+    if nargin < 3, cfg = getFairDOMPComparisonConfig(projectRoot); end
+    if nargin >= 2 && ~isempty(resultsRoot), cfg.sweep.resultsRoot = resultsRoot; end
+    if nargin >= 1 && ~isempty(parameterGrid)
+        cfg.sweep.parameterGrid = unique(double(parameterGrid(:).'));
     end
-    
-    denseSource = checkpointArtifact.payload;
-    [features, neuralTargets, phaseRotation] = buildPhaseNormDataset(x, y, cfg.pnnn.M, cfg.pnnn.orders, cfg.pnnn.featMode);
+    measurement = load(cfg.measurementFile, 'x', 'y');
+    [x, y] = selectXYByMapping(measurement.x, measurement.y, cfg.mappingMode);
+    x = x(:);
+    y = y(:);
+    if cfg.pnnn.removeDC
+        x = x - mean(x);
+        y = y - mean(y);
+    end
+    split = buildCommonComparisonSplit(x, y, cfg);
+    if ~isfolder(cfg.sweep.resultsRoot), mkdir(cfg.sweep.resultsRoot); end
+    resultDirectory = tempname(cfg.sweep.resultsRoot);
+    mkdir(resultDirectory);
+    % Store the data used by this run so resuming cannot select another capture.
+    save(fullfile(resultDirectory, 'experiment.mat'), 'cfg', 'x', 'y', 'split', '-v7.3');
+end
+targets = cfg.sweep.parameterGrid;
+fprintf('Sweep directory (use this path to resume): %s\n', resultDirectory);
+
+%% Linear DOMP paths and fixed Ridge
+linearFile = fullfile(resultDirectory, 'linear_sweep.mat');
+if isfile(linearFile)
+    saved = load(linearFile, 'linear');
+    linear = saved.linear;
+else
+    linear = run_linear_sweep(x, y, split, cfg);
+    save(linearFile, 'linear', '-v7.3');
+end
+fixedFile = fullfile(resultDirectory, 'fixed_lambda_linear_sweep.mat');
+if isfile(fixedFile)
+    saved = load(fixedFile, 'fixedResults');
+    fixedResults = saved.fixedResults;
+else
+    fixed = run_fixed_ridge_sweep(x, y, split, cfg, linear);
+    fixedResults = fixed.table;
+    save(fixedFile, 'fixedResults', '-v7.3');
+end
+
+%% One shared dense source; each sparse target starts independently from it
+denseFile = fullfile(resultDirectory, 'sweep_dense_source.mat');
+if isfile(denseFile)
+    saved = load(denseFile, 'denseSource');
+    denseSource = saved.denseSource;
+    [features, neuralTargets, phaseRotation] = buildPhaseNormDataset( ...
+        x, y, cfg.pnnn.M, cfg.pnnn.orders, cfg.pnnn.featMode);
     features = features.';
     neuralTargets = neuralTargets.';
     phaseRotation = phaseRotation(:);
-    fprintf('[PNNN] Reused dense-source checkpoint.\n');
+else
+    [denseSource, features, neuralTargets, phaseRotation] = ...
+        prepare_pnnn_dense_source(x, y, split, cfg, cfg.reducedRealParameterTarget);
+    save(denseFile, 'denseSource', '-v7.3');
 end
-
-% Console verbosity belongs to this execution, not to the dense checkpoint.
 denseSource.runtimeConfig.training.verbose = cfg.training.verbose;
-
-%% Sparse PNNN: prune and predict every requested parameter budget
 pnnnRows = linear.complexTable([],:);
-
 for index = 1:numel(targets)
-    target = targets(index);
-    fprintf('[PNNN %d/%d] Target %d parameters...\n', index, numel(targets), target);
-    
-    artifactName = compose("pnnn_target_%04d.mat", target);
-    filename = fullfile(resultDirectory, artifactName);
-    
-    if ~isfile(filename)
-        point = fit_sparse_pnnn_target(denseSource, target, features, neuralTargets, phaseRotation, y, split, cfg);
-        checkpointArtifact = struct('sweepIdentity', sweepIdentity, 'payload', point);
-        save(filename, 'checkpointArtifact', '-v7.3');
-        fprintf('[PNNN %d/%d] Completed.\n', index, numel(targets));
-    
+    filename = fullfile(resultDirectory, sprintf('pnnn_target_%04d.mat', targets(index)));
+    if isfile(filename)
+        saved = load(filename, 'point');
+        point = saved.point;
     else
-        saved = load(filename, 'checkpointArtifact');
-        checkpointArtifact = saved.checkpointArtifact;
-        
-        if ~isequaln(checkpointArtifact.sweepIdentity, sweepIdentity)
-            error('run_parameter_sweep:ExperimentMismatch', ...
-                'The PNNN point checkpoint belongs to another experiment.');
-        end
-        
-        if ~ismember(target, checkpointArtifact.sweepIdentity.parameterGrid)
-            error('run_parameter_sweep:UnsignedTarget', 'The requested target is not part of the signed grid.');
-        end
-        
-        point = checkpointArtifact.payload;
-        
-        if point.row.TargetRealParameters ~= target || ...
-                string(point.row.Model) ~= cfg.names.pnnn
-            error('run_parameter_sweep:FamilyMismatch', 'The sparse checkpoint belongs to another target or family.');
-        end
-        
-        fprintf('[PNNN %d/%d] Reused checkpoint.\n', index, numel(targets));
+        point = fit_sparse_pnnn_target(denseSource, targets(index), ...
+            features, neuralTargets, phaseRotation, y, split, cfg);
+        save(filename, 'point', '-v7.3');
     end
-    
-    pnnnRows(index, :) = point.row;
+    pnnnRows(index,:) = point.row;
 end
 
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% FIGURES AND METADATA
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-%% Build the two public tables
+%% Metrics and scientific selection
 results = [linear.complexTable; linear.pniqTable; pnnnRows];
 evaluationProtocol = struct( ...
     'internalValidationUsedForSelectionOnly', true, ...
@@ -216,49 +95,6 @@ evaluationProtocol = struct( ...
     'completeSignalIncludesIdentification', all(ismember(split.identificationIndices, split.fullSignalIndices)), ...
     'completeSignalIsIndependentHoldout', ~any(ismember(split.identificationIndices, split.fullSignalIndices)));
 
-expectedModels = sort([cfg.names.complexGMPDOMP; ...
-    cfg.names.pniqGMP; cfg.names.pnnn]);
-
-if height(results) ~= 3*numel(targets) || height(fixedResults) ~= 6*numel(targets)
-    error('run_parameter_sweep:ResultRowCount', ...
-        'The principal and fixed-ridge tables must contain 3N and 6N rows.');
-end
-
-for target = targets
-    rows = results.TargetRealParameters == target;
-    if nnz(rows) ~= 3 || ...
-            ~isequal(sort(string(results.Model(rows))), expectedModels) || ...
-            any(results.ActualRealParameters(rows) ~= target)
-        error('run_parameter_sweep:ResultTargetMismatch', ...
-            'Each target must contain the three exact-parameter families.');
-    end
-end
-
-pnnnMask = string(results.Model) == cfg.names.pnnn;
-linearMask = ~pnnnMask;
-
-if any(results.SelectedLambda(linearMask) ~= 0) || ...
-        any(~isnan(results.InternalValidationNMSEdB(linearMask)))
-    error('run_parameter_sweep:LinearProtocolMismatch', ...
-        ['Principal linear rows require lambda zero and no internal-' ...
-        'validation metric.']);
-end
-
-if any(results.ActiveWeights(pnnnMask) + results.ActiveBiases(pnnnMask) ~= ...
-        results.ActualRealParameters(pnnnMask))
-    error('run_parameter_sweep:PNNNParameterMismatch', ...
-        'PNNN active weights and biases must equal its parameter count.');
-end
-
-if width(results) ~= 13 || width(fixedResults) ~= 8 || ...
-        any(~isfinite(results.MaxAbsRealParameter)) || ...
-        any(~isfinite(fixedResults.MaxAbsRealParameter))
-    error('run_parameter_sweep:CoefficientRangeContract', ...
-        ['The schema-v8 principal/fixed tables must contain 13/8 columns ' ...
-        'and finite MaxAbsRealParameter values.']);
-end
-
-%% Select the first jointly stabilized minimum-complexity point
 selection = selectOperatingPoint(results, cfg.selection);
 coefficientMetadata = struct( ...
     'definition', string(cfg.sweep.coefficientRangeDefinition), ...
@@ -280,20 +116,20 @@ warning('run_parameter_sweep:ParameterizationWarning', '%s', ...
     coefficientMetadata.warning);
 fprintf('%s\n', selection.summarySentence);
 
-%% Write canonical tables, selection diagnostics, and paper figures
-fprintf('[Output] Writing complexity_sweep.csv...\n');
-writeTableAtomically(results, resultDirectory, 'complexity_sweep.csv');
-fprintf('[Output] Writing fixed_lambda_linear_sweep.csv...\n');
-writeTableAtomically(fixedResults, resultDirectory, ...
-    'fixed_lambda_linear_sweep.csv');
-fprintf('[Output] Writing operating-point selection diagnostics...\n');
-writeTableAtomically(selection.diagnosticsTable, resultDirectory, ...
-    'operating_point_selection.csv');
-writeTableAtomically(selection.sensitivityTable, resultDirectory, ...
-    'operating_point_selection_sensitivity.csv');
-writeTextAtomically([selection.summarySentence; ...
-    coefficientMetadata.warning], resultDirectory, ...
-    'operating_point_selection_summary.txt');
+writetable(results, fullfile(resultDirectory, 'complexity_sweep.csv'));
+writetable(fixedResults, fullfile(resultDirectory, 'fixed_lambda_linear_sweep.csv'));
+writetable(selection.diagnosticsTable, fullfile(resultDirectory, 'operating_point_selection.csv'));
+writetable(selection.sensitivityTable, fullfile(resultDirectory, 'operating_point_selection_sensitivity.csv'));
+writelines([selection.summarySentence; coefficientMetadata.warning], ...
+    fullfile(resultDirectory, 'operating_point_selection_summary.txt'));
+result = struct('results', results, 'config', cfg, ...
+    'evaluationProtocol', evaluationProtocol, 'selection', selection, ...
+    'coefficientMetadata', coefficientMetadata, 'resultDirectory', string(resultDirectory));
+summaryFile = fullfile(resultDirectory, 'complexity_sweep.mat');
+save(summaryFile, 'result', '-v7.3');
+
+%% Export only after numerical results have been saved
+addpath(cfg.paper.matlab2tikzSource);
 exportOptions = struct();
 nmseOptions = struct('metricVariable', 'FullSignalNMSEdB', ...
     'metricLabel', char(cfg.paper.validationNMSELabel), ...
@@ -324,182 +160,8 @@ figureFiles.maxAbsParameter = plotSweepPaperFigure(results, fixedResults, ...
     fullfile(resultDirectory, 'comparison_max_abs_parameter_sweep'), ...
     rangeOptions);
 
-%% Save the signed scientific table without duplicating checkpoint contents
-summaryFile = fullfile(resultDirectory, 'complexity_sweep.mat');
-summaryPayload = struct('results', results, ...
-    'evaluationProtocol', evaluationProtocol, ...
-    'selection', selection, ...
-    'coefficientMetadata', coefficientMetadata, ...
-    'figureFiles', figureFiles);
-checkpointArtifact = struct('sweepIdentity', sweepIdentity, ...
-    'payload', summaryPayload);
-save(summaryFile, 'checkpointArtifact', '-v7.3');
-result = struct('results', results, 'sweepIdentity', sweepIdentity, ...
-    'evaluationProtocol', evaluationProtocol, ...
-    'selection', selection, ...
-    'coefficientMetadata', coefficientMetadata, ...
-    'figureFiles', figureFiles, ...
-    'paperToolchain', paperToolchain, ...
-    'selectedParameters', selection.selectedParameters, ...
-    'criterionName', selection.criterionName, ...
-    'stabilizationWindowParameters', ...
-        selection.stabilizationWindowParameters, ...
-    'stabilizationToleranceDb', selection.stabilizationToleranceDb, ...
-    'selectedComplexGMPFutureGainDb', ...
-        selection.selectedComplexGMPFutureGainDb, ...
-    'selectedPNIQFutureGainDb', selection.selectedPNIQFutureGainDb, ...
-    'selectedPNNNFutureGainDb', selection.selectedPNNNFutureGainDb, ...
-    'selectedWorstFutureGainDb', selection.selectedWorstFutureGainDb, ...
-    'selectedComplexGMPFLOPs', selection.selectedComplexGMPFLOPs, ...
-    'selectedPNIQFLOPs', selection.selectedPNIQFLOPs, ...
-    'selectedPNNNFLOPs', selection.selectedPNNNFLOPs, ...
-    'resultDirectory', string(resultDirectory));
-disp(results(:, {'Model','ActualRealParameters', ...
-    'SelectedLambda','FullSignalNMSEdB','FLOPsPerSample', ...
-    'MaxAbsRealParameter'}));
-fprintf('Sweep completed.\n');
-end
-
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% AUXILIAR FUNCTIONS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-function identity = buildSweepIdentity(cfg, experimentSignature)
-trainingIdentity = struct( ...
-    'optimizer', cfg.training.optimizer, ...
-    'miniBatchSize', cfg.training.miniBatchSize, ...
-    'initialLearnRate', cfg.training.initialLearnRate, ...
-    'learnRateSchedule', cfg.training.learnRateSchedule, ...
-    'learnRateDropFactor', cfg.training.learnRateDropFactor, ...
-    'shuffle', cfg.training.shuffle, ...
-    'executionEnvironment', cfg.training.executionEnvironment, ...
-    'inputDataFormats', cfg.training.inputDataFormats, ...
-    'targetDataFormats', cfg.training.targetDataFormats, ...
-    'historicalTrainFraction', cfg.training.historicalTrainFraction, ...
-    'historicalMaxEpochs', cfg.training.historicalMaxEpochs, ...
-    'historicalLearnRateDropPeriod', ...
-        cfg.training.historicalLearnRateDropPeriod, ...
-    'historicalValidationPatience', ...
-        cfg.training.historicalValidationPatience);
-pruningIdentity = struct( ...
-    'historicalFineTuneEpochs', cfg.pruning.historicalFineTuneEpochs, ...
-    'fineTuneInitialLearnRate', cfg.pruning.fineTuneInitialLearnRate, ...
-    'fineTuneSeedOffset', cfg.pruning.fineTuneSeedOffset);
-identity = struct('schemaVersion', cfg.sweep.schemaVersion, ...
-    'names', cfg.names, ...
-    'experimentSignature', experimentSignature, ...
-    'parameterGrid', cfg.sweep.parameterGrid, ...
-    'fixedRidgeLambdas', cfg.fixedRidgeLambdas, ...
-    'linearProtocol', struct( ...
-        'identificationScope', cfg.sweep.linearIdentificationScope, ...
-        'principalLambda', cfg.sweep.linearPrincipalLambda, ...
-        'lambdaSelection', cfg.sweep.linearLambdaSelection, ...
-        'fixedRidgeSupportPolicy', cfg.sweep.fixedRidgeSupportPolicy), ...
-    'gmpPopulation', ...
-        [cfg.gmp.Qpmax cfg.gmp.Qnmax cfg.gmp.Pmax cfg.gmp.maxPopulation], ...
-    'dompOptions', cfg.gmp.dompOptions, ...
-    'denseSelectionTarget', cfg.reducedRealParameterTarget, ...
-    'pnnn', cfg.pnnn, 'training', trainingIdentity, ...
-    'pruning', pruningIdentity);
-
-engine = javaMethod('getInstance', ...
-    'java.security.MessageDigest', 'SHA-256');
-
-bytes = unicode2native(jsonencode(identity), 'UTF-8');
-engine.update(typecast(uint8(bytes), 'int8'));
-digest = typecast(int8(engine.digest()), 'uint8');
-identity.digest = string(lower(reshape(dec2hex(digest, 2).', 1, [])));
-end
-
-function directory = resolveResultDirectory(cfg, identity)
-name = "sweep_" + extractBefore(string(identity.digest), 13);
-
-if ~cfg.sweep.resume
-    name = name + "_" + string(datetime('now', ...
-        'Format', 'yyyyMMdd_HHmmss'));
-end
-directory = fullfile(cfg.sweep.resultsRoot, name);
-end
-
-function writeTableAtomically(value, directory, filename)
-finalFile = fullfile(directory, filename);
-temporaryFile = [tempname(directory) '.csv'];
-cleanup = onCleanup(@() deleteIfPresent(temporaryFile));
-writetable(value, temporaryFile);
-[moved, message] = movefile(temporaryFile, finalFile, 'f');
-
-if ~moved
-    error('run_parameter_sweep:CSVMoveFailed', ...
-        'Could not install %s: %s', filename, message);
-end
-
-clear cleanup;
-end
-
-function writeTextAtomically(value, directory, filename)
-finalFile = fullfile(directory, filename);
-temporaryFile = [tempname(directory) '.txt'];
-cleanup = onCleanup(@() deleteIfPresent(temporaryFile));
-writelines(string(value), temporaryFile);
-[moved, message] = movefile(temporaryFile, finalFile, 'f');
-if ~moved
-    error('run_parameter_sweep:TextMoveFailed', ...
-        'Could not install %s: %s', filename, message);
-end
-clear cleanup;
-end
-
-function deleteIfPresent(filename)
-if isfile(filename)
-    delete(filename);
-end
-end
-
-function matches = hasCurrentLinearProtocol(payload, cfg)
-matches = isstruct(payload) && ...
-    isfield(payload, 'coefficientRangeDefinition') && ...
-    isfield(payload, 'linearIdentificationScope') && ...
-    isfield(payload, 'linearPrincipalLambda') && ...
-    isfield(payload, 'linearLambdaSelection') && ...
-    isfield(payload, 'fixedRidgeSupportPolicy');
-if ~matches
-    return;
-end
-matches = string(payload.coefficientRangeDefinition) == ...
-        string(cfg.sweep.coefficientRangeDefinition) && ...
-    string(payload.linearIdentificationScope) == ...
-        string(cfg.sweep.linearIdentificationScope) && ...
-    double(payload.linearPrincipalLambda) == ...
-        double(cfg.sweep.linearPrincipalLambda) && ...
-    string(payload.linearLambdaSelection) == ...
-        string(cfg.sweep.linearLambdaSelection) && ...
-    string(payload.fixedRidgeSupportPolicy) == ...
-        string(cfg.sweep.fixedRidgeSupportPolicy);
-end
-
-function matches = hasCurrentFixedProtocol(value, cfg)
-matches = istable(value) && isstruct(value.Properties.UserData) && ...
-    isfield(value.Properties.UserData, 'coefficientRangeDefinition') && ...
-    isfield(value.Properties.UserData, 'linearIdentificationScope') && ...
-    isfield(value.Properties.UserData, 'linearPrincipalLambda') && ...
-    isfield(value.Properties.UserData, 'linearLambdaSelection') && ...
-    isfield(value.Properties.UserData, 'fixedRidgeSupportPolicy');
-if ~matches
-    return;
-end
-metadata = value.Properties.UserData;
-matches = string(metadata.coefficientRangeDefinition) == ...
-        string(cfg.sweep.coefficientRangeDefinition) && ...
-    string(metadata.linearIdentificationScope) == ...
-        string(cfg.sweep.linearIdentificationScope) && ...
-    double(metadata.linearPrincipalLambda) == ...
-        double(cfg.sweep.linearPrincipalLambda) && ...
-    string(metadata.linearLambdaSelection) == ...
-        string(cfg.sweep.linearLambdaSelection) && ...
-    string(metadata.fixedRidgeSupportPolicy) == ...
-        string(cfg.sweep.fixedRidgeSupportPolicy);
+result.figureFiles = figureFiles;
+save(summaryFile, 'result', '-v7.3');
+disp(results(:, {'Model','ActualRealParameters','SelectedLambda', ...
+    'FullSignalNMSEdB','FLOPsPerSample','MaxAbsRealParameter'}));
 end

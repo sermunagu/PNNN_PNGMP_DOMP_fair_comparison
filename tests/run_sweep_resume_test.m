@@ -1,0 +1,54 @@
+function run_sweep_resume_test
+% Exercise new, complete-resume and interrupted-resume paths on tiny data.
+root = fileparts(fileparts(mfilename('fullpath')));
+addpath(root, fullfile(root, 'config'), genpath(fullfile(root, 'toolbox')));
+folder = tempname;
+mkdir(folder);
+cleanup = onCleanup(@() rmdir(folder, 's'));
+rng(715, 'twister');
+x = complex(randn(160, 1), randn(160, 1))/sqrt(2);
+y = 0.8*x + 0.12*circshift(x, 1).*abs(circshift(x, 2)).^2;
+fs = 491.52e6;
+cfg = getFairDOMPComparisonConfig(root);
+cfg.measurementFile = fullfile(folder, 'capture.mat');
+save(cfg.measurementFile, 'x', 'y', 'fs');
+cfg.identificationFraction = 0.75;
+cfg.training.miniBatchSize = 32;
+cfg.training.historicalMaxEpochs = 2;
+cfg.training.historicalLearnRateDropPeriod = 1;
+cfg.training.historicalValidationPatience = 2;
+cfg.pruning.historicalFineTuneEpochs = 2;
+cfg.pnnn.sparseBaseHiddenNeurons = 3;
+cfg.selection.stabilizationWindowParameters = 10;
+cfg.selection.stabilizationToleranceDb = 1e6;
+first = run_parameter_sweep([20 30], folder, cfg);
+profile clear; profile on;
+resumed = run_parameter_sweep(first.resultDirectory);
+profile off;
+info = profile('info');
+names = string({info.FunctionTable.FunctionName});
+assert(~any(ismember(names, ["selectDOMPSupport", "trainnet", "pruneAndFineTunePNNN"])));
+assert(isequaln(first.results, resumed.results));
+% Delete only this temporary fixture's last point to simulate interruption.
+lastFile = fullfile(first.resultDirectory, 'pnnn_target_0030.mat');
+last = load(lastFile, 'point');
+delete(lastFile);
+profile clear; profile on;
+repaired = run_parameter_sweep(first.resultDirectory);
+profile off;
+info = profile('info');
+names = string({info.FunctionTable.FunctionName});
+assert(~any(ismember(names, ["selectDOMPSupport", "trainnet"])));
+assert(sum([info.FunctionTable(names == "pruneAndFineTunePNNN").NumCalls]) == 1);
+saved = load(lastFile, 'point');
+assert(isequaln(saved.point.row, last.point.row));
+assert(isequal(saved.point.mask, last.point.mask));
+assert(isequal(saved.point.fullSignalPrediction, last.point.fullSignalPrediction));
+assert(isequaln(first.results, repaired.results));
+selected = run_selected_comparison(20, repaired);
+assert(isfile(selected.ampmFigureFiles.fig));
+h = openfig(char(selected.ampmFigureFiles.fig), 'new', 'visible');
+assert(strcmpi(h.Visible, 'on'));
+close(h);
+fprintf('SWEEP RESUME AND SELECTED FIGURES: PASS\n');
+end

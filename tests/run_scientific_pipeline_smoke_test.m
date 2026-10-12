@@ -43,6 +43,19 @@ assert(norm(rotation(~zeroRows) - ...
 %% Complex GMP and independent PN-IQ complete their small public sweeps
 manager = GMP_createRegressorManager(x, y, cfg.gmp);
 assert(numel(manager.regPopulation) == 673);
+% Fixed P200 support from legacy/sweep_4329deabf42b; regression belongs here,
+% not inside the operation counter for every arbitrary 100-term model.
+support = [1 12 8 23 34 24 10 11 2 437 434 3 45 459 408 173 9 56 ...
+    33 503 413 410 479 166 7 6 5 4 27 476 441 89 457 454 523 145 ...
+    417 520 672 431 187 44 567 320 456 57 298 588 101 569 255 430 ...
+    167 465 564 154 328 442 174 28 445 175 205 67 100 321 452 518 ...
+    411 36 478 254 500 505 190 458 211 461 438 26 169 170 517 189 ...
+    593 13 440 171 172 571 597 78 65 155 501 68 498 443 429 186];
+operations = countModelOperations(manager.regPopulation, support);
+assert(isequal(operations.TotalRealMultiplicationsPerSample, [666;1074;632;632]));
+assert(isequal(operations.TotalRealAdditionsPerSample, [413;617;387;387]));
+assert(all(isfinite(operations{:,3:end}), 'all'));
+assert(all(operations{:,3:end} >= 0, 'all'));
 cfg.sweep.parameterGrid = [4 6 8];
 cfg.sweep.candidateBlockSize = 128;
 cfg.gmp.blockSize = 128;

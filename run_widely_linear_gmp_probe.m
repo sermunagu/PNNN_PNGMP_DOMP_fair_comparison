@@ -1,4 +1,4 @@
-function comparison = run_widely_linear_gmp_probe()
+function comparison = run_widely_linear_gmp_probe(referenceFile)
 % Compare Complex GMP-DOMP, WL-GMP, and PN-IQ-GMP at 340 real parameters.
 
 root = fileparts(mfilename('fullpath'));
@@ -63,7 +63,6 @@ end
 
 wlNMSE = nmseComplexDb(y(fullRows), prediction);
 
-referenceFile = fullfile(cfg.sweep.resultsRoot, 'sweep_d113e389ab78', 'complexity_sweep.csv');
 reference = readtable(referenceFile);
 rows = reference.TargetRealParameters == target;
 referenceRows = reference(rows, :);

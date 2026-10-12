@@ -6,11 +6,6 @@ function descriptor = factorizeGMPRegressor(regressor, index)
 if nargin < 2 || isempty(index)
     index = NaN;
 end
-if ~isobject(regressor) || ~isprop(regressor, 'X') || ...
-        ~isprop(regressor, 'Xconj') || ~isprop(regressor, 'Xenv')
-    error('factorizeGMPRegressor:InvalidRegressor', ...
-        'regressor must expose X, Xconj, and Xenv properties.');
-end
 
 x_terms = double(regressor.X(:).');
 x_conjugate_terms = double(regressor.Xconj(:).');

@@ -54,11 +54,10 @@ runtimeConfig = struct( ...
         'fineTuneLearnRateDropPeriod', 1, ...
         'fineTuneSeedOffset', cfg.pruning.fineTuneSeedOffset));
 denseSource = struct('denseFit', denseFit, ...
-    'digest', buildNetworkSignature(denseFit), ...
     'fineTuneEpochs', 0, ...
     'runtimeConfig', runtimeConfig);
 targetsToFit = [100 150];
-signatureBefore = buildNetworkSignature(denseFit);
+weightsBefore = denseFit.network.Learnables;
 for index = 1:numel(targetsToFit)
     point = fit_sparse_pnnn_target(denseSource, targetsToFit(index), ...
         features, neuralTargets, phaseRotation, y, split, cfg);
@@ -75,11 +74,10 @@ for index = 1:numel(targetsToFit)
     assert(point.row.FineTuneEpochs == 0);
     assert(isfinite(point.row.MaxAbsRealParameter));
     assert(point.row.MaxAbsRealParameter >= 0);
-    assert(point.denseSourceDigest == signatureBefore);
     assert(sum(cellfun(@nnz, point.mask)) == targetsToFit(index));
     assert(all(isfinite(point.fullSignalPrediction)));
 end
-assert(buildNetworkSignature(denseFit) == signatureBefore);
+assert(isequaln(denseFit.network.Learnables, weightsBefore));
 
 %% Reduced real execution: selection, dense refit, pruning, and prediction
 rng(715, 'twister');
@@ -113,12 +111,13 @@ assert(numel(realRotationA) == sampleCount);
 assert(isequal(realFeaturesA, realFeaturesB));
 assert(isequal(realTargetsA, realTargetsB));
 assert(isequal(realRotationA, realRotationB));
-assert(sourceA.digest == sourceB.digest);
+assert(isequaln(sourceA.denseFit.network.Learnables, sourceB.denseFit.network.Learnables));
+assert(isequaln(sourceA.denseFit.normalization, sourceB.denseFit.normalization));
 assert(sourceA.bestDenseEpoch == sourceB.bestDenseEpoch);
 assert(sourceA.fineTuneEpochs == sourceB.fineTuneEpochs);
 
 finalTarget = 100;
-immutableDigest = sourceA.digest;
+weightsBefore = sourceA.denseFit.network.Learnables;
 pointA = fit_sparse_pnnn_target(sourceA, finalTarget, ...
     realFeaturesA, realTargetsA, realRotationA, y, reducedSplit, reducedCfg);
 pointB = fit_sparse_pnnn_target(sourceA, finalTarget, ...
@@ -129,7 +128,7 @@ assert(pointA.row.ActiveBiases == ...
 assert(isequal(pointA.mask, pointB.mask));
 assert(isequal(pointA.fullSignalPrediction, pointB.fullSignalPrediction));
 assert(all(isfinite(pointA.fullSignalPrediction)));
-assert(buildNetworkSignature(sourceA.denseFit) == immutableDigest);
+assert(isequaln(sourceA.denseFit.network.Learnables, weightsBefore));
 
 fineTuneOptions = struct( ...
     'Mode', "fixed-epochs", ...
