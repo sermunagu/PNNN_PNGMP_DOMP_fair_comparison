@@ -3,11 +3,6 @@ function count = countPNNNParameters(inputDimension, hiddenNeurons)
 % The supported architecture has one real hidden layer and two real output
 % channels; all trainable scalars are included exactly once.
 
-validateattributes(inputDimension, {'numeric'}, ...
-    {'scalar','integer','positive','finite'});
-validateattributes(hiddenNeurons, {'numeric'}, ...
-    {'scalar','integer','positive','finite'});
-
 count = struct();
 count.inputDimension = double(inputDimension);
 count.hiddenNeurons = double(hiddenNeurons);

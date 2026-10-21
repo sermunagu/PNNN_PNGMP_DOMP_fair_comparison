@@ -21,10 +21,10 @@ for k = 1:3
     if model.kind == "pnnn"
         f = model.featureConfig;
         [features, ~, rotation] = buildPhaseNormDataset( ...
-            x, zeros(size(x)), f.M, f.orders, f.featMode);
+            x, zeros(size(x)), f.M, f.orders, f.featMode, f);
         stats = model.normalization;
         features = (features.' - stats.muX) ./ stats.sigmaX;
-        prediction = predictPhaseNorm(model.network, features, stats, rotation);
+        prediction = predictPNNN(model.network, features, stats, rotation);
     else
         manager = struct('regPopulation', model.regPopulation);
         support = (1:numel(model.regPopulation)).';

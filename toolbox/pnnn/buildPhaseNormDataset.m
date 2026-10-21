@@ -1,32 +1,14 @@
 function [features, neuralTargets, phaseRotation] = ...
-    buildPhaseNormDataset(x, y, M, orders, featMode)
+    buildPhaseNormDataset(x, y, M, orders, featMode, options)
 % buildPhaseNormDataset - Build the complete phase-normalized PNNN dataset.
 % Memory taps use periodic extension: x(n), x(n-1), ..., x(n-M).
 
-%% 1. Align the modeled input and output signals
 if nargin < 5 || isempty(featMode)
     featMode = "full";
 end
 
 x = x(:).';
 y = y(:).';
-%% 2. Rotate the input and build the periodic nonlinear features
-[features, phaseRotation] = buildPhaseNormInput(x, M, orders, featMode);
-
-%% 3. Rotate the complex target into two real output channels
-sampleCount = numel(x);
-neuralTargets = zeros(2, sampleCount);
-for sample = 1:sampleCount
-    rotatedTarget = phaseRotation(sample) * y(sample);
-    neuralTargets(:, sample) = [real(rotatedTarget); imag(rotatedTarget)];
-end
-end
-
-function [features, phaseRotation] = ...
-    buildPhaseNormInput(x, M, orders, featMode)
-% Build the feature matrix without changing the established feature order.
-
-x = x(:).';
 orders = orders(:).';
 featMode = string(featMode);
 sampleCount = numel(x);
@@ -85,5 +67,16 @@ for sample = 1:sampleCount
 
     features(:, sample) = featureVector(:);
     phaseRotation(sample) = rotation;
+end
+
+% Explicit experiment only: preserve all 84 positions and the historical default.
+if nargin >= 6 && isfield(options, 'zeroCurrentImaginaryTap') && ...
+        options.zeroCurrentImaginaryTap && featMode == "full"
+    features(M+2,:) = 0;
+end
+neuralTargets = zeros(2, sampleCount);
+for sample = 1:sampleCount
+    rotatedTarget = phaseRotation(sample) * y(sample);
+    neuralTargets(:, sample) = [real(rotatedTarget); imag(rotatedTarget)];
 end
 end

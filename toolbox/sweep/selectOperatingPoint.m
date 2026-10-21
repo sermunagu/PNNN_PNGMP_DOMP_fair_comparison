@@ -3,6 +3,7 @@ function selection = selectOperatingPoint(results, selectionConfig)
 % A budget is jointly stabilized when none of the three principal families
 % can improve by more than the configured NMSE tolerance within the next
 % configured number of real parameters. The lowest such budget is selected.
+% Every window must contain the complete official 10-parameter grid.
 
 windowParameters = double(selectionConfig.stabilizationWindowParameters);
 toleranceDb = double(selectionConfig.stabilizationToleranceDb);
@@ -22,6 +23,11 @@ end
 
 [futureGainDb, hasFullWindow] = calculateFutureGain( ...
     budgets, nmse, windowParameters);
+if ~any(hasFullWindow)
+    error('selectOperatingPoint:InsufficientWindowCoverage', ...
+        ['No window has complete coverage at 10-parameter intervals, ' ...
+        'including its upper endpoint; no operating point can be selected.']);
+end
 jointlyStabilized = hasFullWindow & ...
     all(futureGainDb <= toleranceDb + 1e-12, 2);
 selectedRow = find(jointlyStabilized, 1, 'first');
@@ -120,8 +126,13 @@ function [futureGainDb, hasFullWindow] = calculateFutureGain( ...
     budgets, nmse, windowParameters)
 rowCount = numel(budgets);
 futureGainDb = nan(rowCount, size(nmse, 2));
-hasFullWindow = budgets + windowParameters <= budgets(end) + 1e-12;
-for row = find(hasFullWindow).'
+hasFullWindow = false(rowCount, 1);
+for row = find(budgets + windowParameters <= budgets(end) + 1e-12).'
+    upperBudget = budgets(row) + windowParameters;
+    requiredBudgets = unique([budgets(row):10:upperBudget, upperBudget]);
+    hasFullWindow(row) = numel(requiredBudgets) > 1 && ...
+        all(ismember(requiredBudgets, budgets));
+    if ~hasFullWindow(row), continue; end
     futureRows = budgets >= budgets(row) & ...
         budgets <= budgets(row) + windowParameters + 1e-12;
     futureGainDb(row, :) = nmse(row, :) - min(nmse(futureRows, :), [], 1);

@@ -1,0 +1,202 @@
+function [denseSource, features, neuralTargets, phaseRotation] = ...
+    trainDensePNNN(x, y, split, cfg, targetActiveParameters)
+% Select training durations, then train the definitive dense PNNN from scratch.
+
+%% 1. Build the phase-normalized dataset
+[features, neuralTargets, phaseRotation] = buildPhaseNormDataset(x, y, cfg.pnnn.M, cfg.pnnn.orders, cfg.pnnn.featMode, cfg.pnnn);
+
+features = features.';
+neuralTargets = neuralTargets.';
+phaseRotation = phaseRotation(:);
+hiddenNeurons = cfg.pnnn.sparseBaseHiddenNeurons;
+
+seed = cfg.pnnn.nnSeed;
+
+%% 2. Scale the historical training budget
+budget = scaleTrainingBudget(numel(x), numel(split.internalTrainIndices), cfg.training, cfg.pruning);
+
+runtimeConfig = struct('training', cfg.training, 'pruning', cfg.pruning);
+runtimeConfig.training.maxEpochs = budget.denseMaxEpochs;
+runtimeConfig.training.learnRateDropPeriod =  budget.denseLearnRateDropPeriod;
+runtimeConfig.training.validationPatience = budget.denseValidationPatience;
+runtimeConfig.pruning.fineTuneEpochs = budget.fineTuneEpochs;
+runtimeConfig.pruning.fineTuneLearnRateDropPeriod = budget.fineTuneLearnRateDropPeriod;
+
+%% 3. Train with internal validation and select the dense epoch
+trainingRows = split.internalTrainIndices;
+validationRows = split.internalValidationIndices;
+
+selectionNormalization = computeNormalization(features(trainingRows, :), neuralTargets(trainingRows, :));
+
+featuresTraining = (features(trainingRows, :) - selectionNormalization.muX) ./ selectionNormalization.sigmaX;
+featuresValidation = (features(validationRows, :) - selectionNormalization.muX) ./ selectionNormalization.sigmaX;
+
+targetsTraining = (neuralTargets(trainingRows, :) - selectionNormalization.muY) ./ selectionNormalization.sigmaY;
+targetsValidation = (neuralTargets(validationRows, :) - selectionNormalization.muY) ./ selectionNormalization.sigmaY;
+
+iterationsPerEpoch = max(1, ceil(numel(trainingRows) / runtimeConfig.training.miniBatchSize));
+
+rng(seed, 'twister');
+
+selectionLayers = buildLayers(size(features, 2), hiddenNeurons);
+trainingArguments = { ...
+    'MiniBatchSize', runtimeConfig.training.miniBatchSize, ...
+    'InitialLearnRate', runtimeConfig.training.initialLearnRate, ...
+    'LearnRateSchedule', runtimeConfig.training.learnRateSchedule, ...
+    'LearnRateDropPeriod', runtimeConfig.training.learnRateDropPeriod, ...
+    'LearnRateDropFactor', runtimeConfig.training.learnRateDropFactor, ...
+    'Shuffle', runtimeConfig.training.shuffle, ...
+    'InputDataFormats', runtimeConfig.training.inputDataFormats, ...
+    'TargetDataFormats', runtimeConfig.training.targetDataFormats, ...
+    'ExecutionEnvironment', runtimeConfig.training.executionEnvironment, ...
+    'Plots', "none", 'Verbose', runtimeConfig.training.verbose};
+selectionOptions = trainingOptions(runtimeConfig.training.optimizer, ...
+    trainingArguments{:}, MaxEpochs=runtimeConfig.training.maxEpochs, ...
+    OutputNetwork="best-validation-loss", ...
+    ValidationData={featuresValidation, targetsValidation}, ...
+    ValidationFrequency=iterationsPerEpoch, ...
+    ValidationPatience=runtimeConfig.training.validationPatience, ...
+    VerboseFrequency=iterationsPerEpoch);
+
+[selectionNetwork, selectionInfo] = trainnet(featuresTraining, targetsTraining, selectionLayers, "mse", selectionOptions);
+
+bestDenseEpoch = selectBestEpoch(selectionInfo, iterationsPerEpoch, runtimeConfig.training.maxEpochs);
+denseSelectionFit = struct('network', selectionNetwork, 'normalization', selectionNormalization);
+
+%% 4. Select one fine-tuning duration at the reference sparse budget
+fineTuneOptions = struct( ...
+    'Mode', "select-epochs", ...
+    'TrainingRows', trainingRows, ...
+    'ValidationRows', validationRows, ...
+    'TargetActiveParameters', targetActiveParameters, ...
+    'NNSeed', seed, ...
+    'Config', runtimeConfig);
+
+fineTuneSelection = pruneAndFineTunePNNN(denseSelectionFit, features, neuralTargets, fineTuneOptions);
+
+bestFineTuneEpoch = fineTuneSelection.bestEpoch;
+
+fprintf('Selected epochs N12/fine-tune: %d / %d\n', bestDenseEpoch, bestFineTuneEpoch);
+
+%% 5. Discard the provisional model and reinitialize from the same seed
+clear denseSelectionFit selectionNetwork fineTuneSelection;
+rng(seed, 'twister');
+finalLayers = buildLayers(size(features, 2), hiddenNeurons);
+
+%% 6. Recompute normalization on the complete identification subset
+identificationRows = split.identificationIndices;
+
+normalization = computeNormalization(features(identificationRows, :), neuralTargets(identificationRows, :));
+
+featuresIdentification = (features(identificationRows, :) - normalization.muX) ./ normalization.sigmaX;
+targetsIdentification = (neuralTargets(identificationRows, :) - normalization.muY) ./ normalization.sigmaY;
+
+%% 7. Train the definitive immutable dense source
+fprintf('Final N12 dense refit on all identification rows...\n');
+
+iterationsPerEpoch = max(1, ceil(numel(identificationRows) / runtimeConfig.training.miniBatchSize));
+
+finalOptions = trainingOptions(runtimeConfig.training.optimizer, ...
+    trainingArguments{:}, MaxEpochs=bestDenseEpoch, ...
+    OutputNetwork="last-iteration", ...
+    VerboseFrequency=iterationsPerEpoch);
+
+denseNetwork = trainnet(featuresIdentification, targetsIdentification, finalLayers, "mse", finalOptions);
+
+parameterCount = countPNNNParameters(size(features, 2), hiddenNeurons);
+counts = summarizeTrainableParameters(denseNetwork);
+if counts.totalWeightParams + counts.totalBiasParams ~= parameterCount.realParameters
+    error('trainDensePNNN:ParameterCountMismatch', ...
+        'The dense network does not match H*(D+3)+2.');
+end
+denseFit = struct('network', denseNetwork, 'normalization', normalization);
+
+%% 8. Package the source and the shared fine-tuning settings
+sparseRuntimeConfig = struct( ...
+    'training', struct( ...
+        'miniBatchSize', runtimeConfig.training.miniBatchSize, ...
+        'learnRateDropFactor', ...
+            runtimeConfig.training.learnRateDropFactor), ...
+    'pruning', struct( ...
+        'fineTuneInitialLearnRate', ...
+            runtimeConfig.pruning.fineTuneInitialLearnRate, ...
+        'fineTuneLearnRateDropPeriod', ...
+            runtimeConfig.pruning.fineTuneLearnRateDropPeriod, ...
+        'fineTuneSeedOffset', ...
+            runtimeConfig.pruning.fineTuneSeedOffset));
+
+denseSource = struct('denseFit', denseFit, ...
+    'bestDenseEpoch', bestDenseEpoch, ...
+    'fineTuneEpochs', bestFineTuneEpoch, ...
+    'runtimeConfig', sparseRuntimeConfig);
+end
+
+function layers = buildLayers(inputDimension, hiddenNeurons)
+layers = [
+    featureInputLayer(inputDimension, Name="input")
+    fullyConnectedLayer(hiddenNeurons, Name="fc1")
+    sigmoidLayer(Name="sigmoid1")
+    fullyConnectedLayer(2, Name="fcOut")
+];
+end
+
+function normalization = computeNormalization(features, neuralTargets)
+normalization = struct();
+normalization.muX = mean(features, 1);
+normalization.sigmaX = std(features, 0, 1);
+normalization.sigmaX(normalization.sigmaX == 0) = 1;
+normalization.muY = mean(neuralTargets, 1);
+normalization.sigmaY = std(neuralTargets, 0, 1);
+normalization.sigmaY(normalization.sigmaY == 0) = 1;
+end
+
+function budget = scaleTrainingBudget( ...
+    totalSamples, trainingSamples, trainingCfg, pruningCfg)
+batchSize = double(trainingCfg.miniBatchSize);
+historicalTrainingSamples = floor( ...
+    double(trainingCfg.historicalTrainFraction)*double(totalSamples));
+historicalDenseIterationsPerEpoch = max(1, floor( ...
+    historicalTrainingSamples/batchSize));
+currentDenseIterationsPerEpoch = max(1, floor( ...
+    double(trainingSamples)/batchSize));
+
+historicalDenseUpdates = historicalDenseIterationsPerEpoch * ...
+    double(trainingCfg.historicalMaxEpochs);
+historicalDropUpdates = historicalDenseIterationsPerEpoch * ...
+    double(trainingCfg.historicalLearnRateDropPeriod);
+historicalPatienceUpdates = historicalDenseIterationsPerEpoch * ...
+    double(trainingCfg.historicalValidationPatience);
+
+budget.denseMaxEpochs = ceil(historicalDenseUpdates / ...
+    currentDenseIterationsPerEpoch);
+budget.denseLearnRateDropPeriod = ceil(historicalDropUpdates / ...
+    currentDenseIterationsPerEpoch);
+budget.denseValidationPatience = ceil(historicalPatienceUpdates / ...
+    currentDenseIterationsPerEpoch);
+
+historicalFineTuneIterationsPerEpoch = max(1, ceil( ...
+    historicalTrainingSamples/batchSize));
+currentFineTuneIterationsPerEpoch = max(1, ceil( ...
+    double(trainingSamples)/batchSize));
+historicalFineTuneUpdates = historicalFineTuneIterationsPerEpoch * ...
+    double(pruningCfg.historicalFineTuneEpochs);
+budget.fineTuneEpochs = ceil(historicalFineTuneUpdates / ...
+    currentFineTuneIterationsPerEpoch);
+budget.fineTuneLearnRateDropPeriod = ceil(historicalDropUpdates / ...
+    currentFineTuneIterationsPerEpoch);
+end
+
+function epoch = selectBestEpoch(info, iterationsPerEpoch, maxEpochs)
+history = info.ValidationHistory;
+loss = double(history.Loss);
+iteration = double(history.Iteration);
+eligible = isfinite(loss) & isfinite(iteration);
+if ~any(eligible)
+    error('trainDensePNNN:InvalidValidationHistory', ...
+        'Validation history contains no finite loss.');
+end
+indices = find(eligible);
+[~, localIndex] = min(loss(eligible));
+epoch = min(maxEpochs, max(1, ...
+    ceil(iteration(indices(localIndex))/iterationsPerEpoch)));
+end

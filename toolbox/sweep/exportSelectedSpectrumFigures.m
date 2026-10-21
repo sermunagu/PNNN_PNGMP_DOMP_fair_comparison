@@ -67,7 +67,6 @@ exportOptions.tikzExtraAxisOptions = { ...
     sprintf('every axis plot/.append style={mark repeat=%d}', ...
         max(1, floor(numel(frequencyMHz)/14)))};
 files = exportPaperFigure(figureHandle, baseFilename, exportOptions);
-clear cleanup;
 end
 
 function files = exportRidgeSpectrum(frequencyMHz, panels, fixedLambdas, ...
@@ -149,14 +148,11 @@ legendHandle.Units = 'normalized';
 legendHandle.Position = [0.03 0.01 0.94 0.25];
 legendHandle.Units = 'pixels';
 axesHandles = findobj(figureHandle, 'Type', 'axes');
-for index = 1:numel(axesHandles)
-    axesHandles(index).Units = 'pixels';
-end
+set(axesHandles, 'Units', 'pixels');
 exportOptions.tikzExtraAxisOptions = { ...
     sprintf('every axis plot/.append style={mark repeat=%d}', ...
         max(1, floor(numel(frequencyMHz)/14)))};
 files = exportPaperFigure(figureHandle, baseFilename, exportOptions);
-clear cleanup;
 end
 
 function indices = spectrumMarkerIndices(count)

@@ -2,8 +2,6 @@ function features = buildPNIQFeatures( ...
     x, rows, rotation, manager, support, descriptors)
 % Build the real I/Q representation of phase-normalized GMP regressors.
 
-complexRegressors = buildGMPRegressorRows(x, rows, manager, support);
-phaseNormalized = rotation .* complexRegressors;
 regressorsI = zeros(numel(rows), numel(support));
 regressorsQ = zeros(numel(rows), numel(support));
 signalLength = numel(x);
@@ -27,8 +25,11 @@ for localIndex = 1:numel(support)
             regressorsQ(:, localIndex) = 0;
         end
     else
-        regressorsI(:, localIndex) = real(phaseNormalized(:, localIndex));
-        regressorsQ(:, localIndex) = imag(phaseNormalized(:, localIndex));
+        % Only auxiliaries need the unfactorized complex regressor.
+        regressor = buildGMPRegressorRows(x, rows, manager, support(localIndex));
+        phaseNormalized = rotation .* regressor;
+        regressorsI(:, localIndex) = real(phaseNormalized);
+        regressorsQ(:, localIndex) = imag(phaseNormalized);
     end
 end
 features = [regressorsI, regressorsQ];

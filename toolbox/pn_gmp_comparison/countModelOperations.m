@@ -4,7 +4,8 @@ function comparison = countModelOperations( ...
 % Stage counts use explicit literal or reuse-aware schedules; they are not
 % weighted FLOPs, execution-time estimates, or hardware measurements.
 
-descriptors = describePopulation(population);
+descriptors = arrayfun(@(k) factorizeGMPRegressor(population(k), k), ...
+    (1:numel(population)).');
 support = double(support(:));
 support_descriptors = descriptors(support);
 S = numel(support);
@@ -122,14 +123,6 @@ comparison = table(Model, Schedule, EffectiveRealFeatures, ...
 
 end
 
-function descriptors = describePopulation(population)
-n = numel(population);
-descriptors = repmat(factorizeGMPRegressor(population(1), 1), n, 1);
-for index = 1:n
-    descriptors(index) = factorizeGMPRegressor(population(index), index);
-end
-end
-
 function dependencies = buildStandardDependencies(descriptors)
 lags = zeros(1, 0);
 powers = zeros(1, 0);
@@ -154,11 +147,7 @@ function dependencies = buildStructureDependencies(descriptors, dependencies)
 for index = 1:numel(descriptors)
     descriptor = descriptors(index);
     if descriptor.canonicalGMP && descriptor.carrierLag == 0 && ...
-            isempty(descriptor.envelopeLags)
-        [dependencies.envelopeLags, dependencies.maximumPowers] = ...
-            ensurePower(dependencies.envelopeLags, ...
-            dependencies.maximumPowers, 0, 1);
-    elseif descriptor.canonicalGMP && descriptor.carrierLag == 0 && ...
+            ~isempty(descriptor.envelopeLags) && ...
             all(descriptor.envelopeLags == 0)
         [dependencies.envelopeLags, dependencies.maximumPowers] = ...
             ensurePower(dependencies.envelopeLags, ...

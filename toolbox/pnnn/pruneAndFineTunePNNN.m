@@ -23,8 +23,6 @@ end
 masks = createMagnitudePruningMasks(denseFit.network, targetActiveParameters);
 
 sparseNetwork = applyLearnableMasks(denseFit.network, masks);
-checkPruningMaskIntegrity(sparseNetwork, masks);
-
 %% 2. Normalize train and optional validation rows with dense statistics
 normalization = denseFit.normalization;
 featuresTraining = (features(trainingRows, :) - normalization.muX) ./ normalization.sigmaX;
@@ -60,13 +58,6 @@ end
 result = struct('network', sparseNetwork, 'masks', {masks}, 'counts', counts, 'bestEpoch', bestEpoch);
 end
 
-
-
-
-
-
-
-
 function masks = createMagnitudePruningMasks( ...
     network, targetActiveParameters)
 learnables = network.Learnables;
@@ -78,7 +69,7 @@ totalParameters = 0;
 totalWeights = 0;
 
 for row = 1:height(learnables)
-    value = learnableToNumeric(learnables.Value{row});
+    value = gather(extractdata(learnables.Value{row}));
     masks{row} = true(size(value));
     totalParameters = totalParameters + numel(value);
     if lower(string(learnables.Parameter(row))) == "weights"
@@ -214,53 +205,24 @@ end
 end
 
 function network = applyLearnableMasks(network, masks)
-if ~isa(network, 'dlnetwork')
-    error('pruneAndFineTunePNNN:InvalidNetwork', ...
-        'The network must be a dlnetwork object.');
-end
 learnables = network.Learnables;
-if numel(masks) ~= height(learnables)
-    error('pruneAndFineTunePNNN:MaskCountMismatch', ...
-        'The mask count must match the network learnables.');
-end
 for row = 1:height(learnables)
-    if ~isempty(masks{row})
-        learnables.Value{row} = applyMask( ...
-            learnables.Value{row}, masks{row});
-    end
+    learnables.Value{row} = applyMask(learnables.Value{row}, masks{row});
 end
 network.Learnables = learnables;
 end
 
 function value = applyMask(value, mask)
-mask = logical(mask);
-if isa(value, 'dlarray')
-    data = extractdata(value);
-else
-    data = value;
-end
-maskValue = double(mask);
-if isa(data, 'gpuArray')
-    maskValue = gpuArray(maskValue);
-end
-maskValue = maskValue .* ones(size(data), "like", data);
-value = value .* maskValue;
+value = value .* cast(mask, 'like', extractdata(value));
 end
 
 function checkPruningMaskIntegrity(network, masks)
 learnables = network.Learnables;
 for row = 1:height(learnables)
-    value = learnableToNumeric(learnables.Value{row});
+    value = gather(extractdata(learnables.Value{row}));
     if any(value(~logical(masks{row})) ~= 0, 'all')
         error('pruneAndFineTunePNNN:MaskViolation', ...
             'A pruned PNNN parameter became nonzero.');
     end
 end
-end
-
-function data = learnableToNumeric(value)
-if isa(value, 'dlarray')
-    value = extractdata(value);
-end
-data = gather(value);
 end

@@ -9,7 +9,7 @@ n_samples = numel(x);
 previous_rng = rng;
 cleanup = onCleanup(@() rng(previous_rng));
 rng(cfg.identificationSeed, 'twister');
-identification = double(sel_indices(x, y, cfg.identificationFraction));
+identification = double(selectPeakSegment(x, y, cfg.identificationFraction));
 identification = identification(:);
 full_signal = (1:n_samples).';
 

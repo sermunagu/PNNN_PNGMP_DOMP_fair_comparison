@@ -1,5 +1,11 @@
 # Auditoría exhaustiva de simplicidad — PNNN_PNGMP_DOMP_fair_comparison
 
+> Organización actual (14/10/2026): ejecutores PA en `PA/` y DPD en `DPD/`;
+> `runPNIQAblation` y `runPNNNPhaseExperiment` están en `DPD/experiments/`.
+> Antes de usar ejemplos: `addpath('PA','DPD','PA/experiments','DPD/experiments')`.
+> Las narraciones históricas conservan sus nombres; el [mapeo actual](GUIA_REPOSITORIO_DPD.md#entradas-reorganizadas-14102026)
+> indica sus sustitutos, sin cambiar medidas, modelos ni resultados.
+
 **Repositorio:** https://github.com/sermunagu/PNNN_PNGMP_DOMP_fair_comparison  
 **Rama/commit auditado:** `main` — `20eaf4cee23b713a47d24fe92bc4159ab63b597e` (12-10-2026 UTC).  
 **Objetivo:** encontrar sobreingeniería, verificaciones innecesarias, abstracciones, duplicaciones y residuos de código heredado, **sin confundir complejidad algorítmica real con complejidad artificial**. No se han modificado archivos.

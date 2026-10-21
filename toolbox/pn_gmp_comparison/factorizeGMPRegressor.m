@@ -31,8 +31,8 @@ if isscalar(x_terms) && isempty(x_conjugate_terms)
     descriptor.structurallyRealAfterPhaseNormalization = ...
         x_terms(1) == 0;
     descriptor.QColumnStructurallyZero = x_terms(1) == 0;
-    base_signature = carrierEnvelopeSignature( ...
-        x_terms(1), envelope_lags, envelope_powers);
+    base_signature = "c" + compose('%+d', x_terms(1)) + ":" + ...
+        envelopeSignature(envelope_lags, envelope_powers);
     descriptor.iSignature = "IQ:I:" + base_signature;
     descriptor.qSignature = "IQ:Q:" + base_signature;
 elseif isempty(x_terms) && isequal(x_conjugate_terms, 0) && ...
@@ -56,21 +56,11 @@ end
 end
 
 function [lags, powers] = groupTerms(terms)
-if isempty(terms)
-    lags = zeros(1, 0);
-    powers = zeros(1, 0);
-    return;
-end
 lags = unique(terms, 'sorted');
 powers = zeros(size(lags));
 for k = 1:numel(lags)
     powers(k) = nnz(terms == lags(k));
 end
-end
-
-function signature = carrierEnvelopeSignature(carrier_lag, lags, powers)
-signature = "c" + compose('%+d', carrier_lag) + ":" + ...
-    envelopeSignature(lags, powers);
 end
 
 function signature = envelopeSignature(lags, powers)

@@ -1,324 +1,314 @@
 # Hoja de ruta — DPD con GMP-DOMP, PN-IQ-GMP y PNNN
 
-> **Documento de seguimiento del proyecto** · Versión inicial: 11/10/2026  
-> **Objetivo a corto plazo:** trabajar con nuevas medidas del tutor mediante un flujo **OFFLINE → ONLINE** sencillo, reproducible y separado.  
-> **Objetivo científico:** preparar la comparación **DPD real** para una posible *IEEE Transactions* en enero de 2027.  
-> **Estado:** fase A implementada y probada sintéticamente; laboratorio y fases B–G pendientes. **No autoriza ejecutar Codex, entrenamientos extensos, transmisiones RF, commits ni pushes.**
+Actualización contrastada el **21/10/2026**. Objetivo orientativo: Transactions
+en enero de 2027; no es un plazo editorial confirmado. Repositorio local:
+`C:\Sergi\Investigacion\Códigos\PNNN_PNGMP_DOMP_fair_comparison`.
+El WIP local es la fuente de verdad, no GitHub. Este plan no autoriza nuevos
+entrenamientos extensos, transmisiones RF, commits ni pushes.
 
-## 0. Cómo utilizar este documento
+La versión anterior completa, incluidos su registro histórico y TODO, queda
+preservada en [plan_before_closure.md](../results/gmp_phase_study/20261020_205246/plan_before_closure.md).
+Se corrigen hitos obsoletos: el sweep real, P310, la ablación en tres P y el
+experimento PNNN de cero estructural **ya terminaron**. No hay que repetirlos.
 
-- `[x]` = realizado y respaldado por resultados o código existente.
-- `[ ]` = pendiente. No marcarlo como realizado solo porque esté programado o porque pase un test sintético.
-- **Prioridad A:** necesario para trabajar con el tutor y sus próximas medidas.
-- **Prioridad B:** necesario para defender científicamente los resultados DPD.
-- **Prioridad C:** extensión para la Transactions; **no ejecutar todavía**.
-- Después de cada sesión, actualizar la tabla de seguimiento del §12 con **fecha, captura, acción, resultado, problemas y siguiente paso**.
-- La rama de **modelado del PA** se conserva como referencia histórica; el foco del nuevo artículo será **DPD**.
+## 0. Estados, evidencia y prioridades
 
----
+- **COMPLETADO**: evidencia suficiente para el alcance indicado, no para uno mayor.
+- **PARCIAL**: existe evidencia, pero falta una condición importante.
+- **PENDIENTE OFFLINE**: trabajo posible sin nuevas transmisiones.
+- **PENDIENTE RF**: requiere nuevas medidas o confirmación del banco con el tutor.
+- **OPCIONAL**: no es requisito para defender la evidencia actual.
 
-## 1. Qué queremos construir
+Prioridad 1: argumento y redacción PN-IQ con evidencia existente.
+Prioridad 2: confirmación independiente/RF. Prioridad 3: extensiones.
+Un comentario respondido en un informe no se considera incorporado al paper:
+evidencia y redacción se clasifican por separado.
 
-### Flujo normal (cada vez que el tutor entregue medidas nuevas)
+| Clave | Evidencia local |
+|---|---|
+| S | `results/dpd_sweep/tp98e6f7ac_f3cd_44c7_9ce3_fd8619319748/`: 49 presupuestos, 147 filas, bundles, configuración, split y checkpoints |
+| A | [Ablación PN-IQ](PNIQ_GMP_ABLATION_2026-10-12.md), cierre J; `results/pniq_ablation/summary_20261013_164459/` y MAT P100/P310/P500 |
+| N | [Diagnóstico PNNN](PNNN_PHASE_NORMALIZATION_DIAGNOSIS_2026-10-12.md); resultado real posterior en `results/pnnn_phase_experiment/tp1bfa4378_d472_497b_87d7_b5c638c34392/comparison.csv` y [guía actual](GUIA_REPOSITORIO_DPD.md) |
+| E | [Eficiencia NMSE–FLOPs](DPD_EFFICIENCY_ANALYSIS.md); `results/dpd_efficiency/20261020_204728/` |
+| Q | [Equivariancia y restricción GMP](GMP_PHASE_EQUIVARIANCE.md); `results/gmp_phase_study/20261020_205246/` |
+| R | Consulta R2026a real: `regularization.mat` y `regularization_matlab.log` dentro de Q |
+| O | [Flujo DPD](DPD_ILC.md), [guía](GUIA_REPOSITORIO_DPD.md), código OFFLINE/ONLINE y verificaciones históricas documentadas |
 
-```text
-          CAPTURA NUEVA (.mat, x/y)
-                      |
-                      v
-            OFFLINE: ENTRENAR
-          +---------------------+
-          | GMP-DOMP            |
-          | PN-IQ-GMP           |
-          | PNNN densa + poda   |
-          +---------------------+
-                      |
-                      v
-          GUARDAR 3 MODELOS
-      (pesos, coeficientes, configuración,
-       normalización y procedencia)
-                      |
-                      v
-           ONLINE: INFERENCIA
-            (sin entrenar)
-                      |
-                      v
-       3 SEÑALES DE SALIDA EN .mat
-             dpd(k).yvalmod
-                      |
-                      v
-   POSTERIOR MEDIDA RF POR EL AMPLIFICADOR
-         (solo en laboratorio autorizado)
+N contiene secciones anteriores al experimento real. El estado actualizado
+se toma del CSV y la guía, no de la antigua frase «preparada, no ejecutada».
+
+## 1. Alcance y contrato científico
+
+En `measurements/experiment20260429T134032_xy.mat`, el mapeo
+`xy_forward` aprende **u → x_ILC**: x es referencia deseada, y predistorsión
+objetivo. La salida inferida de un DPD no es la salida medida del PA.
+El archivo `_forward_xy.mat` del modelado PA tiene otra función física.
+Confirmar siempre la señal realmente enviada al equipo, incluido posible CFR.
+
+Se conservan 491520 muestras, 49151 de identificación y 442369 de evaluación.
+Identificación/evaluación/full se reportan por separado. La señal completa
+incluye entrenamiento. El complemento **no es una captura independiente**:
+comparte adquisición, DC global, selección del segmento por el máximo de y y
+memoria periódica; además se usa para seleccionar P. Ninguna cifra offline
+demuestra por sí sola ACLR/ACPR/EVM o linealización RF.
+
+Cada captura nueva que se vaya a identificar necesita entrenamiento nuevo
+en carpeta propia, sin reutilizar automáticamente soportes, pesos ni
+normalizaciones de otra captura. Sí se reutilizan etapas/checkpoints dentro
+de una misma ejecución. ONLINE significa inferencia sin entrenamiento, no
+garantía de procesamiento RF en tiempo real.
+
+Se preservan PA P340, DPD recuperado P340, sweep DPD P310, los 15 modelos de
+ablación y variantes científicas. Los restringidos no sustituyen el baseline.
+
+## 2. Fase A — OFFLINE/ONLINE
+
+| Tarea original | Estado | Evidencia | Qué falta / siguiente acción | Prioridad |
+|---|---|---|---|---:|
+| A1: archivo absoluto/relativo x/y, conservar fs | COMPLETADO | `DPD/trainDPD.m`, O | Semántica por campaña, no deducirla del nombre | 2 |
+| A2: tres modelos nuevos; densa, poda y fine-tuning PNNN a P | COMPLETADO | `trainDPD`, S, pruebas sintéticas previas | No reentrenar por este cierre | 1 |
+| A3: bundle autocontenido, métricas/configuración/procedencia y no sobrescritura | COMPLETADO | Bundles S y O | Mantener carpeta propia por ejecución | 1 |
+| A3: ONLINE por archivo x sin y, mediante `applyDPDModels` | COMPLETADO | `DPD/runDPDOnline.m`, O | Ninguno para entrada compatible | 1 |
+| A4: dos capturas sintéticas independientes, P exacto, tres salidas complejas, recarga y cero entrenamiento ONLINE | COMPLETADO | Verificaciones previas O, no repetidas ahora | No confundir test sintético con RF | 1 |
+| A4: P340 y seis predictores históricos; sesión nueva | COMPLETADO | O, igualdad exacta reportada; archivos preservados | Ninguno en este cierre | 1 |
+| Primer entrenamiento/barrido real autorizado | COMPLETADO | S: 49 puntos por arquitectura | Nueva captura sería otra campaña, no un TODO de software | 1 |
+| Contrato de medidas: x/y, fs, DC, periodicidad, amplitud y sincronización | PENDIENTE RF | Convención actual documentada, no contrato universal | Confirmar con tutor por campaña | 2 |
+| Límites DAC, CFR/PAPR y señal realmente enviada | PENDIENTE RF | No validación de banco equivalente en E/Q | Revisar antes de transmitir | 2 |
+| NMSE opcional de otra entrada ONLINE con objetivo disponible | OPCIONAL | Inferencia explícita disponible | Evaluación adicional, no métrica RF | 3 |
+
+Dos comandos del flujo normal, desde la raíz y con DPD en el path:
+
+```matlab
+modelFile = trainDPD('medidas_nuevas.mat', 310);
+runDPDOnline(modelFile, 'entrada_nueva.mat');
 ```
 
-**Regla esencial:** con cada captura nueva que deba identificarse, empezar un **nuevo entrenamiento completo**. No reutilizar automáticamente modelos, soportes DOMP, pesos, normalizaciones ni coeficientes de otras capturas. Cargar modelos previamente entrenados está permitido **para inferencia** sobre entradas compatibles. La reutilización de cálculos **dentro de una misma captura y mismo experimento** sí será útil, especialmente en el futuro barrido.
+El primero **entrena realmente** y no se ha ejecutado en este cierre.
+El segundo usa x y guarda `dpd(k).yvalmod` / `dpd(k).modeltype` en archivo
+nuevo. Confirmar el contrato físico antes de RF.
 
-**Terminología:** aquí *online* significa **cargar un modelo y generar predicciones sin entrenar**; no implica que el código sea capaz de procesar un flujo RF en tiempo real.
+## 3. Fase B — Validación científica
 
-### Convención de señales (evitar el error más peligroso)
+| Tarea original | Estado | Evidencia | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| B1: protocolo histórico, identificación/complemento/full y mismo NMSE/índices para las tres familias | COMPLETADO | S, A, E, Q | Ninguno para reportar esta captura | 1 |
+| B1: validación interna PNNN separada del complemento | COMPLETADO | `trainDensePNNN`, S | Explicar selección provisional/refit en paper | 1 |
+| B1: generalización independiente | PARCIAL | Complemento disponible, no test externo | Captura independiente (RF), o protocolo predefinido con preprocesado/guardas y nueva validación autorizada | 2 |
+| B2: referencia sin DPD, ILC y tres DPD en mismo montaje/estado | PENDIENTE RF | S aporta modelos, no salidas RF comparables | Adquirir referencias y salidas PA reales | 2 |
+| B2: entrada enviada, salida, ganancias, potencia, fs, CFR/DAC, alineación | PENDIENTE RF | `rf_measurements.csv` sin asociaciones RF | Completar por medida sin sustituir inferencias | 2 |
+| B2: NMSE RF, ACPR/ACLR, espectros medidos y EVM aplicable | PENDIENTE RF | Sin resultados RF de esta campaña en S/E/Q | Definir bandas/referencia/procedimiento y medir | 2 |
+| B2: comparabilidad waveform/potencia/configuración/adquisición | PENDIENTE RF | Requisitos descritos, no campaña terminada | Protocolo acordado y repetición controlada | 2 |
+| B3: canal PNNN 15 casi nulo y normalización | COMPLETADO | N real P310: -35.482326 → -35.525255 dB; mismas 310/780 | Ganancia 0.042929 dB; no justifica otro sweep neuronal | 1 |
+| B3: normalización, condición y sensibilidad | COMPLETADO | A: SVD de 15 modelos y perturbación dirigida; Q: seis restringidos | No prueba robustez universal ni en cuantización | 1 |
+| B3: características, retardos, operaciones especiales y poda ideal | COMPLETADO | E y desgloses guardados | Hardware solo opcional; conservar cifras históricas | 1 |
+| B3: interpretación física de memoria/amplitud/fase | PARCIAL | E por amplitud; Q algebraico/experimental | Causalidad física requiere medidas controladas | 2 |
 
-- En los `.mat` tipo PNNN, `x` y `y` significan **entrada y objetivo del bloque modelado**, no necesariamente entrada y salida físicas del PA.
-- **Imitación del ILC / entrenamiento DPD:** `x = u` (señal de referencia) y `y = x_ILC` (predistorsión calculada por ILC). Entrenamos `u → x_ILC`.
-- **Modelado del PA (experimento anterior):** se aprende *entrada efectiva del PA → salida medida del PA*. Comprobar siempre si la entrada procede de `x`, `xCFR` u otra versión procesada; el código de adquisición aplica CFR antes de `measureADRV`.
-- La señal de salida de los modelos DPD **no** es la salida medida del PA. Para evaluar linealización hay que transmitirla y medir el PA.
-- `mappingMode = "xy_forward"` significa únicamente `x → y` en el archivo seleccionado; no determina por sí solo la función física.
+La variante PNNN real seleccionó 1221/163 épocas frente a 1228/164 del
+baseline. No se entrenó PNNN en E/Q ni en este cierre. La variante estructural
+no reemplaza la normalización histórica.
 
----
+## 4. Fase C — Barrido DPD: completado offline
 
-## 2. Qué existe y debe preservarse
+| Tarea original | Estado | Evidencia | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| Ejecutor, una ruta DOMP por arquitectura/captura y prefijos | COMPLETADO | `DPD/runDPDSweep.m`, S | Ninguno | 1 |
+| Densa definitiva común; poda/fine-tuning independientes por P | COMPLETADO | S y verificaciones O | Ningún entrenamiento adicional solicitado | 1 |
+| Checkpoints y reanudación explícita sin repetir etapas | COMPLETADO | S, O | Mantener compatibilidad | 1 |
+| Bundles compactos/remapeo PN-IQ, P, FLOPs, tres NMSE, rangos, sparsity y épocas | COMPLETADO | 49 bundles S y tablas | Ninguno para campaña offline | 1 |
+| Figuras complejidad/sparsity/calidad | COMPLETADO | S, E | Selección editorial | 1 |
+| Ejecutar campaña real 20:10:500 | COMPLETADO | 147 filas S | No repetir | 1 |
+| Seleccionar punto con malla completa | COMPLETADO | DPD P310 y PA legacy P340; selectores comprobados | P310 es punto de desarrollo, no óptimo RF demostrado | 1 |
+| Puntos RF y calidad RF vs P/FLOPs | PENDIENTE RF | P100/P310/P500 son candidatos documentados | Acordar y medir, no transmitir 49 por defecto | 2 |
 
-| Elemento | Estado | Observación |
+Se conserva el selector corregido: la malla piloto dispersa no autoriza
+ventanas ficticiamente completas. No se altera P310.
+
+## 5. Fase D — Eficiencia NMSE–FLOPs
+
+| Tarea original | Estado | Evidencia | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| Convención FLOPs y costes excluidos | COMPLETADO | E y contadores actuales | Exponerla en paper, no llamarla tiempo real | 1 |
+| Sparse ideal vs ejecución densa con máscaras | COMPLETADO | PNNN P310: 780 ideal, 2252 núcleo denso bajo contador | Sin benchmark físico | 1 |
+| Igual P y tablas sin reentrenar | COMPLETADO | S/E | Redacción | 1 |
+| Pareto por familia/global y dominados | COMPLETADO | E: global 49 PN-IQ + GMP P20/P30/P40; 95 dominados | No extrapolar a otras capturas | 1 |
+| Igual techo de FLOPs con modelos discretos | COMPLETADO | E: 145 techos, 435 filas; PN-IQ gana desde F=245 en techos observados | Ningún modelo interpolado ni RF inferido | 1 |
+| Igual NMSE objetivo | COMPLETADO | E: -38 dB exige GMP 812, PN-IQ 486; PNNN no alcanza | Umbrales RF aparte | 1 |
+| Error por amplitud, energía y muestras por bin | COMPLETADO | E: 20 cuantiles P310, 22118–22119 muestras/bin | No inferir causa física de la correlación | 1 |
+| Igual calidad RF y distorsión fuera de banda | PENDIENTE RF | Sin asociación RF S | ACPR/ACLR/EVM medidos | 2 |
+| Latencia/energía/recursos de implementación | OPCIONAL | FLOPs no los prueban | Benchmark si se formula esa afirmación | 3 |
+
+PN-IQ P310 gana 0.460601 dB a GMP con 38.63% menos FLOPs. A techo 780:
+PN-IQ P220 obtiene -38.639739 dB, GMP P140 -37.993928 y PNNN P310
+-35.482326. No se exige gastar exactamente el techo. En las siete primeras
+bandas de amplitud (35% de muestras) GMP supera a PN-IQ; PN-IQ gana en las
+otras trece. El error se concentra en amplitudes altas, sin demostrar memoria
+térmica, load modulation u otra causa física.
+
+No se suman indiscriminadamente raíces/divisiones/exponenciales a FLOPs.
+El coste ideal PNNN omite pesos cero y no incluye todo el z-score/activación;
+los campos genéricos del contador conservan el núcleo denso. E detalla estos
+límites. No se corrigen retrospectivamente 780, 1023 ni 1667.
+
+## 6. Fase E — Ablación y equivariancia
+
+| Tarea original | Estado | Evidencia | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| Definir GMP/PN-GMP/IQ/PN-IQ sin variantes artificiales | COMPLETADO | A: rotación unitaria compleja equivale al LS original; IQ nativo/común definidos | No presentar PN-GMP equivalente como factor independiente | 1 |
+| Control P, diccionario y soporte común | COMPLETADO | A: 15 modelos P100/P310/P500, mapas I/Q válidos | Redactar sesgo del soporte seleccionado para IQ | 1 |
+| Separar PN de «más grados de libertad» | PARCIAL | Mismo soporte/P: ganancias 0.495203/0.448105/0.596964 dB | No es descomposición causal total ni evidencia universal | 1 |
+| Interacción factorial aditiva PN × IQ | OPCIONAL | Equivalencia compleja impide interpretar cuatro nombres como factores independientes | Definir primero estimando/controles; no afirmar interacción medida | 3 |
+| Adaptar probe widely-linear PA a DPD | OPCIONAL | Probe PA conservado; A aporta controles DPD | Solo para una pregunta distinta bien definida | 3 |
+| Comparar ablación a igual P y costes | COMPLETADO | A tablas P/FLOPs; E familias principales | Tres P de controles no equivalen a curva densa de cada control | 1 |
+| Clasificar auxiliares y diagnosticar congelados | COMPLETADO | Q: 673 fuentes, 671 grado fase 1, conj(x) grado -1, abs(x) grado 0 | Ninguno para esta población | 1 |
+| Nuevo DOMP restringido y LS P100/P310/P500 | COMPLETADO | Q: dos rutas nuevas, seis modelos, soportes/SVD separados | No sustituir históricos | 1 |
+| Compromiso simetría/precisión | COMPLETADO | Q: defecto fase ~0.003 → ~1e-11, cinco de seis NMSE empeoran | Externa/RF si se propone usar la restricción | 2 |
+
+PN-IQ restringido gana a GMP en P310/P500 (0.384481/0.539807 dB) y pierde en
+P100 (0.265394 dB). Los auxiliares no explican toda la ventaja PN-IQ.
+La identidad de equivariancia no es novedosa por sí misma ni está garantizada
+para PN-IQ en muestras exactamente nulas con taps no nulos. En esta captura
+no hay ceros exactos; Q documenta excepción y redondeo. No se demuestra que
+los auxiliares históricos sean físicamente erróneos.
+
+## 7. Fase F — Reviewers: evidencia frente a respuesta en paper
+
+Solo se atribuyen a reviewers las **cinco observaciones recopiladas en la
+versión anterior de este plan**. No se ha verificado aquí una nueva carta
+original ni una respuesta enviada. POMP/Volterra corresponde a otros
+manuscritos: no se incorporan comentarios supuestos.
+
+| Origen / observación recopilada | Estado | Evidencia disponible | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| R1: regularización PNNN, falta valor en tabla | PARCIAL | **Consulta técnica COMPLETADA** R2026a: L2 densa=1e-4; peso=1, sesgo=0; fine-tuning sin L2 añadida | Incorporar valor/distinción de etapas a manuscrito, tabla y respuesta | 1 |
+| R1: añadir ACPR | PENDIENTE RF | Sin medidas comparables asociadas | Medir/publicar ACPR/ACLR real con bandas definidas | 2 |
+| R1: distorsión fuera de banda vs complejidad PNNN | PARCIAL | Sweep/coste offline S/E completados | RF/espectros medidos, no inferir distorsión PA del error ILC | 2 |
+| R2: identificar ~10% y evaluar sobre 100% | PARCIAL | Tres métricas y complemento comunes reportados | Límites, captura externa y protocolo de confirmación; trasladar al paper | 1/2 |
+| R2: ganancia PN frente a grados de libertad | PARCIAL | A a igual P/soporte, equivalencia unitaria y Q | Respuesta sin atribución causal total ni factorial ficticio | 1 |
+
+### Regularización efectiva, comprobada directamente
+
+`trainingOptions("adam")` en **MATLAB R2026a** devuelve
+`L2Regularization=1e-4`. `fullyConnectedLayer(2)` devuelve
+`WeightL2Factor=1`, `BiasL2Factor=0`. Ambas llamadas a `trainingOptions`
+en `toolbox/pnnn/trainDensePNNN.m` omiten una sobrescritura L2 y fc1/fcOut
+usan los factores por defecto. `trainnet` recibe `"mse"`. Por tanto, el
+entrenamiento denso provisional y definitivo utiliza MSE con regularización
+L2 sobre pesos, no sobre sesgos: **no es L2=0**. La red conserva fc1,
+sigmoide y fcOut. No se modificó arquitectura ni métrica.
+
+`toolbox/pnnn/pruneAndFineTunePNNN.m` calcula
+`mean((dlY-dlT).^2,"all")`, deriva ese loss, aplica máscaras y usa
+`adamupdate`; no añade L1/L2 ni weight decay. Los factores L2 de las capas
+no añaden por sí solos penalización al loss del bucle personalizado.
+Poda por magnitud y selección de épocas son mecanismos distintos de L1/L2.
+La validación interna selecciona duración; el refit usa épocas elegidas,
+no validación sobre el complemento. No se entrenó para esta consulta.
+
+Alcance: código actual + defaults efectivos R2026a. No es reconstrucción
+forense de opciones no serializadas en cada entrenamiento histórico.
+R conserva valores y consulta; no se cambió checkpoint ni hiperparámetro.
+
+Condicionamiento, normalización, equidad y FLOPs son requisitos técnicos
+revisados en B3/D/E, sin inventar atribuciones adicionales a R1/R2.
+
+## 8. Fase G — Preparación del artículo
+
+| Tarea original | Estado | Evidencia | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| Pregunta central/contribución PN-IQ | PARCIAL | Propuesta abajo, E/A/Q | Integrar en manuscrito sin novedad matemática no demostrada | 1 |
+| Separar PA/imitación ILC/linealización PA | PARCIAL | O y este plan | Revisar cada tabla/figura del paper | 1 |
+| Dataset, ILC, variables y preprocesado | PARCIAL | Captura/split/configuración trazables | Texto métodos; calibración/sincronización banco con tutor | 1/2 |
+| Comparación justa P/FLOPs/calidad | PENDIENTE OFFLINE | E terminado | Integrar resultados y límites del contador en paper | 1 |
+| Ablación/grados de libertad | PENDIENTE OFFLINE | A/Q terminados | Incorporar controles, negativos y límites | 1 |
+| Generalización/evaluación no entrenada | PARCIAL | Complemento; sin confirmación externa | Nueva captura/protocolo predefinido | 2 |
+| ACPR/ACLR, EVM y espectros medidos | PENDIENTE RF | No cerrado | Adquisición/análisis RF | 2 |
+| Incertidumbres memoria/potencia/normalización/hardware | PARCIAL | Límites E/A/Q documentados | Variación entre capturas/potencias; evitar causalidad no medida | 1/2 |
+| Trazabilidad tablas/figuras/scripts/modelos | COMPLETADO | S/A/E/Q, scripts copiados y MAT/CSV | Conservar correspondencia al seleccionar material | 1 |
+
+### Propuesta científica preliminar (aún no incorporada al paper)
+
+Estudiamos PN-IQ-GMP como aproximador DPD eficiente de una predistorsión ILC,
+comparándolo con GMP-DOMP complejo y PNNN sparse bajo protocolo común.
+En esta captura, PN-IQ mejora el compromiso precisión/coste a presupuestos
+moderados y altos: P310 aporta 0.4606 dB frente a GMP con 38.6% menos FLOPs
+analíticos; a igual techo discreto también domina en la región observada
+F≥245. No gana en todo P ni en toda región de amplitud.
+
+La ablación a igual P y con los mismos identificadores de características
+respalda un efecto de representación no reducible a rotar unitariamente el
+LS complejo. Candidatos y selección siguen importando: no atribuimos toda
+la ganancia a PN aislada. La restricción de auxiliares cuantifica el compromiso
+equivariancia/precisión sin eliminar la ventaja PN-IQ en P310/P500.
+Es evidencia de diseño, no innovación algebraica por el mero uso de PN.
+
+La contribución más sólida hoy es **experimental offline y comparativa**.
+Sería débil presentar la identidad de equivariancia como novedad o afirmar
+linealización RF solo por imitar x_ILC. RF deberá confirmar ACPR/ACLR/EVM/NMSE
+del PA con waveform/potencia/montaje comparables; otra captura debe confirmar
+generalización. Esa contribución RF todavía no está establecida.
+
+## 9. Decisiones abiertas: actualización de D1–D10
+
+| ID | Estado | Decisión / pendiente |
 |---|---|---|
-| Tres arquitecturas: Complex GMP-DOMP, PN-IQ-GMP y PNNN | [x] | Ya implementadas en `toolbox/`. |
-| Presupuesto común de parámetros reales | [x] | En P=340: 170 coeficientes complejos GMP, 170 características con dos salidas PN-IQ, o 326 pesos + 14 sesgos PNNN. |
-| Barrido original **del modelado PA** `20:10:500` | [x] | 49 presupuestos; **no es todavía el barrido de DPD**. |
-| Selección original de P=340 | [x] | Criterio de estabilización conjunta aplicado al modelado PA; **no asumir que es óptimo para DPD**. |
-| Primer experimento de imitación ILC con P=340 | [x] | NMSE offline y modelos recuperados. |
-| Carga e inferencia programática con `applyDPDModels` | [x] | Trabaja con un `bundle` y vector; `runDPDOnline` añade la entrada por archivo. |
-| Recuperación histórica `testDPD(340,"recover")` | [x] | Es recuperación de **la misma captura**, no entrenamiento desde cero de captura nueva. |
-| Selección libre de medidas para OFFLINE | [x] | `trainDPDOffline(measurementFile,P)`. |
-| OFFLINE/ONLINE separados y fáciles de ejecutar | [x] | Dos capturas sintéticas y recarga en sesión nueva verificadas. |
-| Barrido específicamente DPD | [ ] | Futuro; no ejecutarlo ahora. |
-| Ensayos RF con los tres DPD | [ ] | No inferirlos a partir del NMSE offline. |
-
-**Resultados de referencia para no mezclarlos:**
-
-| P=340 | Modelado PA, NMSE señal completa* | Imitación ILC, NMSE offline* |
-|---|---:|---:|
-| Complex GMP-DOMP | −38,860 dB | −38,456 dB |
-| PN-IQ-GMP | −42,740 dB | −38,931 dB |
-| PNNN | −39,243 dB | −35,630 dB |
-
-\* Las dos columnas corresponden a **objetivos diferentes**. Además, la evaluación denominada *señal completa* contiene el subconjunto usado para entrenar: **no es un test independiente**.
-
-**Protección del trabajo anterior:** no sobrescribir `.mat` históricos ni cambiar sus resultados de referencia. Guardar cada entrenamiento nuevo en un directorio específico de captura/configuración/ejecución; conservar la procedencia y, cuando corresponda, hashes de medidas/modelos.
-
----
-
-## 3. FASE A — Preparar OFFLINE/ONLINE para el laboratorio [PRIORIDAD A]
-
-### A1–A3. Implementación operativa
-
-- [x] `trainDPDOffline(measurementFile,P)`: rutas absolutas/relativas, carga
-  directa de x/y y conservación de fs cuando existe.
-- [x] Cada ejecución ajusta nuevos soportes/coeficientes y entrena una PNNN
-  densa desde cero; poda y fine-tuning al presupuesto P. Arquitectura, semillas,
-  selección de épocas y normalizaciones históricas conservadas.
-- [x] Bundle autocontenido con los tres modelos, métricas, configuración, split
-  y archivo de origen; carpeta nueva por ejecución, sin hashes.
-- [x] `runDPDOnline(modelFile,inputFile)`: carga explícita, entrada x sin y,
-  inferencia mediante `applyDPDModels`, MAT nuevo con tres salidas
-  `dpd(k).yvalmod` y `dpd(k).modeltype`.
-- [x] No hay DOMP, entrenamiento, poda ni fine-tuning durante ONLINE.
-- [ ] Confirmar semántica física, fs, amplitud, periodicidad y DC con el tutor
-  para cada campaña. No se deducen ni verifican automáticamente.
-- [ ] NMSE opcional de una nueva señal ONLINE con objetivo disponible; no
-  confundirlo con la evaluación RF.
-
-### A4. Pruebas antes de ir al laboratorio
-
-- [x] Dos capturas sintéticas generan entrenamientos independientes con P exacto.
-- [x] Guardado/recarga, longitud compleja, orden de modelos y no sobrescritura.
-- [x] Instrumentación: ONLINE no llama al entrenamiento; recarga en MATLAB nuevo.
-- [x] Inferencia del P340 guardado idéntica a su ONLINE anterior, sin reentrenarlo.
-- [ ] Revisar salidas contra límites DAC, CFR/PAPR, DC y sincronización del banco.
-- [ ] Ejecutar entrenamientos reales nuevos solo con autorización; no se ejecutan
-  en esta refactorización.
-
-**Hito A — Listo para laboratorio:** el tutor puede entregar `medida.mat`; se completan **OFFLINE → ONLINE** sin tocar el código ni volver a entrenar durante ONLINE.
-
----
-
-## 4. FASE B — Validación científica DPD rigurosa [PRIORIDAD B]
-
-### B1. Separar entrenamiento y evaluación
-
-> Crítica del Reviewer 2: usar el ~10 % para identificar y reportar NMSE sobre el 100 % mezcla muestras vistas y no vistas.
-
-- [ ] Mantener la partición **histórica** como referencia reproducible, sin modificar resultados pasados.
-- [ ] Definir una evaluación principal sobre el **~90 % no empleado para ajustar** la versión final de cada modelo; documentar exactamente índices y posible contacto temporal con muestras de entrenamiento por efectos de memoria.
-- [ ] Conservar un conjunto **interno** de validación si se necesitan seleccionar épocas/ajustes, sin contaminar el conjunto externo de prueba.
-- [ ] Para las tres arquitecturas, utilizar las **mismas muestras de prueba**, misma definición de NMSE y escalado.
-- [ ] Distinguir en tablas/figuras: `NMSE_identificación`, `NMSE_test_90%`, `NMSE_señal_completa` (solo diagnóstico) y, cuando exista, `NMSE_RF_salida_PA`.
-- [ ] Considerar pruebas con **otra captura independiente** para estudiar generalización a otros estados del PA.
-
-**Aceptación B1:** nunca llamar *test independiente* a la señal completa de la que proceden las muestras de entrenamiento.
-
-### B2. Medir la calidad real de los predistorsionadores
-
-- [ ] Obtener salidas de los tres DPD entrenados para la **misma señal deseada y estado del PA**.
-- [ ] Medir sobre el mismo montaje, potencia y procedimiento: referencia sin DPD, ILC de referencia (si procede), GMP-DOMP, PN-IQ-GMP y PNNN.
-- [ ] Registrar **entrada realmente enviada al PA** (posible CFR), salida PA capturada, sincronización, ganancias, amplitudes y límites del equipo.
-- [ ] Calcular **NMSE de salida PA** respecto de la referencia adecuada; **ACPR/ACLR**, espectros y **EVM** cuando sea aplicable.
-- [ ] Guardar señales y metadatos de RF sin sustituir las inferencias originales.
-- [ ] Garantizar comparabilidad (misma waveform, frecuencia de muestreo, potencia, configuración del amplificador y procedimiento de adquisición).
-
-**Aceptación B2:** tabla experimental de linealización; **no** presentar NMSE de imitación ILC como NMSE físico del PA.
-
-### B3. Fiabilidad numérica y física
-
-- [ ] Investigar la característica de entrada PNNN teóricamente nula que tiene `sigmaX` casi cero (~8×10⁻¹⁹ en el checkpoint histórico). No modificar el baseline silenciosamente: hacer variante controlada con nueva validación si procede.
-- [ ] Aclarar cómo se normalizan/acondicionan las columnas de cada familia y qué magnitudes son comparables entre métodos.
-- [ ] Documentar coste de generación de características, retardos, operaciones especiales y condiciones para aprovechar la poda en ejecución real.
-- [ ] Analizar físicamente los resultados cuando exista evidencia (memoria, AM/PM, amplitud y efectos de potencia), evitando explicaciones no demostradas.
-
----
-
-## 5. FASE C — Barrido DPD de complejidad para la Transactions [PRIORIDAD C; NO EJECUTAR AHORA]
-
-**Objetivo:** repetir el análisis `P = 20:10:500` pero para la relación **`u → x_ILC`** y, donde se mida el PA, para la eficacia de linealización.
-
-- [ ] Diseñar una entrada `runDPDParameterSweep(measurementFile,parameterGrid)` (**API propuesta**), que **reutilice funciones OFFLINE**, no una implementación independiente.
-- [ ] Una ruta DOMP por arquitectura lineal y captura; usar sus prefijos para varios presupuestos de **la misma captura**.
-- [ ] Una red densa PNNN por captura y configuración; generar podas independientes y *fine-tuning* por presupuesto sin entrenar la densa desde cero 49 veces.
-- [ ] Guardar checkpoint por presupuesto en una carpeta explícita de la misma captura; reanudar explícitamente si se interrumpe.
-- [ ] Guardar **modelos inferibles**, métricas y metadatos por punto; no limitarse a predicciones.
-- [ ] Para cada presupuesto, calcular parámetros reales activos, FLOPs, NMSE offline de identificación/test y coste numérico adicional pertinente.
-- [ ] Exportar curvas: NMSE vs parámetros, NMSE vs FLOPs, FLOPs vs parámetros, sparsity vs calidad.
-- [ ] Seleccionar presupuestos representativos para ensayos RF y añadir **ACLR/ACPR/EVM vs parámetros/FLOPs** (si hay suficientes mediciones).
-- [ ] Seleccionar **un nuevo punto operativo específico para DPD**; no trasladar automáticamente el P=340 escogido en modelado PA.
-
-**Regla de rendimiento:** el barrido debe poder reutilizar cálculos **dentro de una captura**, sin reutilizar modelos de otra campaña.
-
----
-
-## 6. FASE D — Comparaciones de complejidad y calidad [PRIORIDAD C]
-
-| Comparación | Pregunta | Condición para hacerlo bien |
-|---|---|---|
-| **Igual número de parámetros reales activos** | ¿Quién aprovecha mejor P coeficientes/pesos? | Misma definición de parámetro y mismo conjunto de datos. |
-| **Igual presupuesto de FLOPs** | ¿Quién funciona mejor con un coste aritmético parecido? | Elegir puntos bajo un techo común de FLOPs o interpolar curvas justificándolo; los FLOPs reales pueden ser discretos. |
-| **Igual calidad objetivo** | ¿Quién alcanza cierto NMSE / ACLR / EVM con menos parámetros o FLOPs? | Calidad evaluada con la **misma métrica y el mismo conjunto de prueba**; RF solo cuando exista medida. |
-| **Coste de implementación real** | ¿Quién consume menos recursos, latencia o energía? | Requiere prototipo/benchmark específico; los FLOPs son solo un indicador. |
-
-- [ ] Conservar una **convención explícita de conteo** (sumas/multiplicaciones reales y complejas; activaciones, divisiones y generación de características reportadas de forma transparente).
-- [ ] Distinguir los FLOPs **ideales de inferencia sparse** de PNNN del tiempo real de MATLAB y del hardware.
-- [ ] Mantener tablas que permitan comparar por parámetros, FLOPs y calidad sin reentrenar para generar cada figura.
-- [ ] Cuando las arquitecturas tengan diccionarios candidatos diferentes, explicitar que **igual P no implica idéntico espacio de representación**.
-
----
-
-## 7. FASE E — Estudio de ablación de PN-IQ-GMP [PRIORIDAD C]
-
-**Nombre del experimento:** **estudio de ablación (*ablation study*)**. Objetivo: separar la contribución de la **normalización de fase (PN)**, de la representación/ajuste **I/Q** y de su posible interacción.
-
-| Variante conceptual | PN | Representación I/Q independiente | Estado |
-|---|:---:|:---:|---|
-| GMP de referencia | No | No | [x] Disponible como referencia. |
-| PN-GMP | Sí | No | [ ] Definir qué cambio representa realmente. |
-| IQ-GMP | No | Sí | [ ] Definir selección y restricciones de coeficientes. |
-| PN-IQ-GMP | Sí | Sí | [x] Modelo existente; falta ablación completa. |
-
-**Advertencias científicas clave:**
-
-- Rotar y desrotar la fase de un **GMP complejo lineal** puede ser una transformación **matemáticamente equivalente** al GMP original. No atribuir a PN una mejora que no pueda existir bajo la definición propuesta.
-- PN-IQ modifica también el **diccionario disponible**, la **selección del soporte** y la **libertad de los coeficientes**. Hacen falta controles adicionales para aislar cada causa, no solo cuatro nombres de modelos.
-- Incluir, cuando esté bien definido, un control por **libertad de coeficientes** y otro por **tamaño/composición del diccionario**, para atender la duda del Reviewer 2 sobre *degrees of freedom*.
-- El experimento auxiliar **widely-linear GMP** ya existe para el modelado PA; valorar su reproducción/adaptación a DPD, sin presentarlo como sustituto de toda la ablación.
-- Comparar variantes con el **mismo P** y, en una fase posterior, por **coste parecido**. Usar las mismas medidas, splits y criterios.
-- [ ] Analizar si hay una **interacción PN × IQ**, es decir, si la combinación aporta más que la suma de sus efectos aislados. Evitar afirmar de antemano que existe sin datos.
-
-**Aceptación E:** una tabla y curvas que permitan explicar, con controles matemáticamente bien definidos, **de dónde procede la ganancia de PN-IQ-GMP**.
-
----
-
-## 8. FASE F — Revisiones científicas incorporadas al plan
-
-Estas observaciones provienen de los **Reviewer 1 y 2** compartidos para el trabajo anterior. Se consideran requisitos de análisis para la Transactions, no órdenes de modificar sin validar.
-
-| Origen | Observación | Acción | Prioridad | Estado |
-|---|---|---|---|---|
-| R1 | ¿Qué regularización utiliza la función de coste de PNNN? En la tabla falta valor. | Documentar **explícitamente si no existe regularización L1/L2**; si procede, estudiar una variante regularizada y reportar el coeficiente. No confundir poda con penalización L1/L2. | B/C | [ ] |
-| R1 | Añadir ACPR en la tabla. | Medir y publicar **ACPR/ACLR del PA** con las señales DPD; no inventarlo a partir de NMSE offline. | B | [ ] |
-| R1 | ¿Mejora la distorsión fuera de banda al aumentar la complejidad PNNN? | Barrido de complejidad DPD y espectros/medidas RF en puntos seleccionados. | C | [ ] |
-| R2 | Se identifica con 10 % de ~49k muestras y se valida con el 100 %. | Reservar y reportar el **90 % no usado para entrenamiento** como evaluación externa, además de conservar el histórico por compatibilidad. | B | [ ] |
-| R2 | ¿La mejora procede de PN o de más grados de libertad? | Ablación factorial PN/IQ + controles de libertad de coeficientes/diccionario. | C | [ ] |
-
-**Nota de alcance:** comentarios de otras revisiones sobre POMP/Volterra o formulaciones diferentes deben inventariarse **por separado** antes de incorporarlos; no asumir que se refieren a este mismo manuscrito.
-
----
-
-## 9. FASE G — Redacción y figuras de la Transactions [PRIORIDAD C]
-
-- [ ] Establecer la **pregunta científica central** de la Transactions: eficacia DPD real y relación precisión/complejidad de GMP-DOMP, PN-IQ-GMP y PNNN.
-- [ ] Separar claramente resultados de **modelado PA**, **imitación offline del ILC** y **linealización experimental PA**.
-- [ ] Explicar el origen del conjunto de medidas: ILC y PA, variables `u`, `x`, `xCFR`, `y`; ruta de ganancia, sincronización y preprocesado.
-- [ ] Mostrar comparación justa en parámetros, FLOPs y nivel de calidad, sin confundir FLOPs ideales con implementación real.
-- [ ] Incluir ablación PN/IQ y controles de grados de libertad.
-- [ ] Incluir pruebas de generalización con evaluación no entrenada y, si se puede, captura independiente.
-- [ ] Incluir ACPR/ACLR, EVM y espectros medidos cuando estén disponibles.
-- [ ] Presentar incertidumbres y límites: efectos de memoria, sensibilidad a potencia, normalización y recursos de hardware.
-- [ ] Mantener trazabilidad tabla/figura → CSV/MAT/captura/modelo/configuración/script.
-
-**Fecha orientativa de trabajo:** enero de 2027. Confirmar convocatoria/plazo real antes de fijar calendario irreversible.
-
----
-
-## 10. Orden de ejecución recomendado (sin lanzar nada ahora)
-
-1. **Revisar contrato de medidas con el tutor:** archivo ejemplo, x/y, frecuencia, potencia y propósito DPD; confirmar tratamiento de `x` y `xCFR` para comparaciones físicas.
-2. **Mantener A1–A3 (implementadas):** selección de medidas, OFFLINE completo para P fijo, deploy y ONLINE por archivo.
-3. **Pasar A4:** pruebas sintéticas y una corrida real autorizada; verificar que ONLINE no entrena.
-4. **Comprobar uso en laboratorio (B2):** generar los tres DPD, transmitir y medir con controles RF apropiados.
-5. **Cerrar B1/B3:** partición independiente, tratamiento numérico y documentación de complejidad.
-6. **Después, sin afectar el flujo normal, desarrollar C/D/E:** barrido DPD, FLOPs/igual calidad y ablaciones.
-7. **Preparar G:** tablas/figuras reproducibles, interpretación y texto del artículo.
-
-**No hay que implementar todo a la vez.** Cada etapa exige pasar su aceptación antes de darla por cerrada.
-
----
-
-## 11. Decisiones abiertas — resolver antes de codificar o transmitir
-
-| ID | Pregunta | Situación / criterio |
-|---|---|---|
-| D1 | ¿El `.mat` nuevo siempre contiene `x`, `y`? | El usuario indica que sí; validar con la primera captura real. |
-| D2 | ¿Cómo se selecciona la señal para ONLINE? | Permitir archivo de entrada independiente del de entrenamiento; prioridad a `x` según `xy_forward`. |
-| D3 | ¿Puede entrenarse de nuevo la **misma** captura a petición del usuario? | Sí, crear **otra ejecución sin sobrescribir**; la recuperación no debe sustituir al entrenamiento explícito. |
-| D4 | ¿Qué datos usa el NMSE principal? | Plan: identificación para ajuste, test no visto para métrica principal; conservar resultado histórico en campo distinto. |
-| D5 | ¿Cuál es la entrada física correcta del modelo PA? | Confirmar `x` frente a `xCFR` y el preprocesado de `_forward_xy.mat`; no inferirlo del nombre. |
-| D6 | ¿Cuál es el criterio para reentrenar ante cambios del PA? | Por defecto cada nueva captura de identificación → entrenamiento nuevo. Inferencia con modelo antiguo solo como prueba explícita de generalización. |
-| D7 | ¿Cómo comparar con presupuesto igualado de FLOPs? | Definir umbrales/discretización y qué operaciones computar antes de publicar resultados. |
-| D8 | ¿Qué cuatro variantes exactas constituyen la ablación? | Requieren especificación matemática que evite variantes equivalentes artificiales. |
-| D9 | ¿Qué metadatos del banco RF son imprescindibles? | Confirmar ganancia, potencia, fs, alineación, CFR/DAC y métricas con el tutor. |
-| D10 | ¿Cómo resolver el canal de desviación casi nula PNNN? | Investigar fuera de baseline; cambio solo con nueva versión experimental. |
-
----
-
-## 12. Registro de avance (actualizar tras cada sesión)
-
-| Fecha | Captura / versión | Paso | Estado | Evidencia / archivo | Próxima acción |
-|---|---|---|---|---|---|
-| 2026-10-09 | `experiment20260429T134032_xy.mat` · P340 | Recuperación de modelos DPD históricos | Completada **según validación MATLAB reportada** | `docs/DPD_ILC.md`; archivos locales `models_P340.mat`, `validation_20261009_001045_626.mat` | Diseñar flujo nuevo sin romper histórico |
-| 2026-10-11 | Planificación | Definición OFFLINE/ONLINE por archivo y roadmap Transactions | Documentada | Este `.md` | Empezar por A1 cuando se autorice |
-| 2026-10-11 | Dos capturas sintéticas, 512 muestras, P20; baseline P340 preservado | Implementación A1–A3 y pruebas ligeras A4 | Código implementado; validación sintética y MATLAB reiniciado superadas. No se da por cerrado el hito de laboratorio | `trainDPDOffline.m`, `runDPDOnline.m`, `docs/DPD_ILC.md`, tests `run_dpd_offline_online_test` / `run_dpd_online_fresh_session_test`; 6 DOMP + 6 trainnet OFFLINE, 0 entrenamiento ONLINE, predicciones idénticas tras recarga | Autorizar primer OFFLINE real; confirmar semántica, fs, amplitud, DC y compatibilidad con el tutor. Sin RF ni barrido DPD |
-| — | — | — | Pendiente | — | — |
-| 2026-10-11 | Dos tests sintéticos P20 y P340 real ya guardado | Simplificación OFFLINE/ONLINE solicitada | Código de producción 247 → 58 líneas; tres helpers eliminados. Tests y recarga pasan; P340 reproduce exactamente su ONLINE anterior (error relativo 0) | `trainDPDOffline.m`, `runDPDOnline.m`, `docs/DPD_ILC.md`; sin Java de archivos, hashes de medidas ni gestión UUID propia | Mantener formato conocido x/y/fs y protocolo científico; sin reentrenar P340 ni transmitir RF |
-
-| 2026-10-12 | Referencia sintética y P340 guardado | Simplificación de infraestructura y clases heredadas | Firmas eliminadas; checkpoints directos con reanudación explícita; matemáticas preservadas | `docs/DPD_ILC.md`, tests de regresión y reanudación | Validación física y fases B–G siguen pendientes; sin RF ni reentrenar P340 |
-
-### Plantilla breve para próximas sesiones
-
-```text
-Fecha:
-Archivo de medidas (ruta/nombre):
-Objetivo: OFFLINE / ONLINE / RF / SWEEP / ABLACIÓN / OTRO
-Modelo(s) y presupuesto(s):
-Qué se ejecutó:
-Resultados (NMSE identificación/test, FLOPs, ACPR/ACLR, EVM si procede):
-Dónde se guardaron los modelos y señales:
-Problemas o decisiones tomadas:
-Qué toca después:
-```
-
----
-
-## 13. Referencias operativas
-
-- Repositorio actual: `sermunagu/PNNN_PNGMP_DOMP_fair_comparison`.
-- Repositorio del flujo original: `sermunagu/PNNN` (`train_PNNN_offline.m`, `run_PNNN_online_from_xy.m`, `config/getPNNNConfig.m`).
-- Lógica DPD actual: `trainDPDOffline.m`, `runDPDOnline.m`, `llamadas_DPD.m`, `toolbox/sweep/applyDPDModels.m`, `docs/DPD_ILC.md`.
-- Barrido anterior: `run_parameter_sweep.m`, `run_selected_comparison.m`, `toolbox/sweep/selectOperatingPoint.m`.
-- Modelos y datos: `measurements/experiment20260429T134032_xy.mat` para imitación ILC; `_forward_xy.mat` para comparación anterior del PA.
-- Código adquisición ILC: `sermunagu/ILC_PAWR2027_v20260428`, donde aparecen las señales `u`, `x`, `xCFR`, `y` y `meas_out`.
-
-**Regla de conservación:** incorporar este documento a `docs/` cuando se decida actualizar el repositorio. Crear el `.md` por sí solo **no modifica el GitHub ni implica ejecutar los experimentos**.
+| D1, x/y en nuevas medidas | PARCIAL | Contrato software disponible; significado físico/fs por campaña |
+| D2, entrada ONLINE independiente | COMPLETADO | Archivo explícito, x, sin y obligatoria |
+| D3, reentrenar misma captura | COMPLETADO | Petición explícita, ejecución nueva sin sobrescribir; distinto de recuperación |
+| D4, NMSE principal | COMPLETADO | Complemento para desarrollo/selección; identificación/full secundarios; no test externo |
+| D5, x frente a xCFR en PA | PENDIENTE RF | Confirmar señal enviada y adquisición con tutor |
+| D6, cambio PA/nueva identificación | COMPLETADO | Nueva captura a identificar: entrenamiento nuevo; reutilización explícita para generalización |
+| D7, FLOPs igualados | COMPLETADO | Techos discretos, mejor modelo factible; no interpolación como resultado |
+| D8, cuatro variantes PN/IQ | COMPLETADO | Controles matemáticos A; no factorial aditivo medido |
+| D9, metadatos RF | PENDIENTE RF | Potencia/ganancias/fs/alineación/CFR/DAC/bandas/referencias |
+| D10, canal PNNN casi nulo | COMPLETADO | Diagnóstico y variante real P310 guardados; baseline intacto |
+
+## 10. Próximos pasos priorizados
+
+| Tarea | Estado | Evidencia | Qué falta | Prioridad |
+|---|---|---|---|---:|
+| Métodos, tabla eficiencia y respuesta limitada R1/R2 | PENDIENTE OFFLINE | E/A/Q/R y S | Redacción editorial/integración manuscrito | 1 |
+| Seleccionar figuras no redundantes y resultados negativos | PENDIENTE OFFLINE | Cinco figuras E/Q y ablación existente | Selección, no nuevos cálculos | 1 |
+| Predefinir validación externa/puntos RF | PARCIAL | P310, extremos P100/P500 conocidos | Acuerdo tutor: referencia/captura/potencia/métricas/límites | 2 |
+| Nueva captura y linealización comparativa | PENDIENTE RF | Modelos/exportaciones disponibles | Laboratorio autorizado, calibración y datos | 2 |
+| Analizar RF con trazabilidad/variación experimental | PENDIENTE RF | Plantilla `rf_measurements.csv` | Asociar medidas y calcular métricas reales | 2 |
+| Precisión reducida/hardware/perturbación de matriz | OPCIONAL | Condiciones ~1e8 aconsejan prudencia | Solo para afirmaciones específicas de implementación | 3 |
+| Más arquitecturas/podas PNNN u otro sweep de 49 redes | OPCIONAL | Baseline y variante P310 existen | No recomendado para este objetivo ni autorizado aquí | 3 |
+
+## 11. Cierre de ejecución y conservación
+
+El 20/10 se terminó E y se guardaron todos los cálculos Q. El 21/10 se
+inspeccionó MATLAB PID32796, CPU, log y checkpoints: la exportación llevaba
+más de 13 h sin nuevos archivos. Se cerró solo ese proceso identificado;
+no se lanzó otro hasta confirmar su salida. Se completaron el TikZ de NMSE y
+la figura de equivariancia P310 desde MAT/FIG, sin repetir cálculos.
+Ambos gráficos Q se inspeccionaron visualmente; `matlab2tikz` avisa de que
+`legend('Location','best')` usa una posición por defecto en TikZ, sin afectar datos.
+
+Pasaron: tablas E iguales a S, splits E/Q idénticos, muestras por bins,
+seis presupuestos activos P exactos/rangos P/2, longitudes 491520,
+selectores DPD P310/PA legacy P340 y apertura de los cinco FIG. El primer
+chequeo se detuvo después en tres avisos `checkcode` por supresiones AGROW
+obsoletas; se retiraron solo esos comentarios, sin repetir pruebas superadas.
+El `checkcode` final pasó sin mensajes en ambos ejecutores y en los scripts
+de recuperación/consulta; los logs se conservan en Q.
+R2026a confirmó L2=1e-4. El inventario de 511 archivos históricos
+(medidas/resultados fuera de E/Q) coincide en rutas, tamaños y fechas con
+el previo: control de no escritura, no nueva comparación criptográfica
+ni repetición de inferencias.
+
+Se mantienen las verificaciones exactas históricas de seis predictores
+P310/P340 y quince de ablación documentadas, sin reejecutarlas.
+No se modificaron algoritmos compartidos, normalizaciones, soportes,
+coeficientes, lambdas, métricas ni checkpoints históricos. No hubo nuevo
+entrenamiento PNNN, sweep completo, RF, commit ni push.
+
+## 12. Referencias operativas actuales
+
+Desde la raíz: `addpath('PA','DPD','PA/experiments','DPD/experiments')`.
+
+- OFFLINE/ONLINE: `DPD/trainDPD.m`, `DPD/runDPDOnline.m`, `DPD/exampleDPD.m`, `toolbox/sweep/applyDPDModels.m`.
+- Sweep DPD: `DPD/runDPDSweep.m`, reanudación por carpeta explícita; no ejecutar para este cierre.
+- PA: `PA/runPA.m`, `PA/runPASweep.m`, `PA/comparePA.m`. `comparePA(P)` sin sweep puede iniciarlo completo: no usar como consulta.
+- Experimentos: `DPD/experiments/runPNIQAblation.m`, `runPNNNPhaseExperiment.m`, `analyzeDPDEfficiency.m`, `runGMPPhaseStudy.m`.
+- Configuración: `config/getComparisonConfig.m`; lineales `fitLinearModels`, `fitComplexGMP`, `fitPNIQGMP`, `fitFixedRidge`.
+- Nombres anteriores se mantienen en los registros históricos como procedencia, no como comandos operativos.

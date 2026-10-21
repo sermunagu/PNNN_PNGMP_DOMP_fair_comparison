@@ -3,19 +3,22 @@ function U = buildGMPRegressorRows(x, rows, rManagerGMP, support)
 % The helper preserves the periodic indexing and regressor ordering used by
 % the current block GMP baseline without mutating the regressor manager.
 
-
 x = x(:);
 rows = double(rows(:));
 support = double(support(:).');
 regPopulation = rManagerGMP.regPopulation(support);
 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MAIN PROCESSING LOGIC: BUILD THE GMP REGRESSION MATRIX
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 regSpecs = prepareRegressorSpecs(regPopulation);
-shifts = collectShifts(regSpecs);
+shifts = [];
+for k = 1:numel(regSpecs)
+    shifts = [shifts, regSpecs(k).Xq, regSpecs(k).Xconjq, ...
+        regSpecs(k).Xenvq]; %#ok<AGROW>
+end
+if isempty(shifts)
+    shifts = 0;
+else
+    shifts = unique(shifts, 'stable');
+end
 nRows = numel(rows);
 nRegs = numel(support);
 nSignal = numel(x);
@@ -24,7 +27,7 @@ tap = cell(numel(shifts), 1);
 absTap = cell(numel(shifts), 1);
 
 for k = 1:numel(shifts)
-    idx = wrapIndex(rows - shifts(k), nSignal);
+    idx = mod(rows - shifts(k) - 1, nSignal) + 1;
     tap{k} = x(idx);
     absTap{k} = abs(tap{k});
 end
@@ -51,12 +54,6 @@ for k = 1:nRegs
     U(:, k) = value;
 end
 end
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% AUXILIAR FUNCTIONS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function regSpecs = prepareRegressorSpecs(regPopulation)
 nRegs = numel(regPopulation);
@@ -88,22 +85,4 @@ p = zeros(size(q));
 for k = 1:numel(q)
     p(k) = sum(terms == q(k));
 end
-end
-
-function shifts = collectShifts(regSpecs)
-shifts = [];
-for k = 1:numel(regSpecs)
-    shifts = [shifts, regSpecs(k).Xq, regSpecs(k).Xconjq, ...
-        regSpecs(k).Xenvq]; %#ok<AGROW>
-end
-
-if isempty(shifts)
-    shifts = 0;
-else
-    shifts = unique(shifts, 'stable');
-end
-end
-
-function idx = wrapIndex(idx, nSignal)
-idx = mod(idx - 1, nSignal) + 1;
 end

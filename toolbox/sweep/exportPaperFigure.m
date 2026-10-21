@@ -21,8 +21,7 @@ files = struct( ...
 
 set(figureHandle, 'Color', 'w', 'InvertHardcopy', 'off');
 originalVisible = figureHandle.Visible;
-visibilityCleanup = onCleanup(@() restoreVisibility( ...
-    figureHandle, originalVisible));
+visibilityCleanup = onCleanup(@() set(figureHandle, 'Visible', originalVisible));
 figureHandle.Visible = 'on';
 savefig(figureHandle, char(files.fig));
 clear visibilityCleanup;
@@ -38,10 +37,4 @@ if isfield(options, 'tikzExtraAxisOptions')
         {'extraAxisOptions', options.tikzExtraAxisOptions}];
 end
 matlab2tikz(matlab2tikzArguments{:});
-end
-
-function restoreVisibility(figureHandle, originalVisible)
-if isgraphics(figureHandle, 'figure')
-    figureHandle.Visible = originalVisible;
-end
 end
