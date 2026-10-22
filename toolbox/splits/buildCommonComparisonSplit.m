@@ -5,10 +5,9 @@ x = x(:);
 y = y(:);
 n_samples = numel(x);
 
-% Keep the original deterministic identification selector.
+% Identification is deterministic; identificationSeed remains historical metadata.
 previous_rng = rng;
 cleanup = onCleanup(@() rng(previous_rng));
-rng(cfg.identificationSeed, 'twister');
 identification = double(selectPeakSegment(x, y, cfg.identificationFraction));
 identification = identification(:);
 full_signal = (1:n_samples).';

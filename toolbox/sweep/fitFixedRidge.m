@@ -25,7 +25,7 @@ else
     storedColumns = zeros(1, 0);
 end
 
-manager = buildGMPManager(x, y, cfg.gmp);
+manager = buildGMPManager(cfg.gmp);
 identificationTarget = y(identificationRows);
 fullSignalTarget = y(fullSignalRows);
 targetEnergyIdentification = sum(abs(identificationTarget).^2);

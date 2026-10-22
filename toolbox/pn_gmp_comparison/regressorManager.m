@@ -8,7 +8,7 @@ classdef regressorManager < matlab.mixin.Copyable
     %%
     methods
         %% regressorManager: builder
-        function self = regressorManager(~,~,config)
+        function self = regressorManager(config)
             self.Qpmax = config.Qpmax;
             self.Qnmax = config.Qnmax;
             self.Pmax = config.Pmax;

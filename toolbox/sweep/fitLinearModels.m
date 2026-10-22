@@ -5,7 +5,7 @@ function [linear, models] = fitLinearModels(x, y, split, cfg, paths)
 
 x = x(:);
 y = y(:);
-manager = buildGMPManager(x, y, cfg.gmp);
+manager = buildGMPManager(cfg.gmp);
 
 %% Report the initial dense Complex GMP size
 Q = numel(manager.regPopulation);

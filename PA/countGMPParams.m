@@ -12,7 +12,7 @@ cfg = getComparisonConfig(projectRoot);
 
 %% Reconstruct the common GMP candidate population
 % Population size depends on the dictionary configuration, not the capture.
-manager = buildGMPManager([], [], cfg.gmp);
+manager = buildGMPManager(cfg.gmp);
 
 numComplexRegressors = numel(manager.regPopulation);
 

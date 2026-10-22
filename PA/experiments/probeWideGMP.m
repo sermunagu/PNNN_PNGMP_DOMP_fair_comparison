@@ -16,7 +16,7 @@ if cfg.pnnn.removeDC
 end
 
 split = buildCommonComparisonSplit(x, y, cfg);
-manager = buildGMPManager(x, y, cfg.gmp);
+manager = buildGMPManager(cfg.gmp);
 population = (1:numel(manager.regPopulation)).';
 
 trainRows = split.internalTrainIndices(:);

@@ -13,7 +13,7 @@ models = saved.bundle.models(1:2);
 historicalMetrics = saved.bundle.metrics(1:2,:);
 clear saved;
 cfg.sweep.parameterGrid = P;
-manager = buildGMPManager(x, y, cfg.gmp);
+manager = buildGMPManager(cfg.gmp);
 population = (1:numel(manager.regPopulation)).';
 K = numel(population);
 descriptors = arrayfun(@(k) factorizeGMPRegressor(manager.regPopulation(k),k), population);
