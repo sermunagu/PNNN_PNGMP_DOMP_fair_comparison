@@ -86,6 +86,6 @@ cfg.selection.names = cfg.names;
 cfg.paper = struct();
 cfg.paper.matlab2tikzSource = fullfile(projectRoot, 'third_party', ...
     'matlab2tikz', 'src');
-cfg.paper.validationNMSELabel = "Full-signal NMSE (dB)";
+cfg.paper.validationNMSELabel = "Validation NMSE (dB)";
 
 end
